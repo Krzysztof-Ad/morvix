@@ -18,7 +18,69 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      # gcc/g++ and a JDK come preinstalled on the runners, so the adapter
-      # tests run; nasm/rust/valgrind tests skip themselves when absent.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      # valgrind is Linux-only; install it so the memory-correctness test runs
+      # for real rather than skipping. gcc/g++ and rustc are preinstalled on the
+      # GitHub runners, so the C/C++/Rust adapter tests run too.
+      - name: Install valgrind (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y valgrind
       - run: pip install -e ".[dev]"
       - run: pytest -q
+
+  # The sacred path: prove a Receiver can run a package with ONLY system
+  # python3 - no Morvix install anywhere. One job builds a package; a second,
+  # deliberately Morvix-free, job unpacks it and runs ./run.sh.
+  build-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Build a shareable package
+        run: |
+          mkdir demo && cd demo
+          printf 'import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n' > sol.py
+          morvix init --name demo --language python
+          morvix import sol.py
+          morvix reference sol.py
+          morvix gen --random --shape ints --count 5 --seed 1
+          morvix gen --expected
+          morvix package --zip --out ../pkg.zip
+          cp sol.py ../sol.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: receiver-package
+          path: |
+            pkg.zip
+            sol.py
+
+  receiver-clean:
+    needs: build-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: receiver-package
+      # No checkout, no pip install: Morvix must not be present on this runner.
+      - name: Confirm Morvix is absent
+        run: |
+          if python3 -c "import morvix" 2>/dev/null; then
+            echo "morvix is importable here - this job must be Morvix-free"; exit 1
+          fi
+          echo "morvix is absent - good"
+      - name: Unpack and run ./run.sh with only system python3
+        run: |
+          mkdir r && cd r
+          unzip ../pkg.zip
+          cp ../sol.py .
+          sh run.sh sol.py | tee out.txt
+          grep -q "passed" out.txt
