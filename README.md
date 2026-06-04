@@ -1,5 +1,10 @@
 # Morvix
 
+[![PyPI version](https://img.shields.io/pypi/v/morvix.svg)](https://pypi.org/project/morvix/)
+[![Python versions](https://img.shields.io/pypi/pyversions/morvix.svg)](https://pypi.org/project/morvix/)
+[![CI](https://github.com/Krzysztof-Ad/morvix/actions/workflows/ci.yml/badge.svg)](https://github.com/Krzysztof-Ad/morvix/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A test-authoring, test-running, and test-sharing CLI for university programming assignments.
 
 Most courses don't hand out test suites, so students end up writing their own: they build test

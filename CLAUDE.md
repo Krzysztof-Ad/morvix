@@ -79,3 +79,20 @@ Comments are plain-English header blocks per file/function with occasional `# - 
 multi-step logic; sparse inline comments; no heavy docstrings. Keep code simple - this is open
 source and meant to be readable by a newcomer. Commit messages are conventional (`feat:`, `fix:`,
 `chore:`, `refactor:`, `docs:`, `test:`), lowercase, no body or trailers.
+
+## Releasing
+
+The package is on PyPI (https://pypi.org/project/morvix/) and publishes automatically via PyPI
+Trusted Publishing - no API token is stored. `.github/workflows/publish.yml` builds and uploads
+when a GitHub Release is published, authenticating through OIDC against a registered publisher
+(repo `Krzysztof-Ad/morvix`, workflow `publish.yml`, environment `pypi`).
+
+To cut a release:
+1. Bump the version in BOTH `pyproject.toml` and `morvix/version.py` (they must match; PyPI refuses
+   to re-upload an existing version).
+2. Commit and push.
+3. Create a GitHub Release on the new tag: `gh release create vX.Y.Z --title vX.Y.Z --notes "..."`.
+4. The publish workflow runs on the release and uploads the sdist + wheel.
+
+`pyproject.toml` force-includes `morvix/runner_core/{morvix_runner.py,run.sh}` as package data - the
+shipped runner must travel in the wheel, so do not break that include.
