@@ -55,6 +55,9 @@ _EXTENSIONS = {
 # Languages where a valgrind memcheck is meaningful.
 _NATIVE_LANGS = ("c", "cpp", "nasm")
 
+# Manifest models we have already noted as unsupported, so we warn only once.
+_NOTED_MODELS = set()
+
 
 # ===========================================================================
 # Process layer (mirrors morvix/process.py)
@@ -158,7 +161,7 @@ def _run_posix(argv, stdin_bytes, cwd, env, wall_limit, cpu_limit, mem_limit_kb,
                 # RLIMIT_AS is not honoured everywhere (notably macOS); skip it.
                 pass
 
-    start = time.time()
+    start = time.monotonic()
     try:
         fin = os.open(in_path, os.O_RDONLY)
         fout = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -175,7 +178,7 @@ def _run_posix(argv, stdin_bytes, cwd, env, wall_limit, cpu_limit, mem_limit_kb,
             os.close(ferr)
 
         status, rusage, timed_out = _wait_with_timeout(pid, wall_limit)
-        wall = time.time() - start
+        wall = time.monotonic() - start
 
         # Tell Popen the child is already reaped so it does not wait again.
         proc.returncode = 0
@@ -214,13 +217,13 @@ def _wait_with_timeout(pid, wall_limit):
         _, status, rusage = os.wait4(pid, 0)
         return status, rusage, False
 
-    deadline = time.time() + wall_limit
+    deadline = time.monotonic() + wall_limit
     sleep = 0.001
     while True:
         done, status, rusage = os.wait4(pid, os.WNOHANG)
         if done != 0:
             return status, rusage, False
-        if time.time() >= deadline:
+        if time.monotonic() >= deadline:
             _kill_group(pid)
             _, status, rusage = os.wait4(pid, 0)
             return status, rusage, True
@@ -261,13 +264,13 @@ def _read_capped(path, cap):
 def _run_windows(argv, stdin_bytes, cwd, env, wall_limit, output_cap):
     # Best-effort path: no resource limits, no precise CPU/memory accounting,
     # exactly as the design promises (Section 21.2).
-    start = time.time()
+    start = time.monotonic()
     try:
         proc = subprocess.run(
             argv, input=stdin_bytes or b"", cwd=cwd, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=wall_limit,
         )
-        wall = time.time() - start
+        wall = time.monotonic() - start
         stdout = proc.stdout[:output_cap] if output_cap else proc.stdout
         trunc = bool(output_cap and len(proc.stdout) > output_cap)
         return ProcessResult(
@@ -276,7 +279,7 @@ def _run_windows(argv, stdin_bytes, cwd, env, wall_limit, output_cap):
             stderr=proc.stderr, output_truncated=trunc, mem_exceeded=False,
         )
     except subprocess.TimeoutExpired as exc:
-        wall = time.time() - start
+        wall = time.monotonic() - start
         out = exc.stdout or b""
         return ProcessResult(
             exit_code=None, term_signal=None, timed_out=True, wall_time=wall,
@@ -817,6 +820,13 @@ def run_case_program(manifest, build, case, workdir):
     limits = resolve_limits(manifest, manifest.get("_runner"), case)
     env = base_env(locale=locale, overrides=build.run_env)
 
+    # This core only drives the stdio and args models. Anything else is treated
+    # as stdio, but say so plainly (once) rather than failing silently.
+    if model not in ("stdio", "args") and model not in _NOTED_MODELS:
+        _NOTED_MODELS.add(model)
+        sys.stderr.write("note: model '%s' is not driven by this portable core; "
+                         "running it as stdio.\n" % model)
+
     argv = list(build.run_argv)
     if model == "args":
         argv = argv + list(case.get("args", []))
@@ -893,8 +903,9 @@ def judge_case(manifest, build, case, workdir, runner, opts):
             return result
         # A crash that was expected is a pass; record it plainly.
         result.verdict = "expected " + (expected_signal or ("exit " + str(expected_exit)))
-    elif res.signaled:
-        # No expectation, but it crashed: that is a failure.
+    elif res.signaled or (res.exit_code is not None and res.exit_code != 0):
+        # No expectation was set, so a clean exit 0 is required. A crash OR any
+        # non-zero exit is a failure - even if the output happens to match.
         fail(res.describe_exit())
         return result
 
@@ -926,12 +937,23 @@ def judge_case(manifest, build, case, workdir, runner, opts):
         return result
 
     # --- memory-correctness dimension (Section 15.2) ---
-    if opts.valgrind and _wants_memcheck(manifest, build, opts):
+    if _valgrind_on(runner, opts) and _wants_memcheck(manifest, build, opts):
         result.memcheck = run_memcheck(manifest, build, case, workdir, runner)
         if result.memcheck is False:
             fail("memory error")
 
     return result
+
+
+def _valgrind_on(runner, opts):
+    # Mirror judge.py: the runner profile's memcheck flag turns valgrind on.
+    # --valgrind forces it on, --no-valgrind forces it off; otherwise the
+    # profile decides (default off).
+    if opts.valgrind is True:
+        return True
+    if opts.valgrind is False:
+        return False
+    return bool(runner and runner.get("memcheck"))
 
 
 def _wants_memcheck(manifest, build, opts):
@@ -1127,7 +1149,8 @@ def build_parser():
     p.add_argument("--all", action="store_true", help="run every case (the default)")
 
     # On/off toggles, in the style real harnesses use.
-    _toggle(p, "valgrind", False, "run cases under valgrind memcheck (C/C++/asm)")
+    # valgrind defaults to None: unset lets the runner profile's memcheck decide.
+    _toggle(p, "valgrind", None, "run cases under valgrind memcheck (C/C++/asm)")
     _toggle(p, "diff", True, "show a unified diff on output mismatch")
     p.add_argument("--time", action="store_true", help="show per-case CPU time and peak memory")
 

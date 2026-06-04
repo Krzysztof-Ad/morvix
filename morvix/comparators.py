@@ -31,6 +31,9 @@ def _float(ci: CompareInput) -> Verdict:
         return Verdict(False, detail, diff=make_diff(ci.expected, ci.observed))
 
     for i, (a_tok, b_tok) in enumerate(zip(exp_tokens, obs_tokens)):
+        # Fast path: identical strings always match (handles inf, nan, -inf, 1e400, etc.)
+        if a_tok == b_tok:
+            continue
         try:
             a = float(a_tok)
             b = float(b_tok)

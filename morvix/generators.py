@@ -127,6 +127,13 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
 
     computed = 0
     for case in cases:
+        # Clear any stale expectation so re-running never leaves an impossible
+        # combination (e.g. expected_output + expected_signal from two separate runs).
+        case.expected_output = None
+        case.expected_hash = None
+        case.expected_exit = None
+        case.expected_signal = None
+
         obs = observations.get(case.id)
         if obs is None:
             continue
@@ -171,36 +178,47 @@ def gen_stress(ctx, project, count, seed, group="regression"):
 
     shape = "ints"  # a sensible default unless the project says otherwise
 
-    workdir = tempfile.mkdtemp(prefix="morvix-stress-")
+    # Build both programs once before the loop (mirrors _run_reference_over).
+    import shutil
+    sol_workdir = tempfile.mkdtemp(prefix="morvix-stress-sol-")
+    bf_workdir = tempfile.mkdtemp(prefix="morvix-stress-bf-")
     try:
+        sol_build = build_solution(project, solution, sol_lang, sol_workdir)
+        if not sol_build.ok:
+            from morvix.errors import MorvixError
+            raise MorvixError(sol_build.error or "build failed", hint=sol_build.diagnostics)
+        sol_runspec = _runspec(project, sol_build, sol_lang)
+        sol_env = ExecEnv(project=project, build=sol_build, runspec=sol_runspec, workdir=sol_workdir)
+
+        bf_build = build_solution(project, project.bruteforce, bf_lang, bf_workdir)
+        if not bf_build.ok:
+            from morvix.errors import MorvixError
+            raise MorvixError(bf_build.error or "build failed", hint=bf_build.diagnostics)
+        bf_runspec = _runspec(project, bf_build, bf_lang)
+        bf_env = ExecEnv(project=project, build=bf_build, runspec=bf_runspec, workdir=bf_workdir)
+
+        limits = resolve_limits(project, None, None)
+
         for i in range(count):
             text = shapes.generate(shape, seed + i, {})
-            obs_sol = _run_one(project, solution, sol_lang, text, workdir)
-            obs_bf = _run_one(project, project.bruteforce, bf_lang, text, workdir)
+            # Write input to a temporary case so run_case can feed it as stdin.
+            in_rel = default_input_relpath("_stress_tmp", f"{seed}_{i}")
+            _write_text(project.abspath(in_rel), text)
+            tmp_case = TestCase(name=f"{seed}_{i}", group="_stress_tmp",
+                                manual=False, inputs={"stdin": in_rel})
+            try:
+                obs_sol = run_case(project.model, tmp_case, sol_env, limits)
+                obs_bf = run_case(project.model, tmp_case, bf_env, limits)
+            finally:
+                _unlink(project.abspath(in_rel))
             if _normalise(obs_sol.output) != _normalise(obs_bf.output):
                 # First disagreement: persist it as a permanent regression case,
                 # trusting the brute force for the expected answer.
                 return _save_regression(project, group, seed + i, text, obs_bf.output)
     finally:
-        import shutil
-        shutil.rmtree(workdir, ignore_errors=True)
+        shutil.rmtree(sol_workdir, ignore_errors=True)
+        shutil.rmtree(bf_workdir, ignore_errors=True)
     return None
-
-
-# Build a source and run it once over the given stdin text (used by stress).
-def _run_one(project, source, language, text, base_workdir):
-    workdir = tempfile.mkdtemp(prefix="morvix-stress-run-", dir=base_workdir)
-    build = build_solution(project, source, language, workdir)
-    if not build.ok:
-        from morvix.errors import MorvixError
-        raise MorvixError(build.error or "build failed", hint=build.diagnostics)
-    spec = _runspec(project, build, language)
-    limits = resolve_limits(project, None, None)
-    res = process.run(spec.argv, stdin=text.encode("utf-8"), cwd=workdir,
-                      env=process.base_env(project.locale, spec.env),
-                      wall_limit=limits.get("wall"))
-    from morvix.models import Observation
-    return Observation(result=res, output=res.stdout)
 
 
 def _normalise(data):

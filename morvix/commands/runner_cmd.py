@@ -16,7 +16,7 @@ from morvix.cases import list_groups
 
 NAME = "runner"
 
-ACTIONS = ["new", "edit", "show", "list", "build"]
+ACTIONS = ["new", "edit", "show", "list", "build", "backend"]
 
 _BACKENDS = ["bash", "python", "valgrind"]
 _VERBOSITIES = ["quiet", "normal", "verbose"]
@@ -32,9 +32,10 @@ def configure(parser):
         nargs="?",
         choices=ACTIONS,
         default="list",
-        help="new | edit | show | list | build (default: list)",
+        help="new | edit | show | list | build | backend (default: list)",
     )
     parser.add_argument("name", nargs="?", help="runner profile name")
+    parser.add_argument("backend_value", nargs="?", help="backend name for 'backend' action (bash|python|valgrind)")
 
 
 def run(ctx, args) -> int:
@@ -50,6 +51,9 @@ def run(ctx, args) -> int:
         return _build(ctx, project, name)
     if action in ("new", "edit"):
         return _new_or_edit(ctx, project, name, action)
+    if action == "backend":
+        backend_value = getattr(args, "backend_value", None)
+        return _set_backend(ctx, project, name, backend_value)
     raise UserError(f"Unknown runner action '{action}'.", hint="Use one of: " + ", ".join(ACTIONS))
 
 
@@ -242,6 +246,52 @@ def _build(ctx, project, name) -> int:
     return 0
 
 
+# --- backend ---
+
+def _set_backend(ctx, project, name, backend_value) -> int:
+    # Positional order after 'backend': first extra arg -> name (= backend token),
+    # second extra arg -> backend_value (= runner name).  Rename for clarity.
+    backend_token = name        # e.g. "python"
+    runner_name = backend_value # e.g. "q" (optional)
+
+    if not backend_token:
+        raise UserError(
+            "runner backend needs a backend value.",
+            hint="Usage:  runner backend <bash|python|valgrind> [name]",
+        )
+
+    if backend_token not in _BACKENDS:
+        raise UserError(
+            f"Unknown backend '{backend_token}'.",
+            hint="Choose one of: " + ", ".join(_BACKENDS),
+        )
+
+    # Resolve runner: by explicit name, sole existing runner, or create default.
+    if runner_name:
+        runner = project.runners.get(runner_name)
+        if runner is None:
+            raise UserError(
+                f"No runner profile named '{runner_name}'.",
+                hint="List existing profiles with:  runner list",
+            )
+    elif len(project.runners) == 1:
+        runner = next(iter(project.runners.values()))
+    elif len(project.runners) == 0:
+        runner = _default_runner("default")
+        project.runners["default"] = runner
+    else:
+        raise UserError(
+            "Multiple runner profiles exist; specify a name.",
+            hint="Usage:  runner backend <bash|python|valgrind> <name>",
+        )
+
+    runner.backend = backend_token
+    ctx.save_project()
+    suggestions.warn_backend_metrics(ctx, runner)
+    ctx.messenger.success(f"Runner '{runner.name}' backend set to '{backend_token}'.")
+    return 0
+
+
 # --- helpers ---
 
 def _require_runner(project, name, action) -> Runner:
@@ -267,4 +317,11 @@ def complete(ctx, prev_words, word):
         out = [(a, "action") for a in ACTIONS]
         out += [(n, "runner") for n in names]
         return out
+    # after 'backend' offer backend names then runner names
+    if relevant and relevant[0] == "backend":
+        offered = [w for w in relevant[1:]]
+        if not offered:
+            return [(b, "backend") for b in _BACKENDS] + [(n, "runner") for n in names]
+        if offered[0] in _BACKENDS:
+            return [(n, "runner") for n in names]
     return [(n, "runner") for n in names]

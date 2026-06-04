@@ -72,11 +72,14 @@ def run(ctx, args):
             if picked and len(picked) < len(items):
                 runners = picked
 
-    # Estimate size and, if it is large, possibly switch to a tighter format.
-    size = packaging.estimate_size(project)
-    suggested = suggestions.suggest_compression(ctx, project, size)
-    if suggested:
-        fmt = suggested
+    # Suggest stronger compression only when the chosen format is weaker than
+    # tar.xz and we are in an interactive session (non-interactive runs cannot
+    # answer a confirmation prompt, and tar.xz is already the strongest).
+    if ctx.interactive and fmt != "tar.xz":
+        size = packaging.estimate_size(project)
+        suggested = suggestions.suggest_compression(ctx, project, size)
+        if suggested:
+            fmt = suggested
 
     out = packaging.build_package(
         ctx, project, fmt=fmt,

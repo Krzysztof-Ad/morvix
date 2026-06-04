@@ -19,6 +19,7 @@ import tempfile
 import zipfile
 
 from morvix import layout, manifest
+from morvix.errors import UserError
 from morvix.readme import generate_readme
 
 # Map format names to (file extension, tarfile mode or None-for-zip)
@@ -48,8 +49,18 @@ def build_package(ctx, project, fmt="zip", runners=None, include_generators=Fals
     if out is None:
         out = os.path.join(os.getcwd(), project.name + ext)
 
+    # Validate and resolve requested runner names before touching the filesystem.
+    if runners is not None:
+        unknown = [n for n in runners if n not in project.runners]
+        if unknown:
+            available = ", ".join(sorted(project.runners)) or "(none)"
+            raise UserError(
+                f"Unknown runner(s): {', '.join(unknown)}. "
+                f"Available: {available}."
+            )
+
     with tempfile.TemporaryDirectory() as staging:
-        _stage(project, staging, include_generators)
+        _stage(project, staging, include_generators, runners)
         _archive(staging, out, fmt, tar_mode)
 
     return out
@@ -73,12 +84,21 @@ def estimate_size(project):
 
 # --- internal helpers ---
 
-def _stage(project, staging, include_generators):
+def _stage(project, staging, include_generators, runners=None):
     """Copy everything that belongs in the package into the staging dir."""
     root = project.root
 
-    # Write the manifest fresh so it reflects current project state
-    manifest.write_manifest(project)
+    # When only a subset of runners is requested, build and write the manifest
+    # with a filtered runners dict, then restore the original.
+    if runners is not None:
+        original_runners = project.runners
+        project.runners = {n: v for n, v in original_runners.items() if n in runners}
+        try:
+            manifest.write_manifest(project)
+        finally:
+            project.runners = original_runners
+    else:
+        manifest.write_manifest(project)
 
     # - copy tests/ tree
     _copy_tree(os.path.join(root, layout.TESTS_DIR),
@@ -109,7 +129,12 @@ def _stage(project, staging, include_generators):
     try:
         readme_text = generate_readme(project)
     except NotImplementedError:
-        readme_text = f"# {project.name}\n"
+        # Minimal fallback - must still carry the honesty disclaimer so a
+        # Receiver is never misled into thinking test passage equals correctness.
+        readme_text = (
+            f"# {project.name}\n\n"
+            "Note: passing all tests does not prove correctness.\n"
+        )
     with open(os.path.join(staging, layout.README), "w", encoding="utf-8") as f:
         f.write(readme_text)
 

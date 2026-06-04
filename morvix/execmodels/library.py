@@ -50,7 +50,22 @@ def _library(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
         libdir = artifact if os.path.isdir(artifact) else os.path.dirname(artifact)
 
     # The harness source lives under the project root, like any other input.
-    harness_src = os.path.join(env.project.root, case.primary_input())
+    primary = case.primary_input()
+    if not primary:
+        result = ProcessResult(
+            exit_code=1,
+            term_signal=None,
+            timed_out=False,
+            wall_time=0.0,
+            cpu_time=0.0,
+            peak_mem_kb=0,
+            stdout=b"",
+            stderr=b"library case has no harness source file",
+            output_truncated=False,
+            mem_exceeded=False,
+        )
+        return Observation(result=result, output=b"")
+    harness_src = os.path.join(env.project.root, primary)
     binary = os.path.join(env.workdir, "htest")
 
     # - compiler, harness, includes, the library search dir, -l<lib>

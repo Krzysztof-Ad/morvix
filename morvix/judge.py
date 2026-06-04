@@ -99,8 +99,9 @@ def judge_case(project: Project, build: BuildResult, case: TestCase, env: ExecEn
             return result
         # A crash that was expected is a pass; record it plainly.
         result.verdict = f"expected {case.expected_signal or 'exit ' + str(case.expected_exit)}"
-    elif res.signaled:
-        # No expectation, but it crashed: that is a failure.
+    elif res.signaled or (res.exit_code is not None and res.exit_code != 0):
+        # No expectation was set, so a clean exit 0 is required. A crash OR any
+        # non-zero exit is a failure - even if the output happens to match.
         fail(res.describe_exit())
         return result
 
@@ -152,6 +153,8 @@ def _run_memcheck(project, build, case, env, limits) -> Optional[bool]:
                 stdin = f.read()
     res = process.run(argv, stdin=stdin, cwd=env.workdir, env=process.base_env(project.locale),
                       wall_limit=(limits.get("wall") or 10) * 4)
+    if res.timed_out or res.signaled:
+        return None  # valgrind itself was killed - no clean verdict to report
     return res.exit_code != 99
 
 

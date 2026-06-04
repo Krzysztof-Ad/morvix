@@ -19,7 +19,7 @@ def configure(parser):
 def run(ctx, args) -> int:
     if ctx.project is None:
         ctx.messenger.info("No project found here.")
-        ctx.messenger.info("Run 'morvix init' to create one in this directory.")
+        ctx.messenger.info("Run 'init' to create one in this directory.")
         return 0
 
     p = ctx.project

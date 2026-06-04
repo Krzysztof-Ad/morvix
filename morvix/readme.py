@@ -11,21 +11,22 @@
 from morvix.cases import list_groups
 
 
-# Descriptions for each comparison strategy
+# Descriptions for each comparison strategy (must match morvix.compare.list_strategies())
 _STRATEGY_DESC = {
-    "whitespace":  "Outputs are compared after normalising whitespace (extra spaces and blank lines are ignored).",
-    "exact":       "Outputs are compared byte-for-byte (exact match required).",
-    "lines":       "Outputs are compared line by line, ignoring trailing whitespace on each line.",
-    "float":       "Outputs are compared numerically, allowing small floating-point differences.",
-    "unordered":   "Output lines are compared as an unordered set (order does not matter).",
-    "regex":       "Expected output is a regular expression; actual output must match it.",
+    "exact":      "Outputs are compared byte-for-byte (exact match required).",
+    "whitespace": "Outputs are compared after normalising whitespace (extra spaces and blank lines are ignored).",
+    "float":      "Outputs are compared numerically, allowing small floating-point differences.",
+    "hash":       "The expected output stores a hash; the actual output is hashed and compared.",
+    "checker":    "A custom checker program decides whether the output is accepted.",
 }
 
-# Descriptions for execution models
+# Descriptions for execution models (must match morvix.models.list_models())
 _MODEL_DESC = {
-    "stdio": "The program reads from **stdin** and writes to **stdout**.",
-    "args":  "The program receives its input as **command-line arguments**.",
-    "files": "The program reads from and writes to **files** on disk.",
+    "stdio":       "The program reads from **stdin** and writes to **stdout**.",
+    "args":        "The program receives its input as **command-line arguments**.",
+    "file":        "The program reads from and writes to **files** on disk.",
+    "library":     "The program is tested as a **library** — functions are called directly.",
+    "interactive": "The program runs **interactively**, exchanging multiple lines of input and output.",
 }
 
 _DISCLAIMER = """\
@@ -140,8 +141,8 @@ def generate_readme(project) -> str:
         )
     else:
         parts.append(
-            "The memory checker is **not enabled** by default. "
-            "Pass `--valgrind` to activate it, or use `--no-valgrind` to suppress the prompt.\n"
+            "The memory checker (valgrind) is **not enabled** for any runner profile. "
+            "Valgrind runs automatically when the runner is configured with `memcheck: true`.\n"
         )
 
     # --- Standard correctness disclaimer ---

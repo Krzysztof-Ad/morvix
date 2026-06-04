@@ -26,6 +26,7 @@ def build_manifest(project: Project) -> dict:
     return {
         "morvix": __version__,
         "name": project.name,
+        "language": project.language,    # so the runner builds with the right toolchain
         "model": project.model,
         "locale": project.locale,
         "compare": project.compare,
@@ -80,6 +81,7 @@ def adopt_manifest(root: str) -> Project:
         languages=m.get("languages", {}),
         raw_build=m.get("raw_build"),
         raw_run=m.get("raw_run"),
+        language=m.get("language"),
     )
     # Make sure the directories exist, then persist the adopted state.
     for d in layout.PROJECT_DIRS:

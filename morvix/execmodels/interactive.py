@@ -93,7 +93,7 @@ def _interactive(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
         argv.append(os.path.join(env.project.root, primary))
 
     run_environment = run_env(env)
-    wall = limits.get("wall")
+    wall = limits.get("wall") or 10
 
     # - spawn the solution and the interactor, each with piped stdin/stdout
     sol = subprocess.Popen(

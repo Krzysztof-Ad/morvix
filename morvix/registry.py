@@ -42,7 +42,12 @@ class ShellArgumentParser(argparse.ArgumentParser):
     """An argparse parser that reports errors as messages, never exits."""
 
     def error(self, message):
-        raise UserError(message, hint=f"Try 'help {self.prog.split()[-1]}'.")
+        # self.prog is "morvix" at the top level and "morvix <cmd>" for a
+        # subparser; only point at a real subcommand.
+        parts = self.prog.split()
+        sub = parts[1] if len(parts) > 1 else None
+        hint = f"Try 'help {sub}'." if sub else "Type 'help' to see commands."
+        raise UserError(message, hint=hint)
 
     def exit(self, status=0, message=None):
         if message:
@@ -126,19 +131,6 @@ def safe_dispatch_line(ctx: Context, line: str) -> int:
         ctx.messenger.error(f"Could not parse the line: {e}")
         return 2
     return safe_dispatch(ctx, argv)
-
-
-def dispatch_line(ctx: Context, line: str) -> int:
-    """Parse a typed REPL line into argv and dispatch it."""
-    line = line.strip()
-    if not line:
-        return 0
-    try:
-        argv = shlex.split(line)
-    except ValueError as e:
-        ctx.messenger.error(f"Could not parse the line: {e}")
-        return 2
-    return dispatch(ctx, argv)
 
 
 # --- introspection for help and autocomplete ---
