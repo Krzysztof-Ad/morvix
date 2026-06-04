@@ -11,4 +11,23 @@
 
 
 def choose(ctx, title, options, default=0):
-    raise NotImplementedError
+    # Non-interactive: skip the dialog and return the default immediately.
+    if not ctx.interactive:
+        return options[default][0]
+
+    from prompt_toolkit.shortcuts import radiolist_dialog
+
+    # Build (value, label) pairs that prompt_toolkit expects.
+    pt_values = [(value, label) for value, label in options]
+
+    result = radiolist_dialog(
+        title=title,
+        text="Use arrow keys to select, then press Enter.",
+        values=pt_values,
+        default=pt_values[default][0],
+    ).run()
+
+    # Cancel (Ctrl-C / Escape) returns None; fall back to default.
+    if result is None:
+        return options[default][0]
+    return result

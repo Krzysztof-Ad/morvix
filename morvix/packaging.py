@@ -6,15 +6,137 @@
 # brute-force reference. run.sh is placed at the archive root so the habitual
 # ./run.sh works on a clean machine.
 #
-# API (implement in Workflow B):
+# API:
 #   build_package(ctx, project, fmt="zip", runners=None,
 #                 include_generators=False, out=None) -> str   # archive path
 #   estimate_size(project) -> int   # bytes, for the large-package suggestion
 
+import os
+import shutil
+import stat
+import tarfile
+import tempfile
+import zipfile
+
+from morvix import layout, manifest
+from morvix.readme import generate_readme
+
+# Map format names to (file extension, tarfile mode or None-for-zip)
+_FORMATS = {
+    "zip":    (".zip",    None),
+    "tar":    (".tar",    "w"),
+    "tar.gz": (".tar.gz", "w:gz"),
+    "tar.xz": (".tar.xz", "w:xz"),
+}
+
 
 def build_package(ctx, project, fmt="zip", runners=None, include_generators=False, out=None):
-    raise NotImplementedError
+    """Assemble a shareable archive of the project.
+
+    Stages tests/, expected/, the manifest, the runner core, run.sh, and the
+    README into a temp dir, then archives it. Solutions, config and brute-force
+    are intentionally excluded (Section 2.3, 19.2).
+
+    Returns the path to the created archive.
+    """
+    if fmt not in _FORMATS:
+        raise ValueError(f"Unknown package format: {fmt!r}. Choose from: {', '.join(_FORMATS)}")
+
+    ext, tar_mode = _FORMATS[fmt]
+
+    # Default output path: <project.name>.<ext> in cwd
+    if out is None:
+        out = os.path.join(os.getcwd(), project.name + ext)
+
+    with tempfile.TemporaryDirectory() as staging:
+        _stage(project, staging, include_generators)
+        _archive(staging, out, fmt, tar_mode)
+
+    return out
 
 
 def estimate_size(project):
-    raise NotImplementedError
+    """Sum byte sizes of tests/ and expected/ trees (used for large-package suggestions)."""
+    total = 0
+    for d in (layout.TESTS_DIR, layout.EXPECTED_DIR):
+        tree = os.path.join(project.root, d)
+        if not os.path.isdir(tree):
+            continue
+        for dirpath, _dirs, files in os.walk(tree):
+            for fn in files:
+                try:
+                    total += os.path.getsize(os.path.join(dirpath, fn))
+                except OSError:
+                    pass
+    return total
+
+
+# --- internal helpers ---
+
+def _stage(project, staging, include_generators):
+    """Copy everything that belongs in the package into the staging dir."""
+    root = project.root
+
+    # Write the manifest fresh so it reflects current project state
+    manifest.write_manifest(project)
+
+    # - copy tests/ tree
+    _copy_tree(os.path.join(root, layout.TESTS_DIR),
+               os.path.join(staging, layout.TESTS_DIR))
+
+    # - copy expected/ tree
+    _copy_tree(os.path.join(root, layout.EXPECTED_DIR),
+               os.path.join(staging, layout.EXPECTED_DIR))
+
+    # - morvix.json at staging root
+    src_manifest = os.path.join(root, layout.MANIFEST)
+    if os.path.exists(src_manifest):
+        shutil.copy2(src_manifest, os.path.join(staging, layout.MANIFEST))
+
+    # - runner core -> runner/morvix_runner.py
+    runner_dir = os.path.join(staging, layout.RUNNER_DIR)
+    os.makedirs(runner_dir, exist_ok=True)
+    core_src = os.path.join(os.path.dirname(__file__), "runner_core", "morvix_runner.py")
+    shutil.copy2(core_src, os.path.join(runner_dir, "morvix_runner.py"))
+
+    # - run.sh at the staging ROOT (so ./run.sh works from the unpacked root)
+    runsh_src = os.path.join(os.path.dirname(__file__), "runner_core", "run.sh")
+    runsh_dst = os.path.join(staging, "run.sh")
+    shutil.copy2(runsh_src, runsh_dst)
+    os.chmod(runsh_dst, 0o755)
+
+    # - generated README.md
+    try:
+        readme_text = generate_readme(project)
+    except NotImplementedError:
+        readme_text = f"# {project.name}\n"
+    with open(os.path.join(staging, layout.README), "w", encoding="utf-8") as f:
+        f.write(readme_text)
+
+    # - generators/ only if requested
+    if include_generators:
+        gen_src = os.path.join(root, layout.GENERATORS_DIR)
+        if os.path.isdir(gen_src):
+            _copy_tree(gen_src, os.path.join(staging, layout.GENERATORS_DIR))
+
+
+def _copy_tree(src, dst):
+    """Copy a directory tree if the source exists; silently skip missing dirs."""
+    if os.path.isdir(src):
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
+def _archive(staging, out, fmt, tar_mode):
+    """Write the staging directory into the output archive."""
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+
+    if fmt == "zip":
+        with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for dirpath, _dirs, files in os.walk(staging):
+                for fn in files:
+                    abs_path = os.path.join(dirpath, fn)
+                    arcname = os.path.relpath(abs_path, staging)
+                    zf.write(abs_path, arcname)
+    else:
+        with tarfile.open(out, tar_mode) as tf:
+            tf.add(staging, arcname=".")

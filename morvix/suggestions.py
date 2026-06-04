@@ -13,29 +13,101 @@
 #   confirm_locale(ctx, project) -> None
 #   explain_missing_bruteforce(ctx, project) -> None
 
+from morvix.components.confirm import confirm
+
 LARGE_OUTPUT_BYTES = 256 * 1024       # past this, suggest hashing a group
 LARGE_PACKAGE_BYTES = 20 * 1024 * 1024  # past this, suggest stronger compression
 
 
 def suggest_hashing(ctx, project, group, output_bytes):
-    raise NotImplementedError
+    # If the combined expected output for a group is large, hashing saves disk
+    # space but loses per-failure diffs (Section 22).
+    if output_bytes <= LARGE_OUTPUT_BYTES:
+        return False
+
+    size_mb = output_bytes / (1024 * 1024)
+    ctx.messenger.warning(
+        f"Group '{group}' has {size_mb:.1f} MB of expected output.",
+        hint="Switching to hash comparison saves space but you won't see diffs on failure.",
+    )
+    accepted = confirm(ctx, f"Switch group '{group}' to hash comparison?", default=False)
+    if not accepted:
+        return False
+
+    # Apply in-memory; the caller is responsible for saving the project.
+    for case in project.cases:
+        if case.group == group:
+            case.compare = "hash"
+    return True
 
 
 def suggest_compression(ctx, project, size_bytes):
-    raise NotImplementedError
+    # If a package is very large, offer stronger compression (Section 22).
+    if size_bytes <= LARGE_PACKAGE_BYTES:
+        return None
+
+    size_mb = size_bytes / (1024 * 1024)
+    ctx.messenger.warning(
+        f"Package is {size_mb:.1f} MB - that's large for distribution.",
+        hint="tar.xz compresses significantly better than the default format.",
+    )
+    accepted = confirm(ctx, "Repack with tar.xz for smaller output?", default=False)
+    return "tar.xz" if accepted else None
 
 
 def warn_backend_metrics(ctx, runner):
-    raise NotImplementedError
+    # The bash backend measures time and memory through the shell, which is
+    # imprecise and may not capture memory at all (Section 22).
+    if runner.backend != "bash":
+        return
+    if not (runner.time or runner.measure_mem):
+        return
+
+    issues = []
+    if runner.time:
+        issues.append("timing will be imprecise")
+    if runner.measure_mem:
+        issues.append("memory measurement may be unavailable")
+
+    ctx.messenger.warning(
+        f"Runner '{runner.name}' uses the bash backend: {', '.join(issues)}.",
+        hint="Use backend='python' for accurate metrics.",
+    )
 
 
 def suggest_exit_status(ctx, project, crashing_case_ids):
-    raise NotImplementedError
+    # If some cases crashed, offer to record the expected exit status or signal
+    # so future runs can treat that outcome as correct (Section 22).
+    if not crashing_case_ids:
+        return
+
+    ids_str = ", ".join(crashing_case_ids)
+    ctx.messenger.warning(
+        f"These cases exited unexpectedly: {ids_str}",
+        hint="If a non-zero exit or signal is the correct behaviour, record it.",
+    )
+    confirm(
+        ctx,
+        "Would you like to record the expected exit status / signal for these cases?",
+        default=False,
+    )
 
 
 def confirm_locale(ctx, project):
-    raise NotImplementedError
+    # Morvix always sets LC_ALL=C for deterministic output. Mention it so
+    # projects that depend on locale-sensitive sorting are not surprised
+    # (Section 21.3).
+    ctx.messenger.info(
+        f"Locale: LC_ALL=C is in force for all runs (project locale='{project.locale}')."
+        " This keeps output deterministic across machines."
+    )
 
 
 def explain_missing_bruteforce(ctx, project):
-    raise NotImplementedError
+    # Stress testing compares a fast solution against a slow-but-trusted
+    # brute-force reference. Without one registered, stress mode can't run
+    # (Section 22).
+    ctx.messenger.warning(
+        "Stress testing requires a registered brute-force reference solution.",
+        hint="Register one with:  bruteforce <path>",
+    )

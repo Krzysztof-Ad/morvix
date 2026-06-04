@@ -28,6 +28,8 @@ class Context:
     global_config: dict = field(default_factory=dict)
     debug: bool = False
     recorder: object = None          # a WorkflowRecorder while recording; else None
+    should_exit: bool = False        # set by the exit command; the shell loop checks it
+    last_result: object = None       # the most recent RunResult, for the result command
 
     @classmethod
     def create(cls, root: str, interactive: bool, console: Console, debug: bool = False) -> "Context":
