@@ -16,6 +16,10 @@ from morvix.layout import CASES_FILE, EXPECTED_DIR, TESTS_DIR
 
 @dataclass
 class TestCase:
+    # Keep pytest from trying to collect this as a test class (the name starts
+    # with "Test"); it is a data model, not a test.
+    __test__ = False
+
     name: str
     group: str
     manual: bool = False                       # hand-written & permanent vs generated & disposable
