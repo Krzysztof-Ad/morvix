@@ -1,7 +1,6 @@
-# STUB - to be implemented. Command contract (see morvix/registry.py):
-#   NAME, configure(parser), run(ctx, args) -> int, optional complete(...)
+# exit command - signals the shell loop to stop
 
-NAME = 'exit'
+NAME = "exit"
 
 
 def configure(parser):
@@ -9,5 +8,7 @@ def configure(parser):
 
 
 def run(ctx, args):
-    ctx.messenger.warning("'exit' is not implemented yet.")
+    ctx.should_exit = True
+    if ctx.interactive:
+        ctx.messenger.plain("Goodbye.")
     return 0
