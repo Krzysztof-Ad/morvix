@@ -87,15 +87,29 @@ rather than changing behavior silently."""),
 ]
 
 
-def _md_options(name):
-    """A Markdown bullet list of a command's options, generated from the parser."""
-    opts = registry.options_for(name)
+def _md_arguments(name):
+    """Markdown for a command's positional arguments and options, from the parser.
+
+    Returns the full block (with its own 'Arguments:'/'Options:' headers), so a
+    command with no arguments contributes nothing.
+    """
+    positionals, options = registry.arguments(name)
     lines = []
-    for flag, helptext, choices in opts:
-        suffix = ""
-        if choices:
-            suffix = "  (choices: %s)" % ", ".join(str(c) for c in choices)
-        lines.append("- `%s` - %s%s" % (flag, helptext or "", suffix))
+    if positionals:
+        lines += ["Arguments:", ""]
+        for p in positionals:
+            choices = "  (one of: %s)" % ", ".join(str(c) for c in p["choices"]) if p["choices"] else ""
+            lines.append("- `<%s>` - %s%s" % (p["name"].lower(), p["help"], choices))
+        lines.append("")
+    if options:
+        lines += ["Options:", ""]
+        for o in options:
+            flag = o["names"][0]
+            shown = flag + (" " + o["metavar"] if o["takes_value"] and o["metavar"] else "")
+            alias = " (or `%s`)" % o["names"][1] if len(o["names"]) > 1 else ""
+            choices = "  (one of: %s)" % ", ".join(str(c) for c in o["choices"]) if o["choices"] else ""
+            lines.append("- `%s`%s - %s%s" % (shown, alias, o["help"], choices))
+        lines.append("")
     return lines
 
 
@@ -114,12 +128,7 @@ def command_reference_md():
             out.append("")
             out.append(info.get("long") or info.get("summary", ""))
             out.append("")
-            opt_lines = _md_options(name)
-            if opt_lines:
-                out.append("Options:")
-                out.append("")
-                out.extend(opt_lines)
-                out.append("")
+            out.extend(_md_arguments(name))
             examples = info.get("examples") or []
             if examples:
                 out.append("Examples:")
@@ -161,9 +170,7 @@ def topic_md(topic):
     if topic in help_text.COMMANDS:
         info = help_text.COMMANDS[topic]
         parts = ["## `%s`" % topic, "", info.get("long", ""), ""]
-        opt_lines = _md_options(topic)
-        if opt_lines:
-            parts += ["Options:", ""] + opt_lines + [""]
+        parts += _md_arguments(topic)
         if info.get("examples"):
             parts += ["Examples:", "", "```"] + info["examples"] + ["```", ""]
         return "\n".join(parts)

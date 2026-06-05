@@ -167,6 +167,37 @@ def options_for(name: str) -> List[Tuple[str, str, Optional[list]]]:
     return out
 
 
+def arguments(name: str):
+    """Structured argument info for the docs, introspected from the parser.
+
+    Returns (positionals, options):
+      positionals: [{name, choices, help}]
+      options:     [{names, metavar, choices, help, takes_value}]
+    """
+    _build()
+    name = help_text.ALIASES.get(name, name)
+    parser = _subparsers.get(name)
+    if parser is None:
+        return [], []
+    positionals, options = [], []
+    for action in parser._actions:
+        if action.dest == "help":
+            continue
+        choices = list(action.choices) if action.choices else None
+        if action.option_strings:
+            # store_true/false/const and count take no value; everything else does.
+            takes_value = not isinstance(
+                action, (argparse._StoreConstAction, argparse._CountAction))
+            metavar = action.metavar or (action.dest.upper() if takes_value else None)
+            options.append({"names": list(action.option_strings), "metavar": metavar,
+                            "choices": choices, "help": action.help or "",
+                            "takes_value": takes_value})
+        else:
+            positionals.append({"name": action.metavar or action.dest,
+                                "choices": choices, "help": action.help or ""})
+    return positionals, options
+
+
 def complete_values(ctx: Context, name: str, prev_words: List[str], word: str):
     """Ask a command for value suggestions, if it offers any."""
     mod = get_module(name)

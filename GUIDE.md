@@ -92,11 +92,11 @@ Lays out a fresh project (config, tests, runner, ...) here. Opens a guided form 
 
 Options:
 
-- `--name` - project name (defaults to this directory's name)
-- `--model` - execution model  (choices: args, file, interactive, library, stdio)
-- `--language` - default language  (choices: c, cpp, java, nasm, python, rust)
-- `--compare` - default comparison strategy  (choices: checker, exact, float, hash, whitespace)
-- `--wall` - default wall-clock limit in seconds
+- `--name NAME` - project name (defaults to this directory's name)
+- `--model MODEL` - execution model  (one of: args, file, interactive, library, stdio)
+- `--language LANGUAGE` - default language  (one of: c, cpp, java, nasm, python, rust)
+- `--compare COMPARE` - default comparison strategy  (one of: checker, exact, float, hash, whitespace)
+- `--wall WALL` - default wall-clock limit in seconds
 
 Examples:
 
@@ -129,6 +129,10 @@ status
 
 With no argument, lists every command grouped by pipeline stage. With a command name, shows that command's options and examples.
 
+Arguments:
+
+- `<topic>` - command name to explain
+
 Examples:
 
 ```
@@ -140,9 +144,13 @@ help gen
 
 Show the complete guide - concepts, every command, and what's supported - generated from the tool itself so it never drifts. 'docs <topic>' shows one section; 'docs --out GUIDE.md' writes the whole manual as Markdown.
 
+Arguments:
+
+- `<topic>` - a topic or command name to show (omit for the overview)
+
 Options:
 
-- `--out` - write the full manual as Markdown to FILE
+- `--out FILE` - write the full manual as Markdown to FILE
 - `--markdown` - print the full manual as Markdown to stdout
 - `--check` - fail if the Markdown manual (default GUIDE.md) is out of date
 
@@ -171,23 +179,27 @@ exit
 
 Configure how a language is built and run (compiler, standard, flags, interpreter, classpath, link mode, ...). Opens a guided form, or takes flags. Includes the raw build/run command escape hatch for builds no preset captures.
 
+Arguments:
+
+- `<language>` - language to configure (cpp, c, python, java, nasm, rust)  (one of: c, cpp, java, nasm, python, rust)
+
 Options:
 
-- `--compiler` - C/C++ compiler (e.g. g++, clang++)
-- `--std` - language standard (e.g. c++20, gnu23)
-- `--opt` - optimisation level (e.g. O2)
-- `--flags` - extra compiler flags
-- `--include` - include dirs (-I)
-- `--lib` - libraries to link (-l)
-- `--libdirs` - library search dirs (-L)
-- `--interpreter` - Python interpreter (e.g. python3)
-- `--classpath` - Java classpath
-- `--release` - Java release / Rust release build (on)
-- `--format` - NASM object format (e.g. elf64, macho64)
-- `--link` - NASM linker  (choices: ld, gcc)
-- `--edition` - Rust edition (e.g. 2021)
-- `--raw-build` - raw build command, overrides presets
-- `--raw-run` - raw run command, overrides presets
+- `--compiler COMPILER` - C/C++ compiler (e.g. g++, clang++)
+- `--std STD` - language standard (e.g. c++20, gnu23)
+- `--opt OPT` - optimisation level (e.g. O2)
+- `--flags FLAGS` - extra compiler flags
+- `--include INCLUDE` - include dirs (-I)
+- `--lib LIB` - libraries to link (-l)
+- `--libdirs LIBDIRS` - library search dirs (-L)
+- `--interpreter INTERPRETER` - Python interpreter (e.g. python3)
+- `--classpath CLASSPATH` - Java classpath
+- `--release RELEASE` - Java release / Rust release build (on)
+- `--format FORMAT` - NASM object format (e.g. elf64, macho64)
+- `--link LINK` - NASM linker  (one of: ld, gcc)
+- `--edition EDITION` - Rust edition (e.g. 2021)
+- `--raw-build RAW_BUILD` - raw build command, overrides presets
+- `--raw-run RAW_RUN` - raw run command, overrides presets
 
 Examples:
 
@@ -200,6 +212,10 @@ config --raw-build 'make tester' --raw-run './tester'
 #### `import`
 
 Registers a solution as the code under test. --reference keeps it in place (good while editing); --copy copies it into the project (good for a frozen one, or for a Receiver dropping in their own code).
+
+Arguments:
+
+- `<path>` - path to the solution file
 
 Options:
 
@@ -217,6 +233,10 @@ import mysol.py --copy
 
 The reference is whatever you trust to produce the 'right' answers - in practice your own solution. Its outputs become the frozen expected answers.
 
+Arguments:
+
+- `<path>` - path to the reference solution file
+
 Examples:
 
 ```
@@ -227,6 +247,10 @@ reference solution.c
 
 A simple brute-force solution, trusted because it is simple. Stress testing compares the real solution against it to find bugs. Never shipped in a package.
 
+Arguments:
+
+- `<path>` - Path to the brute-force solution file.
+
 Examples:
 
 ```
@@ -236,6 +260,10 @@ bruteforce brute.py
 #### `model`
 
 stdio (stdin->stdout), library (link & assert), args (argv), file (file in/out), or interactive (converses with a judge). Picks how cases are run.
+
+Arguments:
+
+- `<model>` - execution model to use: args, file, interactive, library, stdio  (one of: args, file, interactive, library, stdio)
 
 Examples:
 
@@ -252,19 +280,19 @@ Make test cases: by hand (--manual), from the built-in random shapes (--random),
 
 Options:
 
-- `--manual` - create a permanent hand-written case named NAME
+- `--manual NAME` - create a permanent hand-written case named NAME
 - `--random` - generate random inputs from a built-in shape
-- `--generator` - run a custom generator program to produce inputs
+- `--generator PROG` - run a custom generator program to produce inputs
 - `--expected` - (re)compute expected answers from the reference
 - `--stress` - stress the solution against the brute force
 - `--crash` - generate malformed inputs to probe error handling
-- `--new-generator` - write a starter generator you can edit (default name: gen)
+- `--new-generator NAME` - write a starter generator you can edit (default name: gen)
 - `--hash` - with --expected: store output digests instead of files
-- `--count` - how many cases to generate (default 10)
-- `--seed` - base random seed (default 1)
-- `--group` - target group (default depends on mode)
-- `--shape` - with --random: input shape (default ints)  (choices: array, edge, graph, grid, int, ints, permutation, string, tree)
-- `--param` - shape parameter, repeatable (e.g. --param lo=0)
+- `--count COUNT` - how many cases to generate (default 10)
+- `--seed SEED` - base random seed (default 1)
+- `--group GROUP` - target group (default depends on mode)
+- `--shape SHAPE` - with --random: input shape (default ints)  (one of: array, edge, graph, grid, int, ints, permutation, string, tree)
+- `--param KEY=VALUE` - shape parameter, repeatable (e.g. --param lo=0)
 
 Examples:
 
@@ -285,10 +313,8 @@ Deletes disposable generated cases so they can be regenerated from a seed, while
 
 Options:
 
-- `--group` - only remove generated cases in this group
-- `-g` - only remove generated cases in this group
-- `--yes` - skip confirmation prompt
-- `-y` - skip confirmation prompt
+- `--group G` (or `-g`) - only remove generated cases in this group
+- `--yes` (or `-y`) - skip confirmation prompt
 
 Examples:
 
@@ -306,17 +332,17 @@ Builds the solution and runs it against the cases under the chosen limits and co
 Options:
 
 - `--all` - run every case (the default)
-- `--group` - only this group (repeatable)
-- `--case` - only this case (repeatable)
+- `--group G` - only this group (repeatable)
+- `--case C` - only this case (repeatable)
 - `--time` - measure wall/cpu time
 - `--mem` - measure peak memory
 - `--valgrind` - check for memory errors under valgrind
-- `--compare` - override the comparison strategy  (choices: checker, exact, float, hash, whitespace)
-- `--runner` - use a saved runner profile instead of the flags
-- `--wall` - wall-clock time limit (seconds)
-- `--cpu` - cpu time limit (seconds)
-- `--memkb` - address-space limit (KB)
-- `--output-kb` - output size limit (KB)
+- `--compare MODE` - override the comparison strategy  (one of: checker, exact, float, hash, whitespace)
+- `--runner NAME` - use a saved runner profile instead of the flags
+- `--wall SEC` - wall-clock time limit (seconds)
+- `--cpu SEC` - cpu time limit (seconds)
+- `--memkb KB` - address-space limit (KB)
+- `--output-kb KB` - output size limit (KB)
 
 Examples:
 
@@ -329,6 +355,12 @@ run --case edge1 --compare exact
 #### `runner`
 
 A runner is the shareable thing that executes the tests - a named profile of which cases, comparison, limits, backend and toggles. 'runner new' opens a guided form; 'runner build' writes the portable run.sh + Python core.
+
+Arguments:
+
+- `<action>` - new | edit | show | list | build | backend (default: list)  (one of: new, edit, show, list, build, backend)
+- `<name>` - runner profile name
+- `<backend_value>` - backend name for 'backend' action (bash|python|valgrind)
 
 Examples:
 
@@ -345,12 +377,16 @@ runner build full
 
 Export the last run as JSON (machine-readable), Markdown (the human report) or plain text. 'result diff' compares your results against another run or the Author's.
 
+Arguments:
+
+- `<[diff other]>` - optional: diff <path-to-other-results.json>
+
 Options:
 
 - `--json` - output as JSON (machine-readable)
 - `--md` - output as Markdown (default)
 - `--text` - output as plain text
-- `--out` - write output to this file instead of stdout
+- `--out PATH` - write output to this file instead of stdout
 
 Examples:
 
@@ -371,8 +407,8 @@ Options:
 - `--tar.gz` - gzip-compressed tar
 - `--tar.xz` - xz-compressed tar (smallest)
 - `--include-generators` - also bundle the generators/ directory
-- `--runner` - only include this runner (repeatable)
-- `--out` - output archive path
+- `--runner NAME` - only include this runner (repeatable)
+- `--out PATH` - output archive path
 
 Examples:
 
@@ -388,9 +424,14 @@ package --runner full
 
 A workflow is a recorded list of Morvix commands stored as JSON - a Makefile for your tests. Record what you do, then replay it (optionally against another solution) on the next assignment.
 
+Arguments:
+
+- `<action>` - record | stop | run | list | show | edit  (one of: record, stop, run, list, show, edit)
+- `<name>` - workflow name (required for run, show, edit; optional for record)
+
 Options:
 
-- `--on` - with run: import this solution before replaying
+- `--on SOLUTION` - with run: import this solution before replaying
 
 Examples:
 
