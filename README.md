@@ -50,6 +50,24 @@ morvix runner new full            # a named, shareable run profile
 morvix package --zip              # bundle it up to share (your source is left out)
 ```
 
+All of Morvix's state lives in a single hidden `.morvix/` directory, so your
+project root stays clean — just your own source next to `.morvix/`.
+
+### Structured input? Write a generator
+
+Random shapes (`gen --random`) are great for simple stdin formats, but most
+assignments read something structured (a grid, a graph, a constrained matrix).
+For those, random data produces meaningless tests — Morvix will warn you when an
+`gen --expected` run comes back all-empty. The fix is a custom generator:
+
+```sh
+morvix gen --new-generator mygen        # writes a starter you edit
+morvix gen --generator .morvix/generators/mygen.py --count 1000
+morvix gen --expected
+```
+
+See [`examples/exact_cover`](examples/exact_cover) for a full worked example.
+
 ## Quick start (the Receiver)
 
 You got a package from a classmate. You don't need Morvix at all:

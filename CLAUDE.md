@@ -57,9 +57,17 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
 - **One shared UI layer.** Commands never hand-roll a menu, prompt, table, or message. They compose
   from `morvix/components/` (selection, choice, form, confirm, table, progress) and print only via
   `ctx.messenger`. Each component has a non-interactive fallback driven by `ctx.interactive`.
-- **The directory is the state.** No database. `config/project.json` + `config/cases.json` +
-  `config/runners/*.json` are the editable truth; `morvix.json` is the generated, shareable manifest
-  regenerated on every `ctx.save_project()`. Config is JSON throughout.
+- **The directory is the state, hidden under `.morvix/`.** No database. Everything (config,
+  tests, expected, runner, results, ... and the generated `morvix.json` manifest) lives under a
+  single `.morvix/` dir so the project root stays clean. `layout.py` roots every path there via
+  `STATE_DIR`; stored case paths are `.morvix/...`-prefixed, and a package archive mirrors this
+  (run.sh + README at the root, the rest under `.morvix/`), so paths resolve the same in a project
+  and an unpacked package. `Project.load` auto-migrates a pre-0.2 flat layout into `.morvix/`. Config
+  is JSON throughout.
+- **Warn, don't mislead.** `gen --expected` calls `suggestions.warn_degenerate_expected`: when
+  almost every computed answer is empty or identical, the inputs likely don't match the program's
+  format, so it points the user at `gen --new-generator`. That scaffold is the on-ramp for the
+  common "random shapes don't fit structured input" case.
 - **The runner core is sacred and standalone.** `morvix/runner_core/morvix_runner.py` ships verbatim
   inside packages, must import **nothing** from `morvix`, must be **stdlib-only**, and must run on a
   clean machine with just Python 3. It re-implements the judge logic; if you change judging behavior
