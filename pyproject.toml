@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "morvix"
-version = "0.4.1"
+version = "0.5.0"
 description = "A test-authoring, test-running, and test-sharing CLI for university programming assignments."
 readme = "README.md"
 requires-python = ">=3.9"

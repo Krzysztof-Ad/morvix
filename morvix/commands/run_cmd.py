@@ -33,9 +33,13 @@ def configure(parser):
                        help="only this case (repeatable)")
 
     parser.add_argument("--time", action="store_true",
-                        help="measure wall/cpu time")
+                        help="show wall/cpu time per case (on by default for run)")
     parser.add_argument("--mem", action="store_true",
-                        help="measure peak memory")
+                        help="show peak memory per case (on by default for run)")
+    parser.add_argument("--no-perf", action="store_true",
+                        help="hide the performance summary at the end")
+    parser.add_argument("--slowest", type=int, default=5, metavar="N",
+                        help="list the N slowest cases in the performance summary (default 5)")
     parser.add_argument("--valgrind", action="store_true",
                         help="check for memory errors under valgrind")
     parser.add_argument("--compare", metavar="MODE", choices=list_strategies(),
@@ -71,7 +75,9 @@ def run(ctx, args) -> int:
 
     language = project.language or detect_language(project.solution) or ""
 
-    table = RunTable(ctx.console, live=ctx.interactive)
+    table = RunTable(ctx.console, live=ctx.interactive,
+                     show_time=runner.time, show_mem=runner.measure_mem,
+                     show_perf=runner.report, slowest_n=runner.slowest)
     run_result = judge(project, project.solution, language, cases,
                        runner=runner, on_case=table.update)
     table.finish(run_result)
@@ -79,6 +85,10 @@ def run(ctx, args) -> int:
     # Stash for the result command, both in memory and on disk.
     ctx.last_result = run_result
     _write_last(project, run_result)
+
+    # A named runner can auto-emit the report it was configured to produce.
+    if args.runner:
+        _emit_configured_report(ctx, project, runner, run_result)
 
     summary = f"{run_result.passed}/{run_result.total} passed"
     if run_result.all_passed:
@@ -108,14 +118,35 @@ def _pick_runner(project, args):
     if args.output_kb is not None:
         limits["output_kb"] = args.output_kb
 
+    # The interactive run is the dev view: always show time/memory and the perf
+    # summary (a named runner is what tailors what a Receiver sees).
     return Runner(
         name="(adhoc)",
         compare=args.compare,
         memcheck=args.valgrind,
-        time=args.time,
-        measure_mem=args.mem,
+        time=True,
+        measure_mem=True,
+        report=not args.no_perf,
+        slowest=args.slowest,
         limits=limits,
     )
+
+
+_EXT = {"md": "md", "markdown": "md", "json": "json", "text": "txt"}
+
+
+def _emit_configured_report(ctx, project, runner, run_result):
+    """Write the report a named runner is configured to produce (Section 16.4)."""
+    fmt = runner.result_format
+    if not fmt or fmt == "none":
+        return
+    rel = runner.result_path or os.path.join(layout.RESULTS_DIR,
+                                             f"{runner.name}.{_EXT.get(fmt, 'txt')}")
+    path = rel if os.path.isabs(rel) else project.abspath(rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(export(run_result, fmt))
+    ctx.messenger.info(f"Wrote report to {rel}")
 
 
 def _write_last(project, run_result):

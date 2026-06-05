@@ -191,6 +191,10 @@ def _form_runner(ctx, project, name, existing):
         Field("memcheck", "Memory check", "bool", default=base.memcheck,
               help="run Valgrind memory-correctness check (valgrind backend)"),
         Field("diff", "Show diff", "bool", default=base.diff, help="show output diffs on failure"),
+        Field("report", "Performance summary", "bool", default=base.report,
+              help="print total/avg/min/max time, peak memory and slowest cases after the run"),
+        Field("slowest", "Slowest cases to list", "int", default=base.slowest,
+              help="how many slowest cases the performance summary lists"),
         Field("verbosity", "Verbosity", "choice",
               choices=[(v, v) for v in _VERBOSITIES], default=base.verbosity),
         Field("result_format", "Result format", "choice",
@@ -214,6 +218,8 @@ def _form_runner(ctx, project, name, existing):
     runner.hard_kill = bool(result["hard_kill"])
     runner.memcheck = bool(result["memcheck"])
     runner.diff = bool(result["diff"])
+    runner.report = bool(result["report"])
+    runner.slowest = int(result["slowest"])
     runner.verbosity = result["verbosity"]
     runner.result_format = result["result_format"]
 

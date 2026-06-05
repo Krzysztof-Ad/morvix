@@ -701,6 +701,67 @@ class RunResult(object):
         return groups
 
 
+# --- performance aggregation + formatting (mirrors morvix/results.py) ---
+
+def fmt_secs(s):
+    return "%.3fs" % s
+
+
+def fmt_mem_kb(kb):
+    if kb <= 0:
+        return "n/a"
+    if kb < 1024:
+        return "%d KB" % kb
+    return "%.1f MB" % (kb / 1024.0)
+
+
+def pct(passed, total):
+    return ("%.0f%%" % (100.0 * passed / total)) if total else "0%"
+
+
+def performance(run_result, slowest_n=5):
+    cases = [c for c in run_result.cases if c.status != "skip"]
+    walls = [c.wall_time for c in cases]
+    cpus = [c.cpu_time for c in cases]
+    mems = [c.peak_mem_kb for c in cases]
+    have_mem = any(m > 0 for m in mems)
+
+    def stats(xs):
+        if not xs:
+            return {"total": 0.0, "avg": 0.0, "min": 0.0, "max": 0.0}
+        return {"total": sum(xs), "avg": sum(xs) / len(xs), "min": min(xs), "max": max(xs)}
+
+    slowest = sorted([c for c in cases if c.wall_time > 0],
+                     key=lambda c: c.wall_time, reverse=True)[:slowest_n]
+    return {
+        "cases": len(cases),
+        "wall": stats(walls),
+        "cpu": stats(cpus),
+        "memory_kb": ({"max": max(mems), "avg": sum(mems) / len(mems)} if have_mem else None),
+        "slowest": [{"case": c.case_id, "wall_time": round(c.wall_time, 6)} for c in slowest],
+    }
+
+
+def perf_text_lines(run_result, slowest_n=5, show_time=True, show_mem=True):
+    p = performance(run_result, slowest_n)
+    if not p["cases"]:
+        return []
+    lines = ["Performance:"]
+    if show_time:
+        w, c = p["wall"], p["cpu"]
+        lines.append("  wall   total %s   avg %s   min %s   max %s" % (
+            fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])))
+        lines.append("  cpu    total %s   max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"])))
+    if show_mem and p["memory_kb"]:
+        m = p["memory_kb"]
+        lines.append("  memory max %s   avg %s   (%s)" % (
+            fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])), run_result.memory_note))
+    if p["slowest"]:
+        lines.append("  slowest " + ", ".join(
+            "%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+    return lines
+
+
 def result_to_json(run_result):
     groups = {}
     for g, cs in run_result.by_group().items():
@@ -714,6 +775,7 @@ def result_to_json(run_result):
         "summary": {"passed": run_result.passed, "failed": run_result.failed,
                     "skipped": run_result.skipped, "total": run_result.total},
         "groups": groups,
+        "performance": performance(run_result),
         "cases": [c.to_dict() for c in run_result.cases],
     }
 
@@ -724,7 +786,7 @@ def result_to_markdown(run_result):
         "# Test results: " + r.solution,
         "",
         "- Run at: " + r.started_at,
-        "- Result: **%d/%d passed**" % (r.passed, r.total)
+        "- Result: **%d/%d passed (%s)**" % (r.passed, r.total, pct(r.passed, r.total))
         + ((", %d failed" % r.failed) if r.failed else "")
         + ((", %d skipped" % r.skipped) if r.skipped else ""),
         "- Memory: " + r.memory_note,
@@ -737,15 +799,31 @@ def result_to_markdown(run_result):
     for g, cs in r.by_group().items():
         lines.append("| %s | %d | %d |" % (
             g, sum(1 for c in cs if c.status == "pass"), len(cs)))
+
+    p = performance(r)
+    if p["cases"]:
+        w, c = p["wall"], p["cpu"]
+        lines += ["", "## Performance", "",
+                  "- Wall time: total %s, avg %s, min %s, max %s" % (
+                      fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])),
+                  "- CPU time: total %s, max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"]))]
+        if p["memory_kb"]:
+            m = p["memory_kb"]
+            lines.append("- Peak memory: max %s, avg %s" % (
+                fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"]))))
+        if p["slowest"]:
+            lines.append("- Slowest: " + ", ".join(
+                "%s (%s)" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+
     lines += ["", "## Cases", "",
-              "| Case | Status | Time (s) | Peak mem (KB) | Notes |",
+              "| Case | Status | Time | Peak mem | Notes |",
               "| --- | --- | --- | --- | --- |"]
     for c in r.cases:
         note = c.verdict
         if c.memcheck is not None:
             note += (" / mem ok" if c.memcheck else " / mem error")
-        lines.append("| %s | %s | %.3f | %d | %s |" % (
-            c.case_id, c.status, c.wall_time, c.peak_mem_kb, note))
+        lines.append("| %s | %s | %s | %s | %s |" % (
+            c.case_id, c.status, fmt_secs(c.wall_time), fmt_mem_kb(c.peak_mem_kb), note))
     return "\n".join(lines) + "\n"
 
 
@@ -753,19 +831,24 @@ def result_to_text(run_result):
     r = run_result
     lines = [
         "Test results: " + r.solution,
-        "  %d/%d passed" % (r.passed, r.total)
+        "  %d/%d passed (%s)" % (r.passed, r.total, pct(r.passed, r.total))
         + ((", %d failed" % r.failed) if r.failed else "")
         + ((", %d skipped" % r.skipped) if r.skipped else ""),
-        "  memory: " + r.memory_note,
         "",
     ]
     marks = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP", "error": "ERR "}
     for c in r.cases:
         mark = marks.get(c.status, "?")
-        line = "  [%s] %s  %.3fs" % (mark, c.case_id, c.wall_time)
+        line = "  [%s] %s  %s" % (mark, c.case_id, fmt_secs(c.wall_time))
+        if c.peak_mem_kb > 0:
+            line += "  " + fmt_mem_kb(c.peak_mem_kb)
         if c.verdict:
             line += "  - " + c.verdict
         lines.append(line)
+    perf = perf_text_lines(r)
+    if perf:
+        lines.append("")
+        lines += ["  " + ln for ln in perf]
     return "\n".join(lines) + "\n"
 
 
@@ -1019,7 +1102,7 @@ def judge(manifest, solution, language, cases, runner, opts):
         if not build.ok:
             # Show the toolchain output verbatim and stop (caller exits nonzero).
             raise BuildFailure(build)
-        printer = TablePrinter(opts)
+        printer = TablePrinter(opts, _display_config(runner, opts))
         printer.start(cases)
         for case in cases:
             result = judge_case(manifest, build, case, workdir, runner, opts)
@@ -1040,11 +1123,28 @@ class BuildFailure(Exception):
 # Terminal table (plain text always; ANSI colour only on a tty when asked)
 # ===========================================================================
 
+def _display_config(runner, opts):
+    """What to show: the runner profile decides, CLI flags override."""
+    show_time = runner.get("time", True) if runner else True
+    show_mem = runner.get("measure_mem", True) if runner else True
+    show_perf = runner.get("report", True) if runner else True
+    slowest = runner.get("slowest", 5) if runner else 5
+    if getattr(opts, "time", False):       # --time forces the detail columns on
+        show_time = True
+        show_mem = True
+    if getattr(opts, "perf", None) is not None:
+        show_perf = opts.perf
+    if getattr(opts, "slowest", None) is not None:
+        slowest = opts.slowest
+    return {"time": show_time, "mem": show_mem, "perf": show_perf, "slowest": slowest}
+
+
 class TablePrinter(object):
     """Prints a live, per-case results table plus a per-group / overall summary."""
 
-    def __init__(self, opts):
+    def __init__(self, opts, display):
         self.opts = opts
+        self.display = display          # {time, mem, perf, slowest}
         self.color = opts.color and sys.stdout.isatty()
 
     def _c(self, text, code):
@@ -1057,16 +1157,15 @@ class TablePrinter(object):
         print("")
 
     def case_done(self, result):
-        # - a coloured PASS/FAIL/SKIP/ERR badge
-        # - the case id, the timing, and the short verdict
+        # A coloured badge, the case id, its time/memory, and the short verdict.
         marks = {"pass": ("PASS", "32"), "fail": ("FAIL", "31"),
                  "skip": ("SKIP", "33"), "error": ("ERR ", "35")}
         label, code = marks.get(result.status, ("?", "0"))
-        badge = self._c(label, code)
-        line = "  [%s] %-24s %7.3fs" % (badge, result.case_id, result.wall_time)
-        if self.opts.time:
-            line += "  cpu %6.3fs" % result.cpu_time
-            line += "  mem %8d KB" % result.peak_mem_kb
+        line = "  [%s] %-24s" % (self._c(label, code), result.case_id)
+        if self.display["time"]:
+            line += " %9s cpu %8s" % (fmt_secs(result.wall_time), fmt_secs(result.cpu_time))
+        if self.display["mem"]:
+            line += " %9s" % fmt_mem_kb(result.peak_mem_kb)
         if result.verdict:
             line += "  - " + result.verdict
         if result.memcheck is not None:
@@ -1083,14 +1182,22 @@ class TablePrinter(object):
             p = sum(1 for c in cs if c.status == "pass")
             print("  %-20s %d/%d" % (g, p, len(cs)))
         print("")
-        summary = "%d/%d passed" % (run_result.passed, run_result.total)
+        summary = "%d/%d passed (%s)" % (
+            run_result.passed, run_result.total, pct(run_result.passed, run_result.total))
         if run_result.failed:
             summary += ", %d failed" % run_result.failed
         if run_result.skipped:
             summary += ", %d skipped" % run_result.skipped
-        code = "32" if run_result.all_passed else "31"
-        print(self._c(summary, code))
-        print("memory: %s" % run_result.memory_note)
+        print(self._c(summary, "32" if run_result.all_passed else "31"))
+        if self.display["perf"]:
+            lines = perf_text_lines(run_result, self.display["slowest"],
+                                    self.display["time"], self.display["mem"])
+            if lines:
+                print("")
+                for ln in lines:
+                    print(ln)
+        elif self.display["mem"]:
+            print("memory: %s" % run_result.memory_note)
 
 
 # ===========================================================================
@@ -1161,6 +1268,9 @@ def build_parser():
     _toggle(p, "valgrind", None, "run cases under valgrind memcheck (C/C++/asm)")
     _toggle(p, "diff", True, "show a unified diff on output mismatch")
     p.add_argument("--time", action="store_true", help="show per-case CPU time and peak memory")
+    _toggle(p, "perf", None, "show the performance summary at the end")
+    p.add_argument("--slowest", type=int, default=None, metavar="N",
+                   help="list the N slowest cases in the performance summary")
 
     p.add_argument("--results", metavar="FORMAT", choices=["json", "md", "text"],
                    help="also write a results file in this format")
@@ -1227,14 +1337,14 @@ def main(argv=None):
         sys.stderr.write("error: %s\n" % exc)
         return 1
 
-    # Optionally write a results file shaped like morvix/results.py, so a
-    # Morvix-equipped Author can diff against it.
-    if args.results:
-        fmt = args.results
+    # Write a results file when asked (--results) or when the runner profile is
+    # configured to produce one (Section 16.4) - so a Receiver's run can
+    # automatically leave a shareable report.
+    fmt = args.results or (runner.get("result_format") if runner else None)
+    if fmt and fmt != "none":
         out_path = args.out or _default_results_path(fmt)
-        text = export_result(run_result, fmt)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(text)
+            f.write(export_result(run_result, fmt))
         print("")
         print("Wrote results to %s" % out_path)
 

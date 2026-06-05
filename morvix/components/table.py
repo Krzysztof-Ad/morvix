@@ -1,71 +1,58 @@
 # Live results table (Section 6.5, Section 17.2).
 #
 # The colored, updating table that shows a run in progress and its outcome:
-# per-case status, timing, memory, verdict, with per-group and overall
-# summaries. Built on rich. Every command that shows results uses this one
-# table, never a bespoke variant.
+# per-case status, time, CPU, memory and verdict, then a per-group breakdown,
+# the overall pass line (with a percentage), and a performance summary. Built on
+# rich, and it reuses morvix.results for figures and formatting so the terminal
+# view matches the exported report exactly.
 #
-# API (implement in Workflow B):
-#   class RunTable:
-#       __init__(self, console, live: bool = True)
-#       update(self, case_result)   # call as each case finishes
-#       finish(self, run_result)    # render the per-group + overall summary
-#   render_run(console, run_result) -> None   # static full render (non-interactive / after the fact)
+# API:
+#   class RunTable(console, live=True, show_time=True, show_mem=True,
+#                  show_perf=True, slowest_n=5): update(case_result); finish(run_result)
+#   render_run(console, run_result, show_time=True, show_mem=True,
+#              show_perf=True, slowest_n=5)   # static full render
 
 from rich.live import Live
 from rich.table import Table
 
-from morvix.theme import ROLE_COLORS
+from morvix.results import fmt_mem_kb, fmt_secs, pct, perf_lines
+
+_STATUS_STYLE = {"pass": "pass", "fail": "fail", "error": "fail", "skip": "skip"}
 
 
-# Map a case status to the theme role name used for color.
-_STATUS_STYLE = {
-    "pass": "pass",
-    "fail": "fail",
-    "error": "fail",
-    "skip": "skip",
-}
-
-
-def _make_table():
-    """Build a fresh rich Table with the standard run columns."""
-    # "bold" is a built-in rich style (works with and without the morvix theme).
+def _make_table(show_time, show_mem):
     t = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-    t.add_column("Case", style="")
-    t.add_column("Status", style="")
-    t.add_column("Time (s)", justify="right")
-    t.add_column("Mem (KB)", justify="right")
-    t.add_column("Verdict", style="")
+    t.add_column("Case")
+    t.add_column("Status")
+    if show_time:
+        t.add_column("Time", justify="right")
+        t.add_column("CPU", justify="right")
+    if show_mem:
+        t.add_column("Mem", justify="right")
+    t.add_column("Verdict")
     return t
 
 
-def _add_case_row(table, case_result):
-    """Append one row to the table for the given CaseResult."""
-    cr = case_result
+def _add_case_row(table, cr, show_time, show_mem):
     style = _STATUS_STYLE.get(cr.status, "")
-    table.add_row(
-        cr.case_id,
-        f"[{style}]{cr.status}[/{style}]" if style else cr.status,
-        f"{cr.wall_time:.3f}",
-        str(cr.peak_mem_kb),
-        cr.verdict or "",
-    )
+    cells = [cr.case_id, f"[{style}]{cr.status}[/{style}]" if style else cr.status]
+    if show_time:
+        cells += [fmt_secs(cr.wall_time), fmt_secs(cr.cpu_time)]
+    if show_mem:
+        cells += [fmt_mem_kb(cr.peak_mem_kb)]
+    cells += [cr.verdict or ""]
+    table.add_row(*cells)
 
 
-def _print_summary(console, run_result):
-    """Print the per-group counts and the overall pass/total line."""
-    r = run_result
+def _print_summary(console, run, show_perf, show_time, show_mem, slowest_n):
+    r = run
     console.print("")
-
-    # Per-group breakdown
     for group, cases in r.by_group().items():
         p = sum(1 for c in cases if c.status == "pass")
         console.print(f"  [muted]{group}:[/muted] {p}/{len(cases)}")
-
     console.print("")
 
-    # Overall pass line - green when all passed, red otherwise
-    summary = f"{r.passed}/{r.total} passed"
+    summary = f"{r.passed}/{r.total} passed ({pct(r.passed, r.total)})"
     if r.failed:
         summary += f", {r.failed} failed"
     if r.skipped:
@@ -73,15 +60,25 @@ def _print_summary(console, run_result):
     overall_style = "success" if r.all_passed else "error"
     console.print(f"[{overall_style}]{summary}[/{overall_style}]")
 
-    # Honest memory label (Section 15.1)
-    console.print(f"[muted]memory: {r.memory_note}[/muted]")
+    if show_perf:
+        lines = perf_lines(r, slowest_n=slowest_n, show_time=show_time, show_mem=show_mem)
+        if lines:
+            console.print("")
+            for ln in lines:
+                console.print(f"[muted]{ln}[/muted]")
+    elif show_mem:
+        console.print(f"[muted]memory: {r.memory_note}[/muted]")
 
 
 class RunTable:
-    def __init__(self, console, live=True):
+    def __init__(self, console, live=True, show_time=True, show_mem=True,
+                 show_perf=True, slowest_n=5):
         self._console = console
-        self._table = _make_table()
-        # Use Live only when requested and the console is writing to a real tty.
+        self._show_time = show_time
+        self._show_mem = show_mem
+        self._show_perf = show_perf
+        self._slowest_n = slowest_n
+        self._table = _make_table(show_time, show_mem)
         use_live = live and getattr(console.file, "isatty", lambda: False)()
         if use_live:
             self._live = Live(self._table, console=console, refresh_per_second=8)
@@ -90,25 +87,24 @@ class RunTable:
             self._live = None
 
     def update(self, case_result):
-        """Append a row for the finished case; refreshes the live display if active."""
-        _add_case_row(self._table, case_result)
+        _add_case_row(self._table, case_result, self._show_time, self._show_mem)
         if self._live:
             self._live.refresh()
 
     def finish(self, run_result):
-        """Stop the live display (if any) and print group counts + overall summary."""
         if self._live:
             self._live.stop()
         else:
-            # Not live - print the collected table now, then the summary.
             self._console.print(self._table)
-        _print_summary(self._console, run_result)
+        _print_summary(self._console, run_result, self._show_perf,
+                       self._show_time, self._show_mem, self._slowest_n)
 
 
-def render_run(console, run_result):
+def render_run(console, run_result, show_time=True, show_mem=True,
+               show_perf=True, slowest_n=5):
     """Build the full static table and summary from a finished RunResult."""
-    table = _make_table()
+    table = _make_table(show_time, show_mem)
     for cr in run_result.cases:
-        _add_case_row(table, cr)
+        _add_case_row(table, cr, show_time, show_mem)
     console.print(table)
-    _print_summary(console, run_result)
+    _print_summary(console, run_result, show_perf, show_time, show_mem, slowest_n)

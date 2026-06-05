@@ -37,6 +37,8 @@ class Runner:
     diff: bool = True
     color: bool = True
     verbosity: str = "normal"                          # quiet | normal | verbose
+    report: bool = True                                # show the performance summary after the run
+    slowest: int = 5                                   # how many slowest cases to list
     limits: Dict[str, Optional[float]] = field(default_factory=lambda: dict(DEFAULT_LIMITS))
     result_format: str = "md"                          # md | json | text | none
     result_path: Optional[str] = None
@@ -55,6 +57,8 @@ class Runner:
             "diff": self.diff,
             "color": self.color,
             "verbosity": self.verbosity,
+            "report": self.report,
+            "slowest": self.slowest,
             "limits": self.limits,
             "result_format": self.result_format,
             "result_path": self.result_path,

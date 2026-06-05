@@ -334,8 +334,10 @@ Options:
 - `--all` - run every case (the default)
 - `--group G` - only this group (repeatable)
 - `--case C` - only this case (repeatable)
-- `--time` - measure wall/cpu time
-- `--mem` - measure peak memory
+- `--time` - show wall/cpu time per case (on by default for run)
+- `--mem` - show peak memory per case (on by default for run)
+- `--no-perf` - hide the performance summary at the end
+- `--slowest N` - list the N slowest cases in the performance summary (default 5)
 - `--valgrind` - check for memory errors under valgrind
 - `--compare MODE` - override the comparison strategy  (one of: checker, exact, float, hash, whitespace)
 - `--runner NAME` - use a saved runner profile instead of the flags
