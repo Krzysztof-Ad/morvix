@@ -664,6 +664,20 @@ class CaseResult(object):
             d["memcheck"] = self.memcheck
         return d
 
+    @staticmethod
+    def from_dict(d):
+        cr = CaseResult(d.get("case", ""), d.get("group", ""))
+        cr.status = d.get("status", "pass")
+        cr.verdict = d.get("verdict", "")
+        cr.exit_code = d.get("exit_code")
+        cr.signal = d.get("signal")
+        cr.timed_out = d.get("timed_out", False)
+        cr.wall_time = d.get("wall_time", 0.0)
+        cr.cpu_time = d.get("cpu_time", 0.0)
+        cr.peak_mem_kb = d.get("peak_mem_kb", 0)
+        cr.memcheck = d.get("memcheck")
+        return cr
+
 
 class RunResult(object):
     def __init__(self, solution, runner=None):
@@ -673,6 +687,14 @@ class RunResult(object):
         from datetime import datetime
         self.started_at = datetime.now().isoformat(timespec="seconds")
         self.memory_note = "peak, approximate"   # honest label (Section 15.1)
+
+    @staticmethod
+    def from_json(d):
+        r = RunResult(d.get("solution", ""), d.get("runner"))
+        r.started_at = d.get("started_at", "")
+        r.memory_note = d.get("memory_note", "peak, approximate")
+        r.cases = [CaseResult.from_dict(c) for c in d.get("cases", [])]
+        return r
 
     @property
     def total(self):
@@ -759,6 +781,52 @@ def perf_text_lines(run_result, slowest_n=5, show_time=True, show_mem=True):
     if p["slowest"]:
         lines.append("  slowest " + ", ".join(
             "%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+    return lines
+
+
+def _cmp_cell(cr, show_mem):
+    if cr is None:
+        return "-"
+    if cr.timed_out:
+        return "timeout"
+    s = fmt_secs(cr.wall_time)
+    if show_mem and cr.peak_mem_kb > 0:
+        s += " " + fmt_mem_kb(cr.peak_mem_kb)
+    if cr.status != "pass":
+        s = cr.status.upper() + " " + s
+    return s
+
+
+def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
+    """Solution-vs-rivals comparison text (mirrors morvix/results.py)."""
+    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(rival_cols)
+    lines = []
+    if per_case:
+        index = [(c["label"], dict((x.case_id, x) for x in c["run"].cases)) for c in cols]
+        header = "  %-22s" % "Case"
+        for label, _ in index:
+            header += " | %-20s" % label
+        lines.append(header)
+        for case in main_run.cases:
+            row = "  %-22s" % case.case_id
+            for _, by in index:
+                row += " | %-20s" % _cmp_cell(by.get(case.case_id), show_mem)
+            lines.append(row)
+        lines.append("")
+    lines.append("Comparison (vs solution):")
+    main_total = performance(main_run)["wall"]["total"] or 1e-9
+    for c in cols:
+        run = c["run"]
+        p = performance(run)
+        bits = "wall total %s  avg %s" % (fmt_secs(p["wall"]["total"]), fmt_secs(p["wall"]["avg"]))
+        if show_mem:
+            bits += "  peak %s" % (fmt_mem_kb(p["memory_kb"]["max"]) if p["memory_kb"] else "n/a")
+        ratio = "" if c["label"] == "solution" else "  %.2fx" % (p["wall"]["total"] / main_total)
+        note = "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        tag = ""
+        if c.get("precomputed"):
+            tag = "  [precomputed: %s]" % c["env"] if c.get("env") else "  [precomputed]"
+        lines.append("  %-14s %s%s%s%s" % (c["label"], bits, ratio, note, tag))
     return lines
 
 
@@ -1090,7 +1158,14 @@ def select_cases(manifest, runner, groups, case_ids):
 
 
 def judge(manifest, solution, language, cases, runner, opts):
-    """Build the solution, run each selected case, return the full RunResult."""
+    """Build the solution, run each selected case, return the full RunResult.
+
+    With a printer (default) it shows the live table; on_case=None runs quietly,
+    which is how rivals are run before the comparison is printed.
+    """
+    show_live = not getattr(opts, "_quiet", False)
+    printer = TablePrinter(opts, _display_config(runner, opts)) if show_live else None
+
     run_result = RunResult(solution=os.path.basename(solution),
                            runner=(runner.get("name") if runner else None))
     manifest["_runner"] = runner
@@ -1100,18 +1175,57 @@ def judge(manifest, solution, language, cases, runner, opts):
     try:
         build = build_solution(manifest, solution, language, workdir)
         if not build.ok:
-            # Show the toolchain output verbatim and stop (caller exits nonzero).
             raise BuildFailure(build)
-        printer = TablePrinter(opts, _display_config(runner, opts))
-        printer.start(cases)
+        if printer:
+            printer.start(cases)
         for case in cases:
             result = judge_case(manifest, build, case, workdir, runner, opts)
             run_result.cases.append(result)
-            printer.case_done(result)
-        printer.finish(run_result)
+            if printer:
+                printer.case_done(result)
+        if printer:
+            printer.finish(run_result)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
     return run_result
+
+
+def _run_quiet(manifest, solution, language, cases, runner, opts):
+    """Run a solution without printing (used for rivals)."""
+    saved = getattr(opts, "_quiet", False)
+    opts._quiet = True
+    try:
+        return judge(manifest, solution, language, cases, runner, opts)
+    finally:
+        opts._quiet = saved
+
+
+def _build_rival_cols(manifest, rivals_meta, language, cases, runner, opts):
+    """Gather rival columns: precomputed numbers, or rival code run live here."""
+    root = manifest["_root"]
+    cols = []
+    for rv in rivals_meta:
+        name = rv.get("name", "rival")
+        mode = rv.get("mode")
+        if mode == "precomputed":
+            path = os.path.join(root, "rivals", name + ".json")
+            if not os.path.exists(path):
+                continue
+            with open(path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            cols.append({"label": name, "run": RunResult.from_json(d),
+                         "precomputed": True, "env": rv.get("env") or d.get("env", "")})
+        elif mode == "code":
+            src = os.path.join(root, rv.get("source", ""))
+            if not os.path.exists(src):
+                continue
+            lang = detect_language(src) or language
+            try:
+                run = _run_quiet(manifest, src, lang, cases, runner, opts)
+            except BuildFailure:
+                continue
+            cols.append({"label": name, "run": run, "precomputed": False, "env": ""})
+    return cols
 
 
 class BuildFailure(Exception):
@@ -1271,6 +1385,8 @@ def build_parser():
     _toggle(p, "perf", None, "show the performance summary at the end")
     p.add_argument("--slowest", type=int, default=None, metavar="N",
                    help="list the N slowest cases in the performance summary")
+    p.add_argument("--no-rivals", action="store_true",
+                   help="skip the rival performance comparison shipped in this package")
 
     p.add_argument("--results", metavar="FORMAT", choices=["json", "md", "text"],
                    help="also write a results file in this format")
@@ -1324,8 +1440,22 @@ def main(argv=None):
         sys.stderr.write("error: no cases match the given filters.\n")
         return 2
 
+    rivals_meta = [] if args.no_rivals else manifest.get("rivals", [])
     try:
-        run_result = judge(manifest, solution, language, cases, runner, args)
+        if rivals_meta:
+            run_result = _run_quiet(manifest, solution, language, cases, runner, args)
+            cols = _build_rival_cols(manifest, rivals_meta, language, cases, runner, args)
+            display = _display_config(runner, args)
+            print("")
+            for line in comparison_block(run_result, cols, show_mem=display["mem"]):
+                print(line)
+            line = "%d/%d passed (%s)" % (run_result.passed, run_result.total,
+                                          pct(run_result.passed, run_result.total))
+            if run_result.failed:
+                line += ", %d failed" % run_result.failed
+            print(line)
+        else:
+            run_result = judge(manifest, solution, language, cases, runner, args)
     except BuildFailure as exc:
         b = exc.build
         sys.stderr.write("Build failed (%s):\n" % b.build_command)

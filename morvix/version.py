@@ -2,6 +2,6 @@
 # banner. Kept in its own tiny module so both the package and the build
 # metadata can read it without importing anything heavy.
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 AUTHOR = "Krzysztof Adamczyk"

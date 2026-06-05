@@ -66,6 +66,50 @@ def test_compare_live_renders_block(tmp_path, py_project):
     assert "x" in lines                        # a ratio is shown
 
 
+def test_package_ships_precomputed_and_runner_compares(tmp_path, py_project):
+    import json
+    import subprocess
+    import sys
+    import zipfile
+
+    from morvix import packaging
+    from morvix.judge import select_cases
+
+    ctx, proj = py_project                    # solution = SUM_ALL
+    rv = tmp_path / "rv.py"
+    rv.write_text(SUM_ALL)
+    proj.add_rival(Rival(name="rv", path=str(rv)))
+    _add_cases(proj, [("a", "1 2", "3"), ("b", "4 5", "9")])
+    proj.save()
+
+    comparison.precompute_rivals(proj, select_cases(proj))
+    out = str(tmp_path / "p.zip")
+    packaging.build_package(ctx, proj, fmt="zip", out=out, rivals_mode="precomputed")
+
+    with zipfile.ZipFile(out) as z:
+        names = z.namelist()
+        man = json.loads(z.read("morvix.json"))
+    assert "rivals/rv.json" in names           # precomputed numbers shipped (code-free)
+    assert man["rivals"][0]["mode"] == "precomputed"
+    assert not any(n == "rivals/rv.py" for n in names)   # no code shipped
+
+    extracted = tmp_path / "ex"
+    extracted.mkdir()
+    with zipfile.ZipFile(out) as z:
+        z.extractall(str(extracted))
+    (extracted / "sol.py").write_text(SUM_ALL)
+    r = subprocess.run([sys.executable, str(extracted / "runner" / "morvix_runner.py"),
+                        "sol.py", "--all"], cwd=str(extracted), capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "Comparison (vs solution):" in r.stdout
+    assert "precomputed" in r.stdout
+    # And --no-rivals drops the comparison.
+    r2 = subprocess.run([sys.executable, str(extracted / "runner" / "morvix_runner.py"),
+                         "sol.py", "--all", "--no-rivals"], cwd=str(extracted),
+                        capture_output=True, text=True)
+    assert "Comparison (vs solution):" not in r2.stdout
+
+
 def test_stress_uses_stress_rival(tmp_path, py_project, make_ctx):
     ctx, proj = py_project
     buggy = tmp_path / "buggy.py"

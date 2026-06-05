@@ -35,6 +35,9 @@ def configure(parser):
                         help="also bundle the generators/ directory")
     parser.add_argument("--runner", action="append", metavar="NAME",
                         help="only include this runner (repeatable)")
+    parser.add_argument("--rivals", choices=["precomputed", "code", "none"], default="precomputed",
+                        help="ship rival comparison data: precomputed numbers (default, code-free), "
+                             "the rival code (leaks code), or nothing")
     parser.add_argument("--out", metavar="PATH", help="output archive path")
 
 
@@ -81,11 +84,22 @@ def run(ctx, args):
         if suggested:
             fmt = suggested
 
+    # Shipping rival CODE leaks working solutions, so confirm it explicitly.
+    rivals_mode = args.rivals
+    if rivals_mode == "code" and project.rivals:
+        from morvix.components.confirm import confirm
+        ctx.messenger.warning(
+            "Shipping rival CODE includes those solution files in the package.",
+            hint="That can hand classmates working solutions. Precomputed numbers stay code-free.")
+        if not confirm(ctx, "Ship the rival source code anyway?", default=False):
+            rivals_mode = "precomputed"
+
     out = packaging.build_package(
         ctx, project, fmt=fmt,
         runners=runners,
         include_generators=args.include_generators,
         out=args.out,
+        rivals_mode=rivals_mode,
     )
 
     ctx.messenger.success(f"Package written to {out}")

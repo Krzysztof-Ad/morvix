@@ -245,7 +245,7 @@ reference solution.c
 
 #### `bruteforce`
 
-A simple brute-force solution, trusted because it is simple. Stress testing compares the real solution against it to find bugs. Never shipped in a package.
+Kept for compatibility. It now adds the given file as a rival tagged as the stress-test oracle - the same as 'rival add <path> --stress'.
 
 Arguments:
 
@@ -255,6 +255,30 @@ Examples:
 
 ```
 bruteforce brute.py
+```
+
+#### `rival`
+
+A rival is an alternative implementation kept only to compare performance (time/memory) against - it never changes the tests or expected answers. Add as many as you like; tag one --stress to use it as the stress-test oracle. 'rival precompute' records their numbers on this machine so they can ship code-free for a same-machine comparison.
+
+Arguments:
+
+- `<action>` - what to do  (one of: add, list, remove, precompute)
+- `<target>` - path (add) or rival name (remove)
+
+Options:
+
+- `--name NAME` - name for the rival (default: the file stem)
+- `--stress` - use this rival as the stress-test oracle
+
+Examples:
+
+```
+rival add brute.c --stress
+rival add fast.c --name fast
+rival list
+rival precompute
+rival remove brute
 ```
 
 #### `model`
@@ -338,6 +362,8 @@ Options:
 - `--mem` - show peak memory per case (on by default for run)
 - `--no-perf` - hide the performance summary at the end
 - `--slowest N` - list the N slowest cases in the performance summary (default 5)
+- `--no-rivals` - skip the rival performance comparison
+- `--parallel` - run rivals in parallel (faster, but perf numbers become approximate)
 - `--valgrind` - check for memory errors under valgrind
 - `--compare MODE` - override the comparison strategy  (one of: checker, exact, float, hash, whitespace)
 - `--runner NAME` - use a saved runner profile instead of the flags
@@ -410,6 +436,7 @@ Options:
 - `--tar.xz` - xz-compressed tar (smallest)
 - `--include-generators` - also bundle the generators/ directory
 - `--runner NAME` - only include this runner (repeatable)
+- `--rivals RIVALS` - ship rival comparison data: precomputed numbers (default, code-free), the rival code (leaks code), or nothing  (one of: precomputed, code, none)
 - `--out PATH` - output archive path
 
 Examples:

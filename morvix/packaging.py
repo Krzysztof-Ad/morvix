@@ -37,17 +37,23 @@ _FORMATS = {
 }
 
 
-def build_package(ctx, project, fmt="zip", runners=None, include_generators=False, out=None):
+def build_package(ctx, project, fmt="zip", runners=None, include_generators=False,
+                  out=None, rivals_mode="precomputed"):
     """Assemble a shareable archive of the project.
 
     Stages tests/, expected/, the manifest, the runner core, run.sh, and the
-    README into a temp dir, then archives it. Solutions, config and brute-force
-    are intentionally excluded (Section 2.3, 19.2).
+    README into a temp dir, then archives it. Solutions, config and the solution
+    source are intentionally excluded (Section 2.3, 19.2).
+
+    rivals_mode controls what comparison data ships: "precomputed" (code-free
+    numbers, default), "code" (rival source - opt-in, leaks code), or "none".
 
     Returns the path to the created archive.
     """
     if fmt not in _FORMATS:
         raise ValueError(f"Unknown package format: {fmt!r}. Choose from: {', '.join(_FORMATS)}")
+    if rivals_mode not in ("precomputed", "code", "none"):
+        raise ValueError(f"Unknown rivals mode: {rivals_mode!r}.")
 
     ext, tar_mode = _FORMATS[fmt]
 
@@ -66,7 +72,7 @@ def build_package(ctx, project, fmt="zip", runners=None, include_generators=Fals
             )
 
     with tempfile.TemporaryDirectory() as staging:
-        _stage(project, staging, include_generators, runners)
+        _stage(ctx, project, staging, include_generators, runners, rivals_mode)
         _archive(staging, out, fmt, tar_mode)
 
     return out
@@ -90,12 +96,12 @@ def estimate_size(project):
 
 # --- internal helpers ---
 
-def _stage(project, staging, include_generators, runners=None):
+def _stage(ctx, project, staging, include_generators, runners=None, rivals_mode="precomputed"):
     """Copy everything that belongs in the package into the staging dir, flat."""
     root = project.root
 
     # Build the manifest dict (optionally limited to selected runners), flatten
-    # its case paths to package-relative, and write it at the archive root.
+    # its case paths to package-relative, attach rivals, and write it at the root.
     if runners is not None:
         original_runners = project.runners
         project.runners = {n: v for n, v in original_runners.items() if n in runners}
@@ -106,6 +112,7 @@ def _stage(project, staging, include_generators, runners=None):
     else:
         m = manifest.build_manifest(project)
     _flatten_manifest_paths(m)
+    _stage_rivals(ctx, project, staging, m, rivals_mode)
     with open(os.path.join(staging, "morvix.json"), "w", encoding="utf-8") as f:
         json.dump(m, f, indent=2)
         f.write("\n")
@@ -144,6 +151,45 @@ def _stage(project, staging, include_generators, runners=None):
         gen_src = os.path.join(root, layout.GENERATORS_DIR)
         if os.path.isdir(gen_src):
             _copy_tree(gen_src, os.path.join(staging, "generators"))
+
+
+def _stage_rivals(ctx, project, staging, manifest_dict, mode):
+    """Attach rival comparison data to the package per the chosen mode."""
+    if mode == "none" or not project.rivals:
+        return
+    from morvix import comparison
+
+    rivals_dir = os.path.join(staging, "rivals")
+    entries, missing = [], []
+
+    if mode == "precomputed":
+        for r in project.rivals:
+            src = comparison.precompute_path(project.root, r.name)
+            if not os.path.exists(src):
+                missing.append(r.name)
+                continue
+            os.makedirs(rivals_dir, exist_ok=True)
+            shutil.copy2(src, os.path.join(rivals_dir, r.name + ".json"))
+            with open(src, "r", encoding="utf-8") as f:
+                env = json.load(f).get("env", "")
+            entries.append({"name": r.name, "stress": r.stress, "mode": "precomputed", "env": env})
+        if missing and ctx is not None:
+            ctx.messenger.warning(
+                "No precomputed results for: %s." % ", ".join(missing),
+                hint="Run 'rival precompute' first so their numbers can ship.")
+    elif mode == "code":
+        for r in project.rivals:
+            if not os.path.exists(r.path):
+                missing.append(r.name)
+                continue
+            os.makedirs(rivals_dir, exist_ok=True)
+            base = os.path.basename(r.path)
+            shutil.copy2(r.path, os.path.join(rivals_dir, base))
+            entries.append({"name": r.name, "stress": r.stress, "mode": "code",
+                            "source": "rivals/" + base})
+
+    if entries:
+        manifest_dict["rivals"] = entries
 
 
 def _flatten_manifest_paths(m):

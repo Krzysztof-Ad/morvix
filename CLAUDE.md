@@ -82,6 +82,13 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
   (`suggestions.py`) explain and ask - they never change behavior silently.
 - **Help text has one home.** `morvix/help_text.py` powers both `help` and the autocomplete meta
   column; keep summaries there in sync with what a command actually does.
+- **Rivals are perf-only, never correctness.** A `Rival` (`project.rivals`) is an alternative
+  implementation compared for time/memory; it never touches tests or expected answers. `reference`
+  defines answers; a rival tagged `stress` is the stress oracle (the old `bruteforce`, auto-migrated).
+  `morvix/comparison.py` runs the solution + rivals (sequential by default - parallel skews numbers);
+  `results.comparison_block` renders it and is **mirrored** in the runner core. Packages stay
+  code-free: `rival precompute` records numbers that ship by default; shipping rival *code* is opt-in
+  and warned (`package --rivals code`).
 
 ## Style
 
