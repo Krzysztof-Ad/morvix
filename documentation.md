@@ -4,6 +4,12 @@
 
 **by Krzysztof Adamczyk**
 
+> This is the **design doc**: the architecture and the reasoning behind each
+> decision, for contributors. For day-to-day usage — every command, its options
+> and examples — run `morvix docs` or read [GUIDE.md](GUIDE.md), which is
+> generated from the tool and always current. Code comments cite the sections
+> here (e.g. "Section 14.6"), so the numbering is stable.
+
 ---
 
 ## Table of Contents
@@ -178,7 +184,7 @@ Morvix itself is written in **Python 3**. The reasoning:
 
 ### 4.4 External dependencies
 
-Kept deliberately small. For Morvix itself: `prompt_toolkit` (interactive shell and components), `rich` (output formatting). Optionally `tomli`/`tomllib` for TOML config. Everything else is standard library. The **runner core that ships in packages has zero third-party dependencies** — stdlib only — so a Receiver never installs anything.
+Kept deliberately small. For Morvix itself: `prompt_toolkit` (interactive shell and components) and `rich` (output formatting). Configuration is JSON throughout, so no extra parser is needed; everything else is standard library. The **runner core that ships in packages has zero third-party dependencies** — stdlib only — so a Receiver never installs anything.
 
 ---
 
@@ -702,94 +708,73 @@ These suggestions encode the judgment an experienced person would apply, surface
 
 ## 23. Full command reference
 
-> Flat verbs, identical in REPL and one-shot. One-shot adds flags; interactive use opens the relevant shared component (guided form, selection list, etc.). This is the intended surface; exact flag names settle during implementation.
+The complete, always-current reference — every command, its options and
+examples — is **generated from the tool**: run `morvix docs` (or read
+[GUIDE.md](GUIDE.md)); `help <command>` explains one in the shell. It lives there
+rather than here so it can't drift from the implementation.
 
-### Project & session
-- **`init`** — create a new Morvix project in the current directory (guided form).
-- **`open` / (auto)** — load the project (or package manifest) in the current directory.
-- **`status`** — show current project, solution under test, selected runner, counts.
-- **`help [command]`** — list commands, or explain one (also powers the autocomplete meta column).
-- **`exit` / `quit`** — leave the shell.
+The verbs, by stage (flat, identical in REPL and one-shot — one-shot adds flags,
+interactive use opens the relevant shared component):
 
-### Define
-- **`config <language>`** — set build/run settings for a language (guided form); includes the raw build/run command escape hatch (§9.3).
-- **`import <path> [--copy|--reference]`** — set the solution under test.
-- **`reference <path>`** — set the reference solution that defines expected answers.
-- **`bruteforce <path>`** — register the slow brute-force reference for stress testing.
-- **`model <stdio|library|args|file|interactive>`** — set the execution model (§10).
-
-### Generate
-- **`gen --manual <name>`** — register/edit a hand-written permanent case.
-- **`gen --random [--count N] [--seed S] [shape options]`** — generate cases from the built-in shape library.
-- **`gen --generator <prog> [modes/knobs]`** — run a custom generator (any language).
-- **`gen --expected [--hash]`** — (re)compute expected answers from the reference.
-- **`gen --stress [--count N]`** — stress-test real vs brute force; save first failing case.
-- **`gen --crash [variants]`** — generate malformed-input/crash candidate cases (§13.6).
-- **`clean`** — remove generated cases (preserve manual ones; confirmation prompt).
-
-### Run
-- **`run [--all | --group G | --case C] [--time] [--mem] [--valgrind] [--compare MODE] [limits…]`** — run the solution under test and report (selection list when run interactively).
-- **`runner new <name>`** — build a named runner profile (guided form + selection list).
-- **`runner edit <name>` / `runner show <name>` / `runner list`** — manage runners.
-- **`runner backend <bash|python|valgrind>`** — choose backend (with capability warnings, §16.3).
-
-### Share
-- **`result [--json|--md|--text] [--out path]`** — produce/export a results report.
-- **`result diff <other-results>`** — diff results against another run/Author (§20.2).
-- **`package [--zip|--tar|--tar.gz|--tar.xz] [--include-generators] [--runner name…]`** — build the shareable archive (selection list + single-choice when interactive).
-
-### Automation
-- **`workflow record [name]` / `workflow stop`** — capture actions into a workflow.
-- **`workflow run <name> [--on solution]`** — replay a workflow (optionally against another solution).
-- **`workflow edit/list/show`** — manage workflows (plain JSON of commands).
+- **Project & session** — `init`, `open`, `status`, `docs`, `help`, `exit`.
+- **Define** — `config <language>` (incl. the raw build/run escape hatch, §9.3),
+  `import`, `reference`, `bruteforce`, `model` (§10).
+- **Generate** — `gen` (`--manual` / `--random` / `--generator` / `--expected`
+  / `--stress` / `--crash` / `--new-generator`), `clean`.
+- **Run** — `run` (scope + limit + compare flags), `runner` (new/edit/show/list/
+  build/backend, §16.3).
+- **Share** — `result` (export + `result diff`, §20.2), `package` (§19).
+- **Automation** — `workflow` (record/stop/run/list/show/edit, §18).
 
 ---
 
 ## 24. The project directory layout on disk
 
+A project keeps **all** of its state inside a single hidden `.morvix/` directory,
+so the project root stays clean — just your own source next to `.morvix/`:
+
 ```
 my-assignment/
-├── morvix.json                # manifest: the project/package descriptor (§20, §25)
-├── config/
-│   ├── project.json           # per-project language/build/run settings, model, locale
-│   └── runners/               # one file per named runner profile
-│       ├── quick.json
-│       └── full.json
-├── solutions/                 # imported solution(s) when --copy is used (NOT packaged)
-│   └── reference/             # the reference solution (used to make expected answers)
-├── generators/                # generator programs (any language)
-├── tests/                     # input cases, grouped
-│   ├── baseline/
-│   ├── tricky/
-│   ├── bad-input/
-│   └── ...                    # manual cases permanent; generated ones disposable
-├── expected/                  # expected outputs and/or hashes, paralleling tests/
-├── runner/                    # the shippable runner: portable core + run.sh wrapper
-│   ├── morvix_runner.py       # stdlib-only Python core
-│   └── run.sh                 # thin wrapper
-├── results/                   # saved results (JSON / Markdown / text)
-├── workflows/                 # recorded command sequences (JSON)
-└── README.md                  # auto-generated (with honesty clause)
+├── solution.c                  # your own source (you edit this; never packaged)
+├── .gitignore                  # written by `morvix init`
+└── .morvix/
+    ├── morvix.json             # generated manifest / descriptor (§20, §25)
+    ├── config/
+    │   ├── project.json        # language/build/run settings, model, locale (§25.1)
+    │   ├── cases.json          # the case index
+    │   └── runners/            # one file per named runner profile (quick.json, full.json)
+    ├── solutions/              # imported solutions when --copy is used (NOT packaged)
+    ├── generators/             # generator programs (any language)
+    ├── tests/                  # input cases, grouped (baseline, tricky, bad-input, …)
+    ├── expected/               # expected outputs and/or hashes, paralleling tests/
+    ├── runner/                 # the shippable runner: morvix_runner.py + run.sh
+    ├── results/                # saved results (JSON / Markdown / text)
+    └── workflows/              # recorded command sequences (JSON)
 ```
 
-The directory *is* the state — inspectable, git-friendly, and the exact thing that gets packaged (minus `solutions/`). A package is this tree, pruned of the Author's source, archived.
+The directory *is* the state — inspectable and git-friendly. A **package** is laid
+out **flat** instead: `run.sh`, `README.md`, `morvix.json` and the `tests/`,
+`expected/` and `runner/` trees sit at the archive root, so a Receiver sees the
+harness directly. A package never contains the Author's source, the brute force,
+or `config/`. Opening a package with Morvix re-adopts it back into a `.morvix/`
+project.
 
 ---
 
 ## 25. Configuration file formats (the schemas)
 
-> Illustrative shapes for review — exact keys settle during implementation. JSON is the interchange/manifest format; project/global personal config may use TOML for human editing. The point is to confirm *what information is captured*, not the final field names.
+> Illustrative shapes — the point is *what information is captured*, not the exact field names. JSON is used throughout (project and global config, the case index, the manifest, workflows). All of these live under `.morvix/` (§24).
 
-### 25.1 Project config (`config/project.json`)
-Captures: project name; chosen **execution model**; **per-language build/run settings** (compiler, standard, flags, include/lib paths, venv path, link mode, classpath, edition…); **raw build/run command** overrides; default **comparison strategy** and its parameters (epsilon, whitespace mode); default **limits** (wall, CPU, memory, hard-kill, output cap); **locale** setting; reference and brute-force solution locations.
+### 25.1 Project config (`.morvix/config/project.json`)
+Captures: project name; active language; chosen **execution model**; **per-language build/run settings** (compiler, standard, flags, include/lib paths, venv path, link mode, classpath, edition…); **raw build/run command** overrides; default **comparison strategy** and its parameters (epsilon, whitespace mode); default **limits** (wall, CPU, memory, hard-kill, output cap); **locale** setting; reference, brute-force and current solution locations. The case index is a sibling, `.morvix/config/cases.json`.
 
-### 25.2 Runner profile (`config/runners/<name>.json`)
+### 25.2 Runner profile (`.morvix/config/runners/<name>.json`)
 Captures: which tests/groups it covers; comparison strategy; **backend** (bash/python/valgrind) and its capability set; toggles (timing on/off, memory measure on/off, hard-kill on/off, memory-checker on/off, diff on/off, color, verbosity); limit values; results-output settings (format, path).
 
 ### 25.3 Manifest (`morvix.json`)
-The package descriptor that makes a package self-describing to a Morvix-equipped Receiver: project metadata; execution model; comparison strategy; limits; locale; the index of test cases and groups (with, per case, the expected-behavior kind — output/hash/exit-status/checker); runner definitions; and the Author's own per-case results (for diffing). Designed so opening Morvix in the directory yields full understanding **before** any code is inspected.
+The descriptor that makes a package self-describing to a Morvix-equipped Receiver. It lives at `.morvix/morvix.json` in a project and at the root of a (flat) package. Holds: project metadata; execution model; comparison strategy; limits; locale; the index of test cases and groups (with, per case, the expected-behavior kind — output/hash/exit-status/checker); runner definitions; and the Author's own per-case results (for diffing). Designed so opening Morvix in the directory yields full understanding **before** any code is inspected. (Case paths are stored package-relative in a package and `.morvix/`-relative in a project.)
 
-### 25.4 Workflow (`workflows/<name>.json`)
+### 25.4 Workflow (`.morvix/workflows/<name>.json`)
 An ordered list of recorded Morvix commands with their arguments — readable, hand-editable, replayable (§18).
 
 ### 25.5 Global config (personal defaults)
