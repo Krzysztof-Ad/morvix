@@ -13,7 +13,7 @@ from morvix import generators, layout
 from morvix.cases import TestCase
 from morvix.context import Context
 from morvix.judge import judge, select_cases
-from morvix.project import Project
+from morvix.project import Project, ensure_gitignore
 
 NOOP_PY = "import sys\nsys.stdin.read()\n"   # reads input, prints nothing
 SUM_ALL_PY = "import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n"
@@ -68,6 +68,27 @@ def test_legacy_flat_project_migrates_on_load(tmp_path):
     # And the migrated project still judges correctly.
     run = judge(proj, proj.solution, "python", select_cases(proj))
     assert run.all_passed
+
+
+# --- .gitignore ---
+
+def test_init_writes_gitignore(tmp_path, make_ctx):
+    from morvix import registry
+    ctx = make_ctx(tmp_path)
+    registry.safe_dispatch(ctx, ["init", "--name", "g", "--language", "python"])
+    gi = tmp_path / ".gitignore"
+    assert gi.exists()
+    body = gi.read_text()
+    assert ".morvix/results/" in body
+    assert ".morvix/solutions/" in body
+
+
+def test_ensure_gitignore_never_clobbers(tmp_path):
+    existing = tmp_path / ".gitignore"
+    existing.write_text("my own rules\n")
+    created = ensure_gitignore(str(tmp_path))
+    assert created is False
+    assert existing.read_text() == "my own rules\n"   # left untouched
 
 
 # --- generator scaffold ---

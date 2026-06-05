@@ -12,7 +12,7 @@ from morvix.adapters import list_languages
 from morvix.components.form import Field, run_form
 from morvix.compare import list_strategies
 from morvix.models import list_models
-from morvix.project import DEFAULT_COMPARE, DEFAULT_LIMITS, Project
+from morvix.project import DEFAULT_COMPARE, DEFAULT_LIMITS, Project, ensure_gitignore
 
 NAME = "init"
 
@@ -83,6 +83,11 @@ def run(ctx, args) -> int:
 
     ctx.project = project
     ctx.save_project()
+
+    # Drop a .gitignore so the directory is git-ready (build artifacts and the
+    # private solution stay out of version control). Never clobber an existing one.
+    if ensure_gitignore(ctx.root):
+        ctx.messenger.info("Wrote a .gitignore (build artifacts, .morvix/results, .morvix/solutions).")
 
     ctx.messenger.success(f"Created project '{name}'.")
     _next_steps(ctx, language)

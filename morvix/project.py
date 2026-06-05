@@ -291,6 +291,41 @@ def _prefix_copied_paths(root: str) -> None:
             f.write("\n")
 
 
+# --- .gitignore for a project ---
+
+# What a fresh project ignores: transient run results, the private copied-in
+# solution, and the usual build artifacts. The shareable harness (tests,
+# expected answers, config, manifest) stays committed.
+GITIGNORE = """# Morvix - transient and private state
+.morvix/results/
+.morvix/solutions/
+
+# Build artifacts
+a.out
+*.o
+*.obj
+*.class
+*.exe
+__pycache__/
+*.pyc
+/target/
+"""
+
+
+def ensure_gitignore(root: str) -> bool:
+    """Write a sensible .gitignore at the project root if there isn't one.
+
+    Returns True if it created the file, False if one already existed (we never
+    overwrite the user's own .gitignore).
+    """
+    path = os.path.join(root, ".gitignore")
+    if os.path.exists(path):
+        return False
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(GITIGNORE)
+    return True
+
+
 # --- global personal config (Section 25.5) ---
 
 def global_config_path() -> str:
