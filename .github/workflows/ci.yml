@@ -31,6 +31,19 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest -q
 
+  # Keep the committed GUIDE.md in sync with the tool. `docs --check`
+  # regenerates the manual from the live command surface and fails if the
+  # checked-in file is stale - so the docs can never quietly drift.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - run: morvix docs --check
+
   # The sacred path: prove a Receiver can run a package with ONLY system
   # python3 - no Morvix install anywhere. One job builds a package; a second,
   # deliberately Morvix-free, job unpacks it and runs ./run.sh.

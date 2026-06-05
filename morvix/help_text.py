@@ -46,6 +46,14 @@ COMMANDS = {
                 "With a command name, shows that command's options and examples.",
         "examples": ["help", "help gen"],
     },
+    "docs": {
+        "stage": "project",
+        "summary": "Open the full user guide (generated, always current).",
+        "long": "Show the complete guide - concepts, every command, and what's supported - "
+                "generated from the tool itself so it never drifts. 'docs <topic>' shows one "
+                "section; 'docs --out GUIDE.md' writes the whole manual as Markdown.",
+        "examples": ["docs", "docs generators", "docs run", "docs --out GUIDE.md"],
+    },
     "exit": {
         "stage": "project",
         "summary": "Leave the interactive shell.",

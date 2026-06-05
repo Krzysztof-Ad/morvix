@@ -96,6 +96,13 @@ tests, re-run selectively, and diff your per-case results against the author's.
 These three axes - language, execution model, comparison - are kept independent, so they never
 multiply against each other. That's the design decision everything else hangs on.
 
+## The full guide
+
+`morvix docs` opens the complete guide in your terminal — concepts, every command, and what's
+supported — generated from the tool itself, so it's always current. `morvix docs <topic>` shows one
+section, and `morvix docs --out GUIDE.md` writes it all as Markdown. The committed copy is
+[GUIDE.md](GUIDE.md) (CI fails if it ever drifts).
+
 ## Design
 
 The full design is in [documentation.md](documentation.md): the architecture, every command, the

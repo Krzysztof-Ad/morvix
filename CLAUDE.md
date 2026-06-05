@@ -106,3 +106,18 @@ To cut a release:
 
 `pyproject.toml` force-includes `morvix/runner_core/{morvix_runner.py,run.sh}` as package data - the
 shipped runner must travel in the wheel, so do not break that include.
+
+## Keeping the docs current (do this every session / PR)
+
+`morvix docs` and the committed `GUIDE.md` are the user guide. The command reference and capability
+tables are GENERATED from `help_text.py` and the registries, so they self-maintain; the conceptual
+prose is the `CONCEPTS` list in `morvix/docs.py` (and the deeper design lives in `documentation.md`).
+
+At the end of any session/PR that changes behavior, before you finish:
+1. If you changed the command surface (added/renamed a command, changed flags or `help_text`) or a
+   `CONCEPTS` fragment, regenerate the guide: `morvix docs --out GUIDE.md`, and commit it. CI's
+   `docs --check` job fails the build if `GUIDE.md` is stale, so this is enforced - but regenerate it
+   yourself so the PR is green.
+2. If the change is conceptual (a new model/strategy, a changed mental model), update the relevant
+   `CONCEPTS` fragment in `morvix/docs.py` and review `documentation.md` for accuracy.
+The generated parts cannot drift; only the hand-written `CONCEPTS`/`documentation.md` need judgement.
