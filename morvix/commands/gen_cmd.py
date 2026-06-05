@@ -37,6 +37,8 @@ def configure(parser):
                       help="stress the solution against the brute force")
     mode.add_argument("--crash", action="store_true",
                       help="generate malformed inputs to probe error handling")
+    mode.add_argument("--new-generator", nargs="?", const="gen", metavar="NAME",
+                      help="write a starter generator you can edit (default name: gen)")
 
     parser.add_argument("--hash", action="store_true",
                         help="with --expected: store output digests instead of files")
@@ -90,10 +92,12 @@ def run(ctx, args) -> int:
         return _do_stress(ctx, project, args)
     if args.crash:
         return _do_crash(ctx, project, args)
+    if args.new_generator is not None:
+        return _do_new_generator(ctx, project, args)
 
     raise UserError("No generation mode given.",
                     hint="Pick one of --manual, --random, --generator, "
-                         "--expected, --stress, --crash.")
+                         "--expected, --stress, --crash, --new-generator.")
 
 
 def _do_manual(ctx, project, args):
@@ -188,6 +192,15 @@ def _do_crash(ctx, project, args):
     ctx.messenger.success(
         f"Generated {len(cases)} malformed case(s) in group '{group}'."
     )
+    return 0
+
+
+def _do_new_generator(ctx, project, args):
+    rel = generators.new_generator(ctx, project, args.new_generator)
+    ctx.messenger.success(f"Wrote a starter generator: {rel}")
+    ctx.messenger.info("Edit build_input() to match your program's input, then run:")
+    ctx.messenger.info(f"  gen --generator {rel} --count 1000")
+    ctx.messenger.info("  gen --expected")
     return 0
 
 

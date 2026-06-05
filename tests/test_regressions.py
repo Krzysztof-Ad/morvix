@@ -67,5 +67,5 @@ def test_package_runner_filter(tmp_path, make_ctx):
     packaging.build_package(ctx, proj, fmt="zip", runners=["quick"], out=out)
     import json
     with zipfile.ZipFile(out) as z:
-        manifest = json.loads(z.read("morvix.json"))
+        manifest = json.loads(z.read(".morvix/morvix.json"))
     assert set(manifest["runners"]) == {"quick"}

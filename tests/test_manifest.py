@@ -89,7 +89,7 @@ def test_adopt_manifest_creates_project_json(py_project, tmp_path):
     write_manifest(proj)
 
     fresh = tmp_path / "fresh"
-    fresh.mkdir()
+    (fresh / ".morvix").mkdir(parents=True)
     shutil.copy(os.path.join(proj.root, MANIFEST), str(fresh / MANIFEST))
 
     adopted = adopt_manifest(str(fresh))
@@ -106,7 +106,7 @@ def test_adopt_manifest_preserves_cases(py_project, tmp_path):
     write_manifest(proj)
 
     fresh = tmp_path / "fresh2"
-    fresh.mkdir()
+    (fresh / ".morvix").mkdir(parents=True)
     shutil.copy(os.path.join(proj.root, MANIFEST), str(fresh / MANIFEST))
 
     adopted = adopt_manifest(str(fresh))
@@ -123,7 +123,7 @@ def test_adopt_manifest_preserves_runners(py_project, tmp_path):
     write_manifest(proj)
 
     fresh = tmp_path / "fresh3"
-    fresh.mkdir()
+    (fresh / ".morvix").mkdir(parents=True)
     shutil.copy(os.path.join(proj.root, MANIFEST), str(fresh / MANIFEST))
 
     adopted = adopt_manifest(str(fresh))
@@ -141,7 +141,7 @@ def test_project_load_adopts_manifest(py_project, tmp_path):
     write_manifest(proj)
 
     fresh = tmp_path / "fresh4"
-    fresh.mkdir()
+    (fresh / ".morvix").mkdir(parents=True)
     shutil.copy(os.path.join(proj.root, MANIFEST), str(fresh / MANIFEST))
 
     loaded = Project.load(str(fresh))

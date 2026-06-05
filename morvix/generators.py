@@ -22,7 +22,7 @@ import hashlib
 import os
 import tempfile
 
-from morvix import process, shapes, suggestions
+from morvix import layout, process, shapes, suggestions
 from morvix.adapters import detect_language, get_adapter
 from morvix.cases import TestCase, default_expected_relpath, default_input_relpath
 from morvix.errors import UserError
@@ -31,11 +31,58 @@ from morvix.models import ExecEnv, run_case
 from morvix.project import resolve_limits
 
 
+# A starter generator the user edits to match their program's input format.
+GENERATOR_TEMPLATE = '''#!/usr/bin/env python3
+# A Morvix generator: print ONE test input to stdout, parameterized by a seed.
+#
+# Morvix runs this once per case as:  python3 <thisfile> <seed> [mode]
+# Use the seed so generation is reproducible. EDIT build_input() so what it
+# prints matches EXACTLY what your program reads.
+#
+# Then:  gen --generator generators/{name}.py --count 1000
+#        gen --expected           # compute the answers from your reference
+
+import random
+import sys
+
+
+def build_input(rng):
+    # TODO: replace this with your program's real input format.
+    # Example below: a count n, then n integers on the next line.
+    n = rng.randint(1, 100)
+    nums = [rng.randint(0, 1000000) for _ in range(n)]
+    return "%d\\n%s\\n" % (n, " ".join(str(x) for x in nums))
+
+
+def main():
+    seed = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    rng = random.Random(seed)
+    sys.stdout.write(build_input(rng))
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
 # Write text to an absolute path, creating parent dirs first.
 def _write_text(abspath, text):
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
     with open(abspath, "w", encoding="utf-8") as f:
         f.write(text)
+
+
+def new_generator(ctx, project, name="gen"):
+    """Write a starter generator into generators/ and return its relative path."""
+    if not name.endswith(".py"):
+        name += ".py"
+    rel = os.path.join(layout.GENERATORS_DIR, name)
+    path = project.abspath(rel)
+    if os.path.exists(path):
+        raise UserError(f"Generator already exists: {name}",
+                        hint="Pick another name, or edit the existing one.")
+    _write_text(path, GENERATOR_TEMPLATE.format(name=name[:-3]))
+    return rel
 
 
 # Build the reference/brute once, then run every case through it.
@@ -126,6 +173,7 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
     observations = _run_reference_over(project, reference, language, cases)
 
     computed = 0
+    clean_outputs = []   # captured answers from clean runs, to sanity-check below
     for case in cases:
         # Clear any stale expectation so re-running never leaves an impossible
         # combination (e.g. expected_output + expected_signal from two separate runs).
@@ -148,6 +196,7 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
             case.expected_exit = res.exit_code
         else:
             # Clean run: the captured stdout is the answer.
+            clean_outputs.append(obs.output)
             if use_hash:
                 # Store only the digest, never the full output.
                 case.expected_hash = hashlib.sha256(obs.output).hexdigest()
@@ -158,6 +207,9 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
                     f.write(obs.output)
                 case.expected_output = rel
         computed += 1
+    # If almost every answer is empty or they are all identical, the inputs
+    # probably don't match the program's format - tell the user (Section 22).
+    suggestions.warn_degenerate_expected(ctx, clean_outputs)
     return computed
 
 

@@ -8,6 +8,7 @@
 
 import json
 import os
+import shutil
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -101,8 +102,11 @@ class Project:
 
         Prefers the editable config/project.json. If only a manifest is present
         (a received package), it is adopted into a fresh project so it becomes
-        editable (Section 19.4, Section 20.3).
+        editable (Section 19.4, Section 20.3). A pre-0.2 flat project is migrated
+        into .morvix/ first, transparently.
         """
+        if not layout.is_new_layout(root) and layout.is_legacy_layout(root):
+            migrate_legacy_layout(root)
         project_path = os.path.join(root, layout.PROJECT_FILE)
         if os.path.exists(project_path):
             with open(project_path, "r", encoding="utf-8") as f:
@@ -222,6 +226,69 @@ def _save_runners(root: str, runners: Dict[str, Runner]) -> None:
     # Drop runner files that were deleted in memory.
     for stale in on_disk - set(runners):
         os.remove(os.path.join(rdir, stale + ".json"))
+
+
+# --- migrating a pre-0.2 flat project into .morvix/ ---
+
+def migrate_legacy_layout(root: str) -> None:
+    """Move an old flat layout (config/, tests/, ... at the root) into .morvix/.
+
+    Old projects stored their state directly in the project root; new ones tuck
+    it all under .morvix/. We move the directories, then prefix the stored case
+    paths and any copied-in solution path so they resolve against the new home.
+    """
+    state = os.path.join(root, layout.STATE_DIR)
+    os.makedirs(state, exist_ok=True)
+    for name in layout._LEGACY_DIRS + ["morvix.json"]:
+        src = os.path.join(root, name)
+        dst = os.path.join(state, name)
+        if os.path.exists(src) and not os.path.exists(dst):
+            shutil.move(src, dst)
+    _prefix_case_paths(root)
+    _prefix_copied_paths(root)
+
+
+def _with_state(p: str) -> str:
+    if p.startswith(layout.STATE_DIR + os.sep) or p.startswith(layout.STATE_DIR + "/"):
+        return p
+    return os.path.join(layout.STATE_DIR, p)
+
+
+def _prefix_case_paths(root: str) -> None:
+    path = os.path.join(root, layout.CASES_FILE)
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    for c in data.get("cases", []):
+        if c.get("inputs"):
+            c["inputs"] = {k: _with_state(v) for k, v in c["inputs"].items()}
+        if c.get("expected_output"):
+            c["expected_output"] = _with_state(c["expected_output"])
+        if c.get("expected_files"):
+            c["expected_files"] = {k: _with_state(v) for k, v in c["expected_files"].items()}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def _prefix_copied_paths(root: str) -> None:
+    # A copied-in solution lived under solutions/; point at its new home.
+    path = os.path.join(root, layout.PROJECT_FILE)
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        d = json.load(f)
+    changed = False
+    for key in ("solution", "reference", "bruteforce"):
+        v = d.get(key)
+        if v and not os.path.isabs(v) and (v.startswith("solutions" + os.sep) or v.startswith("solutions/")):
+            d[key] = _with_state(v)
+            changed = True
+    if changed:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f, indent=2)
+            f.write("\n")
 
 
 # --- global personal config (Section 25.5) ---

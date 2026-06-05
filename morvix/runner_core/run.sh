@@ -13,11 +13,13 @@ if [ -L "$SCRIPT" ]; then
 fi
 DIR=$(cd "$(dirname "$SCRIPT")" && pwd)
 
-# - locate morvix_runner.py: next to this script, or under runner/ from here
+# - locate morvix_runner.py: next to this script, under runner/, or .morvix/runner/
 if [ -f "$DIR/morvix_runner.py" ]; then
     RUNNER="$DIR/morvix_runner.py"
 elif [ -f "$DIR/runner/morvix_runner.py" ]; then
     RUNNER="$DIR/runner/morvix_runner.py"
+elif [ -f "$DIR/.morvix/runner/morvix_runner.py" ]; then
+    RUNNER="$DIR/.morvix/runner/morvix_runner.py"
 else
     echo "error: could not find morvix_runner.py next to run.sh" >&2
     exit 2

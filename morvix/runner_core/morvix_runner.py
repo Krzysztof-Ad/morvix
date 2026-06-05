@@ -39,8 +39,11 @@ if POSIX:
 # macOS getrusage.ru_maxrss is bytes; Linux is kilobytes. Normalise once here.
 _MAXRSS_IS_BYTES = sys.platform == "darwin"
 
-# Where the manifest lives and where its referenced files are rooted.
+# Where the manifest lives and where its referenced files are rooted. A project
+# keeps it under .morvix/; case paths are stored relative to the package root
+# (the directory that contains .morvix/).
 MANIFEST_NAME = "morvix.json"
+STATE_DIR = ".morvix"
 
 # Map a source file extension to a language name (mirrors adapters/__init__.py).
 _EXTENSIONS = {
@@ -1103,9 +1106,10 @@ def find_manifest(start_dir, script_dir):
     for base in (start_dir, script_dir):
         cur = os.path.abspath(base)
         while True:
-            candidate = os.path.join(cur, MANIFEST_NAME)
-            if os.path.exists(candidate):
-                return candidate
+            for candidate in (os.path.join(cur, MANIFEST_NAME),
+                              os.path.join(cur, STATE_DIR, MANIFEST_NAME)):
+                if os.path.exists(candidate):
+                    return candidate
             parent = os.path.dirname(cur)
             if parent == cur:
                 break
@@ -1116,8 +1120,12 @@ def find_manifest(start_dir, script_dir):
 def load_manifest(path):
     with open(path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
-    # Stash the package root so every relative path resolves consistently.
-    manifest["_root"] = os.path.dirname(os.path.abspath(path))
+    # The package root is the dir that holds .morvix/ (case paths are stored
+    # relative to it). When the manifest is inside .morvix/, step up one level.
+    d = os.path.dirname(os.path.abspath(path))
+    if os.path.basename(d) == STATE_DIR:
+        d = os.path.dirname(d)
+    manifest["_root"] = d
     return manifest
 
 

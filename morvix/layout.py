@@ -1,24 +1,31 @@
 # The names of things on disk, in one place.
 #
-# A Morvix project IS its directory (Section 24), so the directory layout is a
-# contract shared by half the codebase. Keeping the names here means nobody
-# hard-codes "tests" or "morvix.json" in three different spellings.
+# A Morvix project keeps all of its state inside a single hidden directory,
+# .morvix/, so the project root stays clean - just the user's own source files
+# next to one .morvix/ folder. Everything here is rooted under that dir, so the
+# rest of the codebase never spells out ".morvix" itself.
+#
+# A package archive mirrors this: run.sh and README.md sit at the archive root
+# and the rest lives under .morvix/, so the case paths stored in the manifest
+# resolve the same way in a project and in an unpacked package.
 
 import os
 
-# Top-level files
-MANIFEST = "morvix.json"          # the generated, shareable descriptor
-README = "README.md"
+STATE_DIR = ".morvix"             # the one hidden directory that holds everything
 
-# Directories
-CONFIG_DIR = "config"
-TESTS_DIR = "tests"               # input cases, grouped into subdirectories
-EXPECTED_DIR = "expected"         # expected outputs / hashes, paralleling tests/
-SOLUTIONS_DIR = "solutions"       # imported solutions (never packaged)
-GENERATORS_DIR = "generators"
-RUNNER_DIR = "runner"             # the shippable runner (core + run.sh)
-RESULTS_DIR = "results"
-WORKFLOWS_DIR = "workflows"
+# Top-level files
+MANIFEST = os.path.join(STATE_DIR, "morvix.json")   # generated, shareable descriptor
+README = "README.md"              # stays at the (project / archive) root
+
+# Directories, all under .morvix/
+CONFIG_DIR = os.path.join(STATE_DIR, "config")
+TESTS_DIR = os.path.join(STATE_DIR, "tests")          # input cases, grouped
+EXPECTED_DIR = os.path.join(STATE_DIR, "expected")    # expected outputs / hashes
+SOLUTIONS_DIR = os.path.join(STATE_DIR, "solutions")  # imported solutions (never packaged)
+GENERATORS_DIR = os.path.join(STATE_DIR, "generators")
+RUNNER_DIR = os.path.join(STATE_DIR, "runner")        # the shippable runner (core + run.sh)
+RESULTS_DIR = os.path.join(STATE_DIR, "results")
+WORKFLOWS_DIR = os.path.join(STATE_DIR, "workflows")
 
 # Files under config/
 PROJECT_FILE = os.path.join(CONFIG_DIR, "project.json")   # editable config
@@ -40,9 +47,26 @@ PROJECT_DIRS = [
     WORKFLOWS_DIR,
 ]
 
+# The flat (pre-0.2) layout, kept only so old projects can be detected and
+# migrated into .morvix/ automatically.
+_LEGACY_PROJECT_FILE = os.path.join("config", "project.json")
+_LEGACY_MANIFEST = "morvix.json"
+_LEGACY_DIRS = ["config", "tests", "expected", "solutions", "generators",
+                "runner", "results", "workflows"]
+
 
 def is_project(root: str) -> bool:
-    """A directory is a project if it has our config or a manifest to adopt."""
+    """True if root holds a Morvix project - new .morvix/ layout or legacy flat."""
+    return is_new_layout(root) or is_legacy_layout(root)
+
+
+def is_new_layout(root: str) -> bool:
     return os.path.exists(os.path.join(root, PROJECT_FILE)) or os.path.exists(
         os.path.join(root, MANIFEST)
+    )
+
+
+def is_legacy_layout(root: str) -> bool:
+    return os.path.exists(os.path.join(root, _LEGACY_PROJECT_FILE)) or os.path.exists(
+        os.path.join(root, _LEGACY_MANIFEST)
     )

@@ -17,6 +17,29 @@ from morvix.components.confirm import confirm
 
 LARGE_OUTPUT_BYTES = 256 * 1024       # past this, suggest hashing a group
 LARGE_PACKAGE_BYTES = 20 * 1024 * 1024  # past this, suggest stronger compression
+DEGENERATE_MIN = 5                    # need a few answers before judging them
+
+
+def warn_degenerate_expected(ctx, outputs):
+    """Warn when computed answers look meaningless: nearly all empty, or all the
+    same. Almost always this means the generated inputs don't match the program's
+    input format - so a custom generator is the fix (Section 13.6, 22).
+    """
+    if len(outputs) < DEGENERATE_MIN:
+        return
+    stripped = [o.strip() for o in outputs]
+    empty = sum(1 for s in stripped if not s)
+    total = len(outputs)
+    if empty >= total * 0.8:
+        ctx.messenger.warning(
+            f"{empty} of {total} expected outputs are empty.",
+            hint="Your inputs probably don't match what the program reads. Write a "
+                 "custom generator that produces valid inputs: gen --new-generator.")
+    elif len(set(stripped)) == 1:
+        ctx.messenger.warning(
+            f"All {total} expected outputs are identical.",
+            hint="The inputs may not be exercising the program. A richer generator "
+                 "(gen --new-generator) usually helps.")
 
 
 def suggest_hashing(ctx, project, group, output_bytes):

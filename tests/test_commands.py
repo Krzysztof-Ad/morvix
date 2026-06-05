@@ -19,7 +19,7 @@ def test_init_creates_project_json(tmp_path, make_ctx):
     ctx = make_ctx(tmp_path)
     rc = safe_dispatch(ctx, ["init", "--name", "t", "--language", "python"])
     assert rc == 0
-    assert (tmp_path / "config" / "project.json").exists()
+    assert (tmp_path / ".morvix" / "config" / "project.json").exists()
     assert ctx.project is not None
     assert ctx.project.name == "t"
     assert ctx.project.language == "python"

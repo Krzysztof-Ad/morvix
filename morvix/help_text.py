@@ -100,8 +100,10 @@ COMMANDS = {
         "long": "Make test cases: by hand (--manual), from the built-in random shapes "
                 "(--random), from a custom generator (--generator), or recompute expected "
                 "answers (--expected). Also stress testing (--stress) and crash candidates "
-                "(--crash).",
-        "examples": ["gen --random --count 100 --seed 1 --ints 0 1000000",
+                "(--crash). For structured input, 'gen --new-generator' writes a starter "
+                "generator you edit - usually the right tool when random shapes don't fit.",
+        "examples": ["gen --random --count 100 --seed 1 --shape ints",
+                     "gen --new-generator mygen", "gen --generator generators/mygen.py --count 1000",
                      "gen --manual edge1", "gen --expected", "gen --expected --hash",
                      "gen --stress --count 5000", "gen --crash"],
     },
