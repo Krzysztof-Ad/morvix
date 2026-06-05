@@ -53,6 +53,17 @@ class CaseResult:
             d["memcheck"] = self.memcheck
         return d
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "CaseResult":
+        return cls(
+            case_id=d.get("case", ""), group=d.get("group", ""),
+            status=d.get("status", "pass"), verdict=d.get("verdict", ""),
+            exit_code=d.get("exit_code"), signal=d.get("signal"),
+            timed_out=d.get("timed_out", False), wall_time=d.get("wall_time", 0.0),
+            cpu_time=d.get("cpu_time", 0.0), peak_mem_kb=d.get("peak_mem_kb", 0),
+            memcheck=d.get("memcheck"),
+        )
+
 
 @dataclass
 class RunResult:
@@ -89,6 +100,15 @@ class RunResult:
         for c in self.cases:
             groups.setdefault(c.group, []).append(c)
         return groups
+
+    @classmethod
+    def from_json(cls, d: dict) -> "RunResult":
+        """Reconstruct a run from its exported JSON (for precomputed rivals)."""
+        r = cls(solution=d.get("solution", ""), runner=d.get("runner"),
+                started_at=d.get("started_at", ""),
+                memory_note=d.get("memory_note", "peak, approximate"))
+        r.cases = [CaseResult.from_dict(c) for c in d.get("cases", [])]
+        return r
 
 
 # --- formatting (shared by every renderer) ---
@@ -253,3 +273,66 @@ def export(run: RunResult, fmt: str) -> str:
     if fmt in ("md", "markdown"):
         return to_markdown(run)
     return to_text(run)
+
+
+# --- rival comparison (single source; mirrored in the runner core) ---
+#
+# A rival column is {label, run: RunResult, precomputed: bool, env: str}.
+
+def _cmp_cell(cr, show_mem):
+    if cr is None:
+        return "-"
+    if cr.timed_out:
+        return "timeout"
+    s = fmt_secs(cr.wall_time)
+    if show_mem and cr.peak_mem_kb > 0:
+        s += " " + fmt_mem_kb(cr.peak_mem_kb)
+    if cr.status != "pass":
+        s = cr.status.upper() + " " + s
+    return s
+
+
+def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
+    """Text lines comparing the solution against each rival."""
+    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(rival_cols)
+    lines = []
+
+    if per_case:
+        index = [(c["label"], {x.case_id: x for x in c["run"].cases}) for c in cols]
+        header = "  %-22s" % "Case"
+        for label, _ in index:
+            header += " | %-20s" % label
+        lines.append(header)
+        for case in main_run.cases:
+            row = "  %-22s" % case.case_id
+            for _, by in index:
+                row += " | %-20s" % _cmp_cell(by.get(case.case_id), show_mem)
+            lines.append(row)
+        lines.append("")
+
+    lines.append("Comparison (vs solution):")
+    main_total = performance(main_run)["wall"]["total"] or 1e-9
+    for c in cols:
+        run = c["run"]
+        p = performance(run)
+        bits = "wall total %s  avg %s" % (fmt_secs(p["wall"]["total"]), fmt_secs(p["wall"]["avg"]))
+        if show_mem:
+            bits += "  peak %s" % (fmt_mem_kb(p["memory_kb"]["max"]) if p["memory_kb"] else "n/a")
+        ratio = "" if c["label"] == "solution" else "  %.2fx" % (p["wall"]["total"] / main_total)
+        note = "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        tag = ""
+        if c.get("precomputed"):
+            tag = "  [precomputed: %s]" % c["env"] if c.get("env") else "  [precomputed]"
+        lines.append("  %-14s %s%s%s%s" % (c["label"], bits, ratio, note, tag))
+    return lines
+
+
+def comparison_json(main_run, rival_cols):
+    return {
+        "solution": {"name": "solution", "passed": main_run.passed,
+                     "total": main_run.total, "performance": performance(main_run)},
+        "rivals": [{"name": c["label"], "precomputed": c.get("precomputed", False),
+                    "env": c.get("env", ""), "passed": c["run"].passed,
+                    "total": c["run"].total, "performance": performance(c["run"])}
+                   for c in rival_cols],
+    }

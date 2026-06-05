@@ -23,7 +23,7 @@ from morvix.errors import MorvixError, UserError
 # The command modules, in the order help should list them within each stage.
 COMMAND_MODULES = [
     "init_cmd", "open_cmd", "status_cmd", "help_cmd", "docs_cmd", "exit_cmd",
-    "config_cmd", "import_cmd", "reference_cmd", "bruteforce_cmd", "model_cmd",
+    "config_cmd", "import_cmd", "reference_cmd", "bruteforce_cmd", "rival_cmd", "model_cmd",
     "gen_cmd", "clean_cmd",
     "run_cmd", "runner_cmd",
     "result_cmd", "package_cmd",

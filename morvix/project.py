@@ -71,6 +71,24 @@ class Runner:
 
 
 @dataclass
+class Rival:
+    """An alternative implementation kept for PERFORMANCE comparison (not for
+    correctness). Many are allowed; one may be tagged as the stress oracle.
+    Distinct from `reference`, which defines the expected answers."""
+
+    name: str
+    path: str
+    stress: bool = False                  # use this one as the stress-test oracle
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "path": self.path, "stress": self.stress}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Rival":
+        return cls(name=d["name"], path=d["path"], stress=d.get("stress", False))
+
+
+@dataclass
 class Project:
     root: str
     name: str
@@ -86,6 +104,7 @@ class Project:
     solution: Optional[str] = None         # current solution under test
     solution_copied: bool = False          # was it copied in, or referenced in place
     language: Optional[str] = None         # active language for build/run
+    rivals: List[Rival] = field(default_factory=list)   # perf-comparison solutions
     cases: List[TestCase] = field(default_factory=list)
     runners: Dict[str, Runner] = field(default_factory=dict)
 
@@ -123,6 +142,7 @@ class Project:
             raise FileNotFoundError(f"No Morvix project in {root}")
         proj.cases = load_cases(root)
         proj.runners = _load_runners(root)
+        proj._migrate_bruteforce()
         return proj
 
     @classmethod
@@ -142,6 +162,7 @@ class Project:
             solution=data.get("solution"),
             solution_copied=data.get("solution_copied", False),
             language=data.get("language"),
+            rivals=[Rival.from_dict(r) for r in data.get("rivals", [])],
         )
 
     def _config_dict(self) -> dict:
@@ -159,6 +180,7 @@ class Project:
             "solution": self.solution,
             "solution_copied": self.solution_copied,
             "language": self.language,
+            "rivals": [r.to_dict() for r in self.rivals],
         }
 
     def save(self) -> None:
@@ -172,6 +194,30 @@ class Project:
         _save_runners(self.root, self.runners)
 
     # --- convenience ---
+
+    def _migrate_bruteforce(self) -> None:
+        # Old projects used a single 'bruteforce'; fold it into a stress rival.
+        if self.bruteforce and not any(r.name == "brute" for r in self.rivals):
+            self.rivals.append(Rival(name="brute", path=self.bruteforce, stress=True))
+
+    def get_rival(self, name: str) -> Optional[Rival]:
+        for r in self.rivals:
+            if r.name == name:
+                return r
+        return None
+
+    def add_rival(self, rival: Rival) -> None:
+        self.rivals = [r for r in self.rivals if r.name != rival.name]
+        self.rivals.append(rival)
+
+    def remove_rival(self, name: str) -> None:
+        self.rivals = [r for r in self.rivals if r.name != name]
+
+    def stress_rival(self) -> Optional[Rival]:
+        for r in self.rivals:
+            if r.stress:
+                return r
+        return None
 
     def lang_config(self, language: str) -> dict:
         return self.languages.get(language, {})

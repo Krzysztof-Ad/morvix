@@ -10,7 +10,7 @@
 import json
 import os
 
-from morvix import layout
+from morvix import comparison, layout
 from morvix.adapters import detect_language
 from morvix.cases import list_groups
 from morvix.compare import list_strategies
@@ -18,7 +18,7 @@ from morvix.components.table import RunTable
 from morvix.errors import UserError
 from morvix.judge import judge, select_cases
 from morvix.project import DEFAULT_LIMITS, Runner
-from morvix.results import export
+from morvix.results import comparison_block, export
 
 NAME = "run"
 
@@ -40,6 +40,10 @@ def configure(parser):
                         help="hide the performance summary at the end")
     parser.add_argument("--slowest", type=int, default=5, metavar="N",
                         help="list the N slowest cases in the performance summary (default 5)")
+    parser.add_argument("--no-rivals", action="store_true",
+                        help="skip the rival performance comparison")
+    parser.add_argument("--parallel", action="store_true",
+                        help="run rivals in parallel (faster, but perf numbers become approximate)")
     parser.add_argument("--valgrind", action="store_true",
                         help="check for memory errors under valgrind")
     parser.add_argument("--compare", metavar="MODE", choices=list_strategies(),
@@ -75,6 +79,12 @@ def run(ctx, args) -> int:
 
     language = project.language or detect_language(project.solution) or ""
 
+    # If rivals are registered (and not skipped), run the performance comparison.
+    rivals = [] if args.no_rivals else comparison.selected_rivals(project, runner)
+    if rivals:
+        return _run_with_comparison(ctx, project, runner, project.solution,
+                                    language, cases, rivals, args)
+
     table = RunTable(ctx.console, live=ctx.interactive,
                      show_time=runner.time, show_mem=runner.measure_mem,
                      show_perf=runner.report, slowest_n=runner.slowest)
@@ -96,6 +106,30 @@ def run(ctx, args) -> int:
     else:
         ctx.messenger.error(f"{summary}, {run_result.failed} failed")
     return 0 if run_result.all_passed else 1
+
+
+def _run_with_comparison(ctx, project, runner, solution, language, cases, rivals, args):
+    """Run the solution + rivals and print the comparison (no live table)."""
+    main, cols = comparison.compare_live(project, solution, language, cases,
+                                         rivals, runner=runner, parallel=args.parallel)
+    ctx.console.print("")
+    for line in comparison_block(main, cols, show_mem=runner.measure_mem,
+                                 per_case=(runner.verbosity != "quiet")):
+        ctx.console.print(f"[muted]{line}[/muted]")
+
+    ctx.last_result = main
+    _write_last(project, main)
+    if args.runner:
+        _emit_configured_report(ctx, project, runner, main)
+
+    summary = f"{main.passed}/{main.total} passed"
+    if main.all_passed:
+        ctx.messenger.success(summary)
+    else:
+        ctx.messenger.error(f"{summary}, {main.failed} failed")
+    if args.parallel:
+        ctx.messenger.warning("Rivals ran in parallel - time/memory figures are approximate.")
+    return 0 if main.all_passed else 1
 
 
 # Use a saved runner if named, else assemble a transient one from the flags.

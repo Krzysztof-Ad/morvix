@@ -1,12 +1,12 @@
-# Register a brute-force solution for stress testing.
+# Deprecated: add a stress-oracle rival.
 #
-# Sets project.bruteforce to the absolute path of the given file. This
-# solution is never included in packages; it is used only during stress
-# testing to compare outputs against the solution under test.
+# Kept for compatibility. 'bruteforce <path>' now adds the file as a rival
+# tagged as the stress oracle - identical to 'rival add <path> --stress'.
 
 import os
 
 from morvix.errors import UserError
+from morvix.project import Rival
 
 NAME = "bruteforce"
 
@@ -20,19 +20,18 @@ def run(ctx, args) -> int:
 
     path = os.path.abspath(args.path)
     if not os.path.isfile(path):
-        raise UserError(
-            f"File not found: {args.path}",
-            hint="Check the path and try again.",
-        )
+        raise UserError(f"File not found: {args.path}", hint="Check the path and try again.")
 
-    project.bruteforce = path
+    name = os.path.splitext(os.path.basename(path))[0]
+    for r in project.rivals:
+        r.stress = False
+    project.add_rival(Rival(name=name, path=path, stress=True))
     ctx.save_project()
 
-    ctx.messenger.success(f"Brute-force solution set to {path}")
-    ctx.messenger.info(
-        "This solution powers stress testing (gen --stress). "
-        "It is never included in a package."
-    )
+    ctx.messenger.warning("'bruteforce' is deprecated - use 'rival add <path> --stress'.")
+    ctx.messenger.success(f"Added stress-oracle rival '{name}'.")
+    ctx.messenger.info("It powers stress testing (gen --stress) and is never packaged unless "
+                       "you opt to ship rival code.")
     return 0
 
 

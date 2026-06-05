@@ -214,9 +214,11 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
 
 
 def gen_stress(ctx, project, count, seed, group="regression"):
-    # Stress testing pits the solution against a trusted brute force on random
-    # inputs and keeps the first input where they disagree.
-    if not project.bruteforce:
+    # Stress testing pits the solution against a trusted oracle (a rival tagged
+    # --stress) on random inputs and keeps the first input where they disagree.
+    oracle = project.stress_rival()
+    oracle_path = oracle.path if oracle else project.bruteforce
+    if not oracle_path:
         suggestions.explain_missing_bruteforce(ctx, project)
         return None
 
@@ -226,7 +228,7 @@ def gen_stress(ctx, project, count, seed, group="regression"):
                         hint="Set one with 'solution'.")
 
     sol_lang = project.language or detect_language(solution)
-    bf_lang = detect_language(project.bruteforce) or project.language
+    bf_lang = detect_language(oracle_path) or project.language
 
     shape = "ints"  # a sensible default unless the project says otherwise
 
@@ -242,7 +244,7 @@ def gen_stress(ctx, project, count, seed, group="regression"):
         sol_runspec = _runspec(project, sol_build, sol_lang)
         sol_env = ExecEnv(project=project, build=sol_build, runspec=sol_runspec, workdir=sol_workdir)
 
-        bf_build = build_solution(project, project.bruteforce, bf_lang, bf_workdir)
+        bf_build = build_solution(project, oracle_path, bf_lang, bf_workdir)
         if not bf_build.ok:
             from morvix.errors import MorvixError
             raise MorvixError(bf_build.error or "build failed", hint=bf_build.diagnostics)
