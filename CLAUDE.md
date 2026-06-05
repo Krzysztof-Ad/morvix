@@ -60,9 +60,11 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
 - **The directory is the state, hidden under `.morvix/`.** No database. Everything (config,
   tests, expected, runner, results, ... and the generated `morvix.json` manifest) lives under a
   single `.morvix/` dir so the project root stays clean. `layout.py` roots every path there via
-  `STATE_DIR`; stored case paths are `.morvix/...`-prefixed, and a package archive mirrors this
-  (run.sh + README at the root, the rest under `.morvix/`), so paths resolve the same in a project
-  and an unpacked package. `Project.load` auto-migrates a pre-0.2 flat layout into `.morvix/`. Config
+  `STATE_DIR`; stored case paths are `.morvix/...`-prefixed. A **package archive is flat**, though
+  (`packaging.py` strips the `.morvix/` prefix): run.sh, README, morvix.json and the
+  tests/expected/runner trees sit at the archive root so a receiver sees the harness directly; a
+  Morvix-equipped receiver that opens one re-adopts it back into `.morvix/` (`adopt_manifest`
+  re-prefixes the paths). `Project.load` auto-migrates a pre-0.2 flat layout into `.morvix/`. Config
   is JSON throughout.
 - **Warn, don't mislead.** `gen --expected` calls `suggestions.warn_degenerate_expected`: when
   almost every computed answer is empty or identical, the inputs likely don't match the program's

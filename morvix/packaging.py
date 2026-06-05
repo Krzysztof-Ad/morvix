@@ -3,14 +3,20 @@
 # Assembles a single shareable archive with everything a Receiver needs and
 # nothing the Author wants kept private: tests, expected answers, the runner,
 # the generated README and the manifest - but never the solution source or the
-# brute-force reference. run.sh is placed at the archive root so the habitual
-# ./run.sh works on a clean machine.
+# brute-force reference.
+#
+# The archive is FLAT: run.sh, README.md, morvix.json, tests/, expected/ and
+# runner/ all sit at the archive root, so a Receiver sees the harness directly.
+# (A project hides its state under .morvix/; a package does not - it is the
+# deliverable.) Case paths in the manifest are written package-relative, with
+# the .morvix/ prefix stripped.
 #
 # API:
 #   build_package(ctx, project, fmt="zip", runners=None,
 #                 include_generators=False, out=None) -> str   # archive path
 #   estimate_size(project) -> int   # bytes, for the large-package suggestion
 
+import json
 import os
 import shutil
 import stat
@@ -85,41 +91,36 @@ def estimate_size(project):
 # --- internal helpers ---
 
 def _stage(project, staging, include_generators, runners=None):
-    """Copy everything that belongs in the package into the staging dir."""
+    """Copy everything that belongs in the package into the staging dir, flat."""
     root = project.root
 
-    # When only a subset of runners is requested, build and write the manifest
-    # with a filtered runners dict, then restore the original.
+    # Build the manifest dict (optionally limited to selected runners), flatten
+    # its case paths to package-relative, and write it at the archive root.
     if runners is not None:
         original_runners = project.runners
         project.runners = {n: v for n, v in original_runners.items() if n in runners}
         try:
-            manifest.write_manifest(project)
+            m = manifest.build_manifest(project)
         finally:
             project.runners = original_runners
     else:
-        manifest.write_manifest(project)
+        m = manifest.build_manifest(project)
+    _flatten_manifest_paths(m)
+    with open(os.path.join(staging, "morvix.json"), "w", encoding="utf-8") as f:
+        json.dump(m, f, indent=2)
+        f.write("\n")
 
-    # - copy tests/ tree
-    _copy_tree(os.path.join(root, layout.TESTS_DIR),
-               os.path.join(staging, layout.TESTS_DIR))
-
-    # - copy expected/ tree
-    _copy_tree(os.path.join(root, layout.EXPECTED_DIR),
-               os.path.join(staging, layout.EXPECTED_DIR))
-
-    # - morvix.json at staging root
-    src_manifest = os.path.join(root, layout.MANIFEST)
-    if os.path.exists(src_manifest):
-        shutil.copy2(src_manifest, os.path.join(staging, layout.MANIFEST))
+    # - tests/ and expected/ trees, flattened to the archive root
+    _copy_tree(os.path.join(root, layout.TESTS_DIR), os.path.join(staging, "tests"))
+    _copy_tree(os.path.join(root, layout.EXPECTED_DIR), os.path.join(staging, "expected"))
 
     # - runner core -> runner/morvix_runner.py
-    runner_dir = os.path.join(staging, layout.RUNNER_DIR)
+    runner_dir = os.path.join(staging, "runner")
     os.makedirs(runner_dir, exist_ok=True)
     core_src = os.path.join(os.path.dirname(__file__), "runner_core", "morvix_runner.py")
     shutil.copy2(core_src, os.path.join(runner_dir, "morvix_runner.py"))
 
-    # - run.sh at the staging ROOT (so ./run.sh works from the unpacked root)
+    # - run.sh at the archive ROOT (so ./run.sh works from the unpacked root)
     runsh_src = os.path.join(os.path.dirname(__file__), "runner_core", "run.sh")
     runsh_dst = os.path.join(staging, "run.sh")
     shutil.copy2(runsh_src, runsh_dst)
@@ -142,7 +143,26 @@ def _stage(project, staging, include_generators, runners=None):
     if include_generators:
         gen_src = os.path.join(root, layout.GENERATORS_DIR)
         if os.path.isdir(gen_src):
-            _copy_tree(gen_src, os.path.join(staging, layout.GENERATORS_DIR))
+            _copy_tree(gen_src, os.path.join(staging, "generators"))
+
+
+def _flatten_manifest_paths(m):
+    """Strip the .morvix/ prefix from case paths so they resolve in a flat package."""
+    prefixes = (layout.STATE_DIR + os.sep, layout.STATE_DIR + "/")
+
+    def strip(p):
+        for pre in prefixes:
+            if p.startswith(pre):
+                return p[len(pre):]
+        return p
+
+    for c in m.get("cases", []):
+        if c.get("inputs"):
+            c["inputs"] = {k: strip(v) for k, v in c["inputs"].items()}
+        if c.get("expected_output"):
+            c["expected_output"] = strip(c["expected_output"])
+        if c.get("expected_files"):
+            c["expected_files"] = {k: strip(v) for k, v in c["expected_files"].items()}
 
 
 def _copy_tree(src, dst):

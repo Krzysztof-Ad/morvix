@@ -5,9 +5,10 @@
 # next to one .morvix/ folder. Everything here is rooted under that dir, so the
 # rest of the codebase never spells out ".morvix" itself.
 #
-# A package archive mirrors this: run.sh and README.md sit at the archive root
-# and the rest lives under .morvix/, so the case paths stored in the manifest
-# resolve the same way in a project and in an unpacked package.
+# A package archive is FLAT instead (see packaging.py): run.sh, README, the
+# manifest and the tests/expected/runner trees all sit at the archive root, so a
+# receiver sees the harness directly. A Morvix-equipped receiver that opens one
+# re-adopts it back into .morvix/.
 
 import os
 

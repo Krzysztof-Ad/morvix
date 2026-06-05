@@ -88,8 +88,26 @@ def adopt_manifest(root: str) -> Project:
         os.makedirs(os.path.join(root, d), exist_ok=True)
 
     from morvix.cases import TestCase
-    project.cases = [TestCase.from_dict(c) for c in m.get("cases", [])]
+    # A package's manifest stores case paths package-relative (tests/...); inside
+    # a project they live under .morvix/, so re-prefix them as we adopt.
+    cases = []
+    for c in m.get("cases", []):
+        tc = TestCase.from_dict(c)
+        tc.inputs = {k: _under_state(v) for k, v in tc.inputs.items()}
+        if tc.expected_output:
+            tc.expected_output = _under_state(tc.expected_output)
+        if tc.expected_files:
+            tc.expected_files = {k: _under_state(v) for k, v in tc.expected_files.items()}
+        cases.append(tc)
+    project.cases = cases
     project.runners = {name: Runner.from_dict(r) for name, r in m.get("runners", {}).items()}
 
     project.save()
     return project
+
+
+def _under_state(p: str) -> str:
+    """Make a package-relative path (tests/...) project-relative (.morvix/tests/...)."""
+    if p.startswith(layout.STATE_DIR + os.sep) or p.startswith(layout.STATE_DIR + "/"):
+        return p
+    return os.path.join(layout.STATE_DIR, p)

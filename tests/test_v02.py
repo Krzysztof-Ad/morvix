@@ -91,6 +91,54 @@ def test_ensure_gitignore_never_clobbers(tmp_path):
     assert existing.read_text() == "my own rules\n"   # left untouched
 
 
+# --- flat package + receiver-with-morvix adoption ---
+
+def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
+    from morvix import packaging
+    import zipfile
+
+    sol = tmp_path / "sol.py"
+    sol.write_text(SUM_ALL_PY)
+    proj = Project.create(str(tmp_path), "share")
+    proj.language = "python"
+    proj.model = "stdio"
+    proj.solution = str(sol)
+    proj.reference = str(sol)
+    for name, inp, out in [("a", "1 2 3", "6"), ("b", "10 20", "30")]:
+        irel = os.path.join(layout.TESTS_DIR, "baseline", name + ".in")
+        erel = os.path.join(layout.EXPECTED_DIR, "baseline", name + ".out")
+        os.makedirs(os.path.dirname(proj.abspath(irel)), exist_ok=True)
+        os.makedirs(os.path.dirname(proj.abspath(erel)), exist_ok=True)
+        open(proj.abspath(irel), "w").write(inp + "\n")
+        open(proj.abspath(erel), "w").write(out + "\n")
+        proj.add_case(TestCase(name=name, group="baseline", manual=True,
+                               inputs={"stdin": irel}, expected_output=erel))
+    proj.save()
+    ctx = make_ctx(tmp_path)
+    ctx.project = proj
+    out_zip = str(tmp_path / "pkg.zip")
+    packaging.build_package(ctx, proj, fmt="zip", out=out_zip)
+
+    # Receiver unpacks the (flat) package elsewhere and opens it with Morvix.
+    recv = tmp_path / "recv"
+    recv.mkdir()
+    with zipfile.ZipFile(out_zip) as z:
+        z.extractall(str(recv))
+    assert (recv / "morvix.json").exists()          # flat, visible
+    assert not (recv / ".morvix").exists()
+
+    loaded = Project.load(str(recv))                # adopts/migrates into .morvix/
+    assert len(loaded.cases) == 2
+    c = loaded.cases[0]
+    assert os.path.exists(c.input_abspath(str(recv)))
+    assert os.path.exists(c.expected_output_abspath(str(recv)))
+
+    # The receiver drops in their own solution and re-runs - it judges cleanly.
+    (recv / "sol.py").write_text(SUM_ALL_PY)
+    run = judge(loaded, str(recv / "sol.py"), "python", select_cases(loaded))
+    assert run.all_passed
+
+
 # --- generator scaffold ---
 
 def test_new_generator_scaffold(tmp_path):

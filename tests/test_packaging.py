@@ -53,15 +53,16 @@ class TestBuildPackageZipContents:
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
 
-        # The manifest lives under .morvix/; run.sh sits at the archive root.
-        assert ".morvix/morvix.json" in names
+        # The package is FLAT: manifest, run.sh and the test trees at the root.
+        assert "morvix.json" in names
         assert "run.sh" in names
-
-        # At least one tests/ entry and at least one expected/ entry (under .morvix/).
-        assert any(n.startswith(".morvix/tests/") for n in names), \
-            "zip must contain at least one .morvix/tests/ entry"
-        assert any(n.startswith(".morvix/expected/") for n in names), \
-            "zip must contain at least one .morvix/expected/ entry"
+        assert any(n.startswith("tests/") for n in names), \
+            "zip must contain at least one tests/ entry"
+        assert any(n.startswith("expected/") for n in names), \
+            "zip must contain at least one expected/ entry"
+        # It must NOT carry the project's hidden .morvix/ directory.
+        assert not any(".morvix" in n for n in names), \
+            "package should be flat, not nested under .morvix/"
 
     def test_private_paths_absent(self, py_project, tmp_path):
         ctx, proj = py_project
@@ -75,9 +76,9 @@ class TestBuildPackageZipContents:
 
         # The solution source and the private config dir must never travel.
         for entry in names:
-            assert not entry.startswith(".morvix/solutions/"), \
+            assert not entry.startswith("solutions/"), \
                 f"solutions/ must not appear in package; found {entry!r}"
-            assert not entry.startswith(".morvix/config/"), \
+            assert not entry.startswith("config/"), \
                 f"config/ must not appear in package; found {entry!r}"
 
 
@@ -104,7 +105,7 @@ class TestReceiverPath:
             "print(sum(int(x) for x in d))\n"
         )
 
-        runner = str(extracted / ".morvix" / "runner" / "morvix_runner.py")
+        runner = str(extracted / "runner" / "morvix_runner.py")
         result = subprocess.run(
             [sys.executable, runner, "sol.py", "--all"],
             cwd=str(extracted),
@@ -132,7 +133,7 @@ class TestReceiverPath:
         sol = extracted / "wrong.py"
         sol.write_text("print(-999)\n")
 
-        runner = str(extracted / ".morvix" / "runner" / "morvix_runner.py")
+        runner = str(extracted / "runner" / "morvix_runner.py")
         result = subprocess.run(
             [sys.executable, runner, "wrong.py", "--all"],
             cwd=str(extracted),
