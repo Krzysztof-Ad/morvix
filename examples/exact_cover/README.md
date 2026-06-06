@@ -34,15 +34,14 @@ that knows the format - which is the whole point of this example.
 cd examples/exact_cover
 morvix init --name exact_cover --language c --model stdio
 morvix config c --std gnu17 --opt O2
-morvix import solve.c
-morvix reference solve.c                       # defines the expected answers
+morvix import solve.c                          # the solution under test (it also defines the answers)
 morvix gen --generator gen_cover.py --count 1000   # 1000 structured inputs
-morvix gen --expected                          # real answers from the reference
+morvix gen --expected                          # real answers from your solution
 morvix run --all                               # build, run, judge
 morvix package --zip                           # share it (without your source)
 ```
 
-`gen --expected` computes the answers by running the reference, so the tests are
+`gen --expected` computes the answers by running your solution, so the tests are
 only as "correct" as that one solution - exactly the honesty point Morvix is
 built around.
 

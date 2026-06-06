@@ -4,8 +4,8 @@
 #   --manual NAME    hand-written, permanent case
 #   --random         random inputs from a built-in shape
 #   --generator PROG run a custom generator program
-#   --expected       (re)compute expected answers from the reference
-#   --stress         pit the solution against the brute force, keep first failure
+#   --expected       (re)compute expected answers from the solution under test
+#   --stress         pit the solution against the stress oracle, keep first failure
 #   --crash          mangle inputs into malformed variants
 #
 # All mutating modes save the project afterwards and print a summary.
@@ -32,9 +32,9 @@ def configure(parser):
     mode.add_argument("--generator", metavar="PROG",
                       help="run a custom generator program to produce inputs")
     mode.add_argument("--expected", action="store_true",
-                      help="(re)compute expected answers from the reference")
+                      help="(re)compute expected answers from the solution under test")
     mode.add_argument("--stress", action="store_true",
-                      help="stress the solution against the brute force")
+                      help="stress the solution against a --stress rival oracle")
     mode.add_argument("--crash", action="store_true",
                       help="generate malformed inputs to probe error handling")
     mode.add_argument("--new-generator", nargs="?", const="gen", metavar="NAME",
@@ -160,7 +160,7 @@ def _do_expected(ctx, project, args):
     how = "hashes" if args.hash else "output files"
     ctx.messenger.success(f"Computed {computed} expected answer(s) ({how}).")
 
-    # Cases that crashed under the reference now carry an exit/signal expectation.
+    # Cases that crashed under the solution now carry an exit/signal expectation.
     crashing = [c.id for c in project.cases
                 if (c.expected_exit is not None or c.expected_signal is not None)
                 and c.id not in before]

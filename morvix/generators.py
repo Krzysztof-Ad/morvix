@@ -1,9 +1,10 @@
 # Test generation (Section 13).
 #
 # Generation can produce inputs, but the correct answer for an input must come
-# from the reference solution, never from thin air - and that reference is a
-# peer's own solution. These functions own that boundary: they make inputs fast,
-# and they compute expected answers only by running the reference.
+# from running a real program, never from thin air - and that program is the
+# solution under test (a peer's own solution). These functions own that
+# boundary: they make inputs fast, and they compute expected answers only by
+# running the solution.
 #
 # Each function writes input files under tests/<group>/ and registers/updates
 # TestCase entries on the project, then the caller saves the project. Generated
@@ -85,9 +86,9 @@ def new_generator(ctx, project, name="gen"):
     return rel
 
 
-# Build the reference/brute once, then run every case through it.
+# Build the solution once, then run every case through it.
 # Mirrors judge(): mkdtemp workdir, build, runspec, ExecEnv, run_case per case.
-def _run_reference_over(project, solution, language, cases):
+def _run_over_cases(project, solution, language, cases):
     workdir = tempfile.mkdtemp(prefix="morvix-ref-")
     observations = {}
     try:
@@ -162,15 +163,16 @@ def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=N
 
 
 def gen_expected(ctx, project, use_hash=False, groups=None):
-    # The trusted source of answers is the reference (falling back to the solution).
-    reference = project.reference or project.solution
-    if not reference:
-        raise UserError("No reference or solution to compute expected answers from.",
-                        hint="Set one with 'solution' or 'reference'.")
-    language = project.language or detect_language(reference)
+    # Answers always come from the solution under test: we run it over every
+    # case and freeze its outputs as the expected answers.
+    solution = project.solution
+    if not solution:
+        raise UserError("No solution to compute expected answers from.",
+                        hint="Import one first with 'import <file>'.")
+    language = project.language or detect_language(solution)
 
     cases = select_cases(project, groups=groups) if groups else list(project.cases)
-    observations = _run_reference_over(project, reference, language, cases)
+    observations = _run_over_cases(project, solution, language, cases)
 
     computed = 0
     clean_outputs = []   # captured answers from clean runs, to sanity-check below
@@ -189,7 +191,7 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
         if res.timed_out:
             continue
         if res.signaled:
-            # Reference crashed: record the signal as the expectation, not an answer.
+            # Solution crashed: record the signal as the expectation, not an answer.
             case.expected_signal = _signal_name(res.term_signal)
         elif res.exit_code not in (0, None):
             # Nonzero clean exit: that exit code becomes the expectation.
@@ -217,10 +219,10 @@ def gen_stress(ctx, project, count, seed, group="regression"):
     # Stress testing pits the solution against a trusted oracle (a rival tagged
     # --stress) on random inputs and keeps the first input where they disagree.
     oracle = project.stress_rival()
-    oracle_path = oracle.path if oracle else project.bruteforce
-    if not oracle_path:
-        suggestions.explain_missing_bruteforce(ctx, project)
+    if not oracle:
+        suggestions.explain_missing_stress_oracle(ctx, project)
         return None
+    oracle_path = oracle.path
 
     solution = project.solution
     if not solution:
@@ -232,7 +234,7 @@ def gen_stress(ctx, project, count, seed, group="regression"):
 
     shape = "ints"  # a sensible default unless the project says otherwise
 
-    # Build both programs once before the loop (mirrors _run_reference_over).
+    # Build both programs once before the loop (mirrors _run_over_cases).
     import shutil
     sol_workdir = tempfile.mkdtemp(prefix="morvix-stress-sol-")
     bf_workdir = tempfile.mkdtemp(prefix="morvix-stress-bf-")
@@ -267,7 +269,7 @@ def gen_stress(ctx, project, count, seed, group="regression"):
                 _unlink(project.abspath(in_rel))
             if _normalise(obs_sol.output) != _normalise(obs_bf.output):
                 # First disagreement: persist it as a permanent regression case,
-                # trusting the brute force for the expected answer.
+                # trusting the oracle for the expected answer.
                 return _save_regression(project, group, seed + i, text, obs_bf.output)
     finally:
         shutil.rmtree(sol_workdir, ignore_errors=True)

@@ -28,7 +28,6 @@ def test_rust_build_run_judge(tmp_path):
     proj.language = "rust"
     proj.model = "stdio"
     proj.solution = str(sol)
-    proj.reference = str(sol)
     (tmp_path / "tests" / "baseline").mkdir(parents=True)
     (tmp_path / "expected" / "baseline").mkdir(parents=True)
     for i, (inp, out) in enumerate([("40 2", "42"), ("100 -50", "50")]):

@@ -36,7 +36,7 @@ COMMANDS = {
         "stage": "project",
         "summary": "Show the project, solution under test, runner and counts.",
         "long": "A quick snapshot: current project, language, execution model, the solution "
-                "currently imported, the reference and brute-force solutions, and test counts.",
+                "currently imported, the registered rivals, and test counts.",
         "examples": ["status"],
     },
     "help": {
@@ -78,20 +78,6 @@ COMMANDS = {
                 "(good while editing); --copy copies it into the project (good for a frozen one, "
                 "or for a Receiver dropping in their own code).",
         "examples": ["import solution.c", "import mysol.py --copy"],
-    },
-    "reference": {
-        "stage": "define",
-        "summary": "Set the solution that defines the expected answers.",
-        "long": "The reference is whatever you trust to produce the 'right' answers - in "
-                "practice your own solution. Its outputs become the frozen expected answers.",
-        "examples": ["reference solution.c"],
-    },
-    "bruteforce": {
-        "stage": "define",
-        "summary": "Deprecated: add a stress-oracle rival (use 'rival add --stress').",
-        "long": "Kept for compatibility. It now adds the given file as a rival tagged as the "
-                "stress-test oracle - the same as 'rival add <path> --stress'.",
-        "examples": ["bruteforce brute.py"],
     },
     "rival": {
         "stage": "define",

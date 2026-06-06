@@ -11,7 +11,7 @@ classmate can check their own code - even without Morvix installed.
 
 It is honest by design: the "expected" answers come from one student's own
 solution, so passing every test does **not** prove correctness - it proves
-agreement with that one reference on the cases tried.
+agreement with that one solution on the cases tried.
 
 ## Author and Receiver
 
@@ -26,7 +26,7 @@ agreement with that one reference on the cases tried.
 Work flows through four stages, and most commands belong to exactly one:
 
 1. **Define** - language build/run settings, the solution, the execution model
-   (`config`, `import`, `reference`, `model`).
+   (`config`, `import`, `model`).
 2. **Generate** - produce inputs and compute expected answers (`gen`, `clean`).
 3. **Run** - build and judge under limits, report (`run`, `runner`).
 4. **Share** - assemble a report and a package (`result`, `package`).
@@ -72,8 +72,8 @@ package with Morvix re-adopts it into a `.morvix/` project.
 Expected answers are produced by one peer's solution, not an authority. Passing
 all tests proves agreement, not correctness; the real signal is many independent
 solutions agreeing. Every generated package README says so. Morvix never invents
-an answer it cannot derive from a reference, and its suggestions explain and ask
-rather than changing behavior silently.
+an answer it cannot derive by running a solution, and its suggestions explain and
+ask rather than changing behavior silently.
 
 ## What's supported
 
@@ -117,7 +117,7 @@ open
 
 #### `status`
 
-A quick snapshot: current project, language, execution model, the solution currently imported, the reference and brute-force solutions, and test counts.
+A quick snapshot: current project, language, execution model, the solution currently imported, the registered rivals, and test counts.
 
 Examples:
 
@@ -229,34 +229,6 @@ import solution.c
 import mysol.py --copy
 ```
 
-#### `reference`
-
-The reference is whatever you trust to produce the 'right' answers - in practice your own solution. Its outputs become the frozen expected answers.
-
-Arguments:
-
-- `<path>` - path to the reference solution file
-
-Examples:
-
-```
-reference solution.c
-```
-
-#### `bruteforce`
-
-Kept for compatibility. It now adds the given file as a rival tagged as the stress-test oracle - the same as 'rival add <path> --stress'.
-
-Arguments:
-
-- `<path>` - Path to the brute-force solution file.
-
-Examples:
-
-```
-bruteforce brute.py
-```
-
 #### `rival`
 
 A rival is an alternative implementation kept only to compare performance (time/memory) against - it never changes the tests or expected answers. Add as many as you like; tag one --stress to use it as the stress-test oracle. 'rival precompute' records their numbers on this machine so they can ship code-free for a same-machine comparison.
@@ -307,8 +279,8 @@ Options:
 - `--manual NAME` - create a permanent hand-written case named NAME
 - `--random` - generate random inputs from a built-in shape
 - `--generator PROG` - run a custom generator program to produce inputs
-- `--expected` - (re)compute expected answers from the reference
-- `--stress` - stress the solution against the brute force
+- `--expected` - (re)compute expected answers from the solution under test
+- `--stress` - stress the solution against a --stress rival oracle
 - `--crash` - generate malformed inputs to probe error handling
 - `--new-generator NAME` - write a starter generator you can edit (default name: gen)
 - `--hash` - with --expected: store output digests instead of files

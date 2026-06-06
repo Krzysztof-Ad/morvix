@@ -102,7 +102,7 @@ def _toolbar(ctx: Context) -> str:
     if project is None:
         return " no project   type 'init' to create one "
     name = project.name or "project"
-    solution = project.solution or project.reference or "no solution"
+    solution = project.solution or "no solution"
     cases = len(project.cases)
     runners = len(project.runners)
     bits = [f" {name}", f"solution: {solution}", f"{cases} cases", f"{runners} runners"]

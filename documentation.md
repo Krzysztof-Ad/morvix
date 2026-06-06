@@ -414,13 +414,13 @@ Execution models are pluggable, like adapters and comparators. New models can be
 
 A project tests **one solution at a time**, but switching is a one-liner: `import other_solution.cpp` and everything else — tests, expected answers, comparison rules, runner, limits — stays exactly as configured. There is deliberately **no multi-solution mode**, because "compare two solutions" reduces to "import one, run, import the other, run, diff results" without any extra machinery. This is also precisely how a Receiver uses the tool: they `import` their own file into a received project and re-run; nothing else changes. Keeping it single-solution keeps the model honest and simple.
 
-### 11.3 The reference solution
+### 11.3 The solution defines the answers
 
-For generation and comparison, the project has a notion of the **reference solution** — the solution whose outputs *define* the expected answers. In practice this is the Author's own solution, since no official answers exist; its "truth" is therefore one student's and fallible (§1.3). The expected answers (or their hashes) are computed by running the reference over every case, then frozen into the project and the package. After that, comparison needs neither the reference source nor any network — the frozen answers travel inside the package.
+For generation and comparison, the **solution under test** is also what *defines* the expected answers — there is no separate "reference" to register. In practice this is the Author's own solution, since no official answers exist; its "truth" is therefore one student's and fallible (§1.3). The expected answers (or their hashes) are computed by running the solution over every case (`gen --expected`), then frozen into the project and the package. After that, comparison needs neither the source nor any network — the frozen answers travel inside the package. (To freeze answers from a *different* solution, import it, run `gen --expected`, then import your own back.)
 
-### 11.4 Optional brute-force reference (for stress testing)
+### 11.4 The stress oracle (for stress testing)
 
-Separately from the "fast" reference, the user can register a **slow brute-force solution** trusted *because* it's simple. This powers stress testing (§13.4): generate a random input, run both the real and the brute-force solution, and flag any disagreement. The brute force is an authoring aid; it is **not** shipped in the package.
+For stress testing (§13.4) the user can register a **rival tagged `--stress`** — typically a slow brute-force solution trusted *because* it's simple (`rival add brute.c --stress`). Stress testing generates a random input, runs both the solution and the oracle, and flags any disagreement. The oracle is an authoring aid; its source is **not** shipped in the package. (A rival is otherwise a performance-comparison solution, §16.)
 
 ---
 
@@ -471,11 +471,11 @@ These are composable building blocks; a generator picks and combines them. The l
 
 ### 13.3 Expected-answer generation
 
-Once inputs exist, expected answers are produced by running the **reference solution** (§11.3) over every input and freezing the result — as full output, or, on your opt-in, as a **hash** (§14.5, §22). For the crash/file models, "expected behavior" is the reference's observed exit status / produced file. This is the step that turns raw inputs into a judged test set.
+Once inputs exist, expected answers are produced by running the **solution under test** (§11.3) over every input and freezing the result — as full output, or, on your opt-in, as a **hash** (§14.5, §22). For the crash/file models, "expected behavior" is the solution's observed exit status / produced file. This is the step that turns raw inputs into a judged test set.
 
 ### 13.4 Stress testing (the bug-finding mode)
 
-The highest-value generation mode. In a loop: generate a random input → run the real solution → run the **brute-force reference** (§11.4) → compare. On the first disagreement, Morvix **saves the failing input** as a permanent regression case and reports it. Running thousands of random cases this way finds bugs no fixed test set will, because the brute force is simple enough to trust. This is differential testing, and it's mostly tool-provided once a brute force exists.
+The highest-value generation mode. In a loop: generate a random input → run the real solution → run the **stress oracle** (a `--stress` rival, §11.4) → compare. On the first disagreement, Morvix **saves the failing input** as a permanent regression case and reports it. Running thousands of random cases this way finds bugs no fixed test set will, because the oracle is simple enough to trust. This is differential testing, and it's mostly tool-provided once an oracle exists.
 
 ### 13.5 Cross-solution agreement (the "many people, same result" signal)
 
@@ -483,7 +483,7 @@ This is the actual mechanism by which correctness is triangulated given there is
 
 ### 13.6 Input/output and code-aware assistance
 
-You raised the idea of a generator/analysis that "looks at the provided code and tries to match tests to it." Scoped honestly: Morvix can offer **heuristic input/output scaffolding** — inferring input *shape* from how the program reads (e.g. it reads an int then that many lines), proposing boundary cases around the limits it detects, and seeding the crash-case generator with malformed variants of valid inputs (truncated, oversized, wrong-type, extra-whitespace). This is *assistance that proposes candidate cases*, never an oracle for their answers — the answers still come from the reference solution. The firm line is that Morvix never invents a correct answer it can't derive from a reference. (An optional, developer-supplied LLM could later draft candidate edge cases under this same "propose, don't oracle" rule — §26.)
+You raised the idea of a generator/analysis that "looks at the provided code and tries to match tests to it." Scoped honestly: Morvix can offer **heuristic input/output scaffolding** — inferring input *shape* from how the program reads (e.g. it reads an int then that many lines), proposing boundary cases around the limits it detects, and seeding the crash-case generator with malformed variants of valid inputs (truncated, oversized, wrong-type, extra-whitespace). This is *assistance that proposes candidate cases*, never an oracle for their answers — the answers still come from running the solution. The firm line is that Morvix never invents a correct answer it can't derive by running a solution. (An optional, developer-supplied LLM could later draft candidate edge cases under this same "propose, don't oracle" rule — §26.)
 
 ---
 
@@ -647,7 +647,7 @@ The setup work (configure language, set limits, choose comparison, build a runne
 - the generators (optional, so the Receiver can regenerate/extend),
 - the auto-generated **README** (with the honesty clause),
 - the **Morvix manifest** (`morvix.json`) — the descriptor that lets a Morvix-equipped Receiver get the rich view (§20); harmless and ignored by a Receiver without Morvix,
-- **not** the Author's solution source; **not** the brute-force reference.
+- **not** the Author's solution source; **not** any rival source (only opt-in precomputed numbers, §16).
 
 ### 19.3 Archive formats and space-saving
 
@@ -698,9 +698,9 @@ Morvix proactively notices situations where a better option exists and **offers*
 - **Large output → suggest hashing.** When a test's expected output exceeds a size threshold, Morvix says, in effect: *"This test's output is larger than [threshold]. Storing it in full will make the package big and slow to share. Switch this group to hash comparison to save space? (You'll lose per-failure diffs.)"* Opt-in only (§14.5).
 - **Large package → suggest stronger compression.** When a package would be large, Morvix suggests a more aggressive archive format (e.g. `tar.xz`) or moving big expected outputs to hashes (§19.3).
 - **Backend mismatch → warn about metrics.** If the user builds a bash-backed runner but enables timing/memory reporting, Morvix warns those metrics will be imprecise/unavailable and suggests the Python backend (§16.3).
-- **Crash-shaped cases with no exit-status expectation → suggest adding one.** If the reference solution exits non-zero or crashes on some generated inputs, Morvix points out those cases and offers to record the expected exit status/signal (§14.6) rather than treating the crash as a generation failure.
+- **Crash-shaped cases with no exit-status expectation → suggest adding one.** If the solution exits non-zero or crashes on some generated inputs, Morvix points out those cases and offers to record the expected exit status/signal (§14.6) rather than treating the crash as a generation failure.
 - **Locale-sensitive output detected → confirm locale.** If output contains locale-dependent formatting, Morvix confirms the deterministic-locale default (§21.3).
-- **Missing brute force for stress testing → explain the gap.** If you ask to stress-test without a registered brute-force reference, Morvix explains that stress testing needs an independent trusted solution and offers to register one.
+- **Missing stress oracle → explain the gap.** If you ask to stress-test without a registered `--stress` rival, Morvix explains that stress testing needs an independent trusted oracle and offers to register one (`rival add <path> --stress`).
 
 These suggestions encode the judgment an experienced person would apply, surfaced at the moment it's relevant. They are advisory; the user always decides.
 
@@ -718,7 +718,7 @@ interactive use opens the relevant shared component):
 
 - **Project & session** — `init`, `open`, `status`, `docs`, `help`, `exit`.
 - **Define** — `config <language>` (incl. the raw build/run escape hatch, §9.3),
-  `import`, `reference`, `bruteforce`, `model` (§10).
+  `import`, `rival`, `model` (§10).
 - **Generate** — `gen` (`--manual` / `--random` / `--generator` / `--expected`
   / `--stress` / `--crash` / `--new-generator`), `clean`.
 - **Run** — `run` (scope + limit + compare flags), `runner` (new/edit/show/list/
@@ -755,7 +755,7 @@ my-assignment/
 The directory *is* the state — inspectable and git-friendly. A **package** is laid
 out **flat** instead: `run.sh`, `README.md`, `morvix.json` and the `tests/`,
 `expected/` and `runner/` trees sit at the archive root, so a Receiver sees the
-harness directly. A package never contains the Author's source, the brute force,
+harness directly. A package never contains the Author's source, any rival source,
 or `config/`. Opening a package with Morvix re-adopts it back into a `.morvix/`
 project.
 
@@ -766,7 +766,7 @@ project.
 > Illustrative shapes — the point is *what information is captured*, not the exact field names. JSON is used throughout (project and global config, the case index, the manifest, workflows). All of these live under `.morvix/` (§24).
 
 ### 25.1 Project config (`.morvix/config/project.json`)
-Captures: project name; active language; chosen **execution model**; **per-language build/run settings** (compiler, standard, flags, include/lib paths, venv path, link mode, classpath, edition…); **raw build/run command** overrides; default **comparison strategy** and its parameters (epsilon, whitespace mode); default **limits** (wall, CPU, memory, hard-kill, output cap); **locale** setting; reference, brute-force and current solution locations. The case index is a sibling, `.morvix/config/cases.json`.
+Captures: project name; active language; chosen **execution model**; **per-language build/run settings** (compiler, standard, flags, include/lib paths, venv path, link mode, classpath, edition…); **raw build/run command** overrides; default **comparison strategy** and its parameters (epsilon, whitespace mode); default **limits** (wall, CPU, memory, hard-kill, output cap); **locale** setting; the current solution location and any registered **rivals** (one optionally tagged as the stress oracle). The case index is a sibling, `.morvix/config/cases.json`.
 
 ### 25.2 Runner profile (`.morvix/config/runners/<name>.json`)
 Captures: which tests/groups it covers; comparison strategy; **backend** (bash/python/valgrind) and its capability set; toggles (timing on/off, memory measure on/off, hard-kill on/off, memory-checker on/off, diff on/off, color, verbosity); limit values; results-output settings (format, path).
@@ -788,7 +788,7 @@ These are designed-in extension points and optional capabilities. They are part 
 
 - **New languages, execution models, and comparators are pluggable.** Adding a language is one adapter; a new way of running is one execution model; a new way of judging is one comparator (§4.1). The three axes never multiply against each other, so the tool grows by addition, not rewriting.
 - **The built-in shape library grows** to match the assignment families actually encountered (§13.2). The list given is a starting set, not a ceiling.
-- **Optional, developer-supplied LLM hook.** A developer may plug in **their own** API key or a local model to (a) draft candidate edge-case inputs and (b) polish README prose — strictly under the "propose, don't oracle" rule (§13.6): a model may *suggest* cases, but expected answers still come from the reference solution, never from the model. This is off by default, never required, and Morvix ships and works fully without it. It is the developer's choice and the developer's key; Morvix only provides the hook.
+- **Optional, developer-supplied LLM hook.** A developer may plug in **their own** API key or a local model to (a) draft candidate edge-case inputs and (b) polish README prose — strictly under the "propose, don't oracle" rule (§13.6): a model may *suggest* cases, but expected answers still come from running the solution, never from the model. This is off by default, never required, and Morvix ships and works fully without it. It is the developer's choice and the developer's key; Morvix only provides the hook.
 - **Windows support deepens where it can.** The baseline (Python core, emitted `.bat`/PowerShell wrapper) works; platform-specific facilities that don't exist on Windows are reported as unavailable rather than faked (§21.2).
 - **External test-format interop.** If a course mandates a specific external test-file layout, an import/export adapter can be added without disturbing the core.
 
@@ -802,13 +802,14 @@ These are designed-in extension points and optional capabilities. They are part 
 - **Language adapter** — module that builds/runs one language; the only language-aware part.
 - **Execution model** — how a program is invoked and what behavior is observed (`stdio`, `library`, `args`, `file`, `interactive`).
 - **Comparison strategy** — how pass/fail is decided (exact, whitespace, float, checker, hash, exit-status, combinations).
-- **Reference solution** — the solution whose outputs define the expected answers; in practice the Author's own, hence fallible.
-- **Brute-force reference** — slow, simple, trusted solution used for stress testing.
+- **Expected answers** — defined by running the solution under test; in practice the Author's own, hence fallible.
+- **Rival** — an alternative solution kept only for performance comparison (time/memory); never affects answers. One may be tagged `--stress` to act as the stress oracle.
+- **Stress oracle** — a slow, simple, trusted rival (tagged `--stress`) used for stress testing.
 - **Runner** — the shareable artifact (Python core + `run.sh`) that executes the tests; a named, configured profile.
 - **Backend** — the runner's measurement engine (bash / python / valgrind-augmented), each with different capabilities.
 - **Manifest (`morvix.json`)** — the package descriptor that makes a package self-describing to Morvix.
 - **Workflow** — a recorded, replayable sequence of Morvix commands (JSON), "a Makefile for tests."
-- **Stress testing** — random-input differential testing of the solution against a brute force.
+- **Stress testing** — random-input differential testing of the solution against a `--stress` rival oracle.
 - **Shared interaction components** — the single reused set of UI primitives (selection list, single-choice, guided form, confirmation, live table, progress, message display) every command composes from.
 
 ---

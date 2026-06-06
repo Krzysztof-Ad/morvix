@@ -27,7 +27,7 @@ classmate can check their own code - even without Morvix installed.
 
 It is honest by design: the "expected" answers come from one student's own
 solution, so passing every test does **not** prove correctness - it proves
-agreement with that one reference on the cases tried."""),
+agreement with that one solution on the cases tried."""),
 
     ("roles", "Author and Receiver", """\
 - **Author** - builds tests from their own solution and shares them. Their
@@ -40,7 +40,7 @@ agreement with that one reference on the cases tried."""),
 Work flows through four stages, and most commands belong to exactly one:
 
 1. **Define** - language build/run settings, the solution, the execution model
-   (`config`, `import`, `reference`, `model`).
+   (`config`, `import`, `model`).
 2. **Generate** - produce inputs and compute expected answers (`gen`, `clean`).
 3. **Run** - build and judge under limits, report (`run`, `runner`).
 4. **Share** - assemble a report and a package (`result`, `package`)."""),
@@ -82,8 +82,8 @@ package with Morvix re-adopts it into a `.morvix/` project."""),
 Expected answers are produced by one peer's solution, not an authority. Passing
 all tests proves agreement, not correctness; the real signal is many independent
 solutions agreeing. Every generated package README says so. Morvix never invents
-an answer it cannot derive from a reference, and its suggestions explain and ask
-rather than changing behavior silently."""),
+an answer it cannot derive by running a solution, and its suggestions explain and
+ask rather than changing behavior silently."""),
 ]
 
 

@@ -47,8 +47,12 @@ def run(ctx, args) -> int:
 
     row("solution",   p.solution or "none",
         "" if p.solution else "muted")
-    row("reference",  p.reference  or "—")
-    row("bruteforce", p.bruteforce or "—")
+    # Rivals are performance-comparison solutions; one may be the stress oracle.
+    if p.rivals:
+        labels = [r.name + (" (stress)" if r.stress else "") for r in p.rivals]
+        row("rivals", ", ".join(labels))
+    else:
+        row("rivals", "—")
     row("runners",    str(len(p.runners)))
 
     # --- case counts per group ---

@@ -97,7 +97,6 @@ def test_judge_expected_exit_pass(tmp_path, make_ctx):
     proj.language = "python"
     proj.model = "stdio"
     proj.solution = str(exit2_py)
-    proj.reference = str(exit2_py)
 
     # Case needs an input file; content doesn't matter for a crash program.
     stdin_rel = os.path.join(TESTS_DIR, "baseline", "crash.in")
@@ -129,7 +128,6 @@ def test_judge_expected_exit_wrong_code_fails(tmp_path, make_ctx):
     proj.language = "python"
     proj.model = "stdio"
     proj.solution = str(exit2_py)
-    proj.reference = str(exit2_py)
 
     stdin_rel = os.path.join(TESTS_DIR, "baseline", "crash2.in")
     _write(tmp_path / stdin_rel, "")

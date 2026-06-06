@@ -75,7 +75,7 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
   clean machine with just Python 3. It re-implements the judge logic; if you change judging behavior
   in `judge.py`/`process.py`/`compare.py`, keep the runner core in sync. `run.sh` is its wrapper and
   is placed at the package root by `packaging.py` so `./run.sh` works.
-- **A package never contains the author's source** (`solutions/`), the brute-force reference, or
+- **A package never contains the author's source** (`solutions/`), any rival source, or
   `config/`. See `packaging.build_package`.
 - **Honesty is a feature.** Expected answers come from one peer's solution, not an authority. The
   correctness disclaimer is always included in the generated README (`readme.py`). Smart suggestions
@@ -83,8 +83,9 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
 - **Help text has one home.** `morvix/help_text.py` powers both `help` and the autocomplete meta
   column; keep summaries there in sync with what a command actually does.
 - **Rivals are perf-only, never correctness.** A `Rival` (`project.rivals`) is an alternative
-  implementation compared for time/memory; it never touches tests or expected answers. `reference`
-  defines answers; a rival tagged `stress` is the stress oracle (the old `bruteforce`, auto-migrated).
+  implementation compared for time/memory; it never touches tests or expected answers. Expected
+  answers always come from the **solution under test** (`gen --expected`); a rival tagged `stress`
+  is the stress oracle (a legacy `bruteforce` key in old configs auto-migrates to one on load).
   `morvix/comparison.py` runs the solution + rivals (sequential by default - parallel skews numbers);
   `results.comparison_block` renders it and is **mirrored** in the runner core. Packages stay
   code-free: `rival precompute` records numbers that ship by default; shipping rival *code* is opt-in

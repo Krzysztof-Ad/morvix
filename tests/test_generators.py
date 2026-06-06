@@ -11,6 +11,7 @@ from morvix.generators import (
     gen_stress,
 )
 from morvix.cases import TestCase
+from morvix.project import Rival
 
 from tests.conftest import SUM_ALL_PY
 
@@ -119,7 +120,7 @@ def test_gen_stress_finds_disagreement(py_project, tmp_path):
     bf.write_text(SUM_ALL_PY)
 
     project.solution = str(buggy)
-    project.bruteforce = str(bf)
+    project.add_rival(Rival(name="bf", path=str(bf), stress=True))
 
     result = gen_stress(ctx, project, 30, 7)
 

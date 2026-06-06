@@ -40,7 +40,6 @@ def test_multifile_java_compiles_and_judges(tmp_path):
     proj.model = "stdio"
     sol = str(src / "Main.java")
     proj.solution = sol
-    proj.reference = sol
 
     (tmp_path / "tests" / "baseline").mkdir(parents=True)
     (tmp_path / "expected" / "baseline").mkdir(parents=True)

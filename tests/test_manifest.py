@@ -42,10 +42,11 @@ def test_write_manifest_required_keys(py_project, tmp_path):
 
 
 def test_write_manifest_excludes_private_paths(py_project, tmp_path):
+    from morvix.project import Rival
+
     ctx, proj = py_project
-    proj.reference = str(tmp_path / "ref.py")
     proj.solution = str(tmp_path / "sol.py")
-    proj.bruteforce = str(tmp_path / "brute.py")
+    proj.add_rival(Rival(name="brute", path=str(tmp_path / "brute.py"), stress=True))
     proj.save()
 
     write_manifest(proj)
@@ -54,7 +55,8 @@ def test_write_manifest_excludes_private_paths(py_project, tmp_path):
     with open(manifest_path) as f:
         m = json.load(f)
 
-    for key in ("reference", "solution", "bruteforce"):
+    # The solution path and any rival source paths stay private.
+    for key in ("solution", "rivals"):
         assert key not in m, f"manifest should NOT contain '{key}'"
 
 

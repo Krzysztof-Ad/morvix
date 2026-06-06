@@ -20,7 +20,7 @@ from morvix.version import __version__
 def build_manifest(project: Project) -> dict:
     """Assemble the manifest dict from live project state.
 
-    Deliberately excludes the reference, brute-force and current solution paths:
+    Deliberately excludes the current solution path and any rival source paths:
     those are private and never travel in a package (Section 2.3).
     """
     return {

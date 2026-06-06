@@ -103,7 +103,6 @@ def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
     proj.language = "python"
     proj.model = "stdio"
     proj.solution = str(sol)
-    proj.reference = str(sol)
     for name, inp, out in [("a", "1 2 3", "6"), ("b", "10 20", "30")]:
         irel = os.path.join(layout.TESTS_DIR, "baseline", name + ".in")
         erel = os.path.join(layout.EXPECTED_DIR, "baseline", name + ".out")
@@ -165,7 +164,6 @@ def test_warns_when_expected_outputs_are_empty(tmp_path):
     proj.language = "python"
     proj.model = "stdio"
     proj.solution = str(sol)
-    proj.reference = str(sol)
     proj.save()
     ctx, buf = _capturing_ctx(tmp_path)
     ctx.project = proj

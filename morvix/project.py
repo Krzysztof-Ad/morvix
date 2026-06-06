@@ -73,8 +73,9 @@ class Runner:
 @dataclass
 class Rival:
     """An alternative implementation kept for PERFORMANCE comparison (not for
-    correctness). Many are allowed; one may be tagged as the stress oracle.
-    Distinct from `reference`, which defines the expected answers."""
+    correctness). Many are allowed; one may be tagged as the stress oracle. A
+    rival never affects the expected answers - those always come from the
+    solution under test."""
 
     name: str
     path: str
@@ -99,8 +100,6 @@ class Project:
     languages: Dict[str, dict] = field(default_factory=dict)   # lang -> settings
     raw_build: Optional[str] = None
     raw_run: Optional[str] = None
-    reference: Optional[str] = None        # solution that defines expected answers
-    bruteforce: Optional[str] = None       # slow trusted solution for stress testing
     solution: Optional[str] = None         # current solution under test
     solution_copied: bool = False          # was it copied in, or referenced in place
     language: Optional[str] = None         # active language for build/run
@@ -142,12 +141,11 @@ class Project:
             raise FileNotFoundError(f"No Morvix project in {root}")
         proj.cases = load_cases(root)
         proj.runners = _load_runners(root)
-        proj._migrate_bruteforce()
         return proj
 
     @classmethod
     def _from_config(cls, root: str, data: dict) -> "Project":
-        return cls(
+        proj = cls(
             root=root,
             name=data.get("name", os.path.basename(os.path.abspath(root))),
             model=data.get("model", "stdio"),
@@ -157,13 +155,19 @@ class Project:
             languages=data.get("languages", {}),
             raw_build=data.get("raw_build"),
             raw_run=data.get("raw_run"),
-            reference=data.get("reference"),
-            bruteforce=data.get("bruteforce"),
             solution=data.get("solution"),
             solution_copied=data.get("solution_copied", False),
             language=data.get("language"),
             rivals=[Rival.from_dict(r) for r in data.get("rivals", [])],
         )
+        # Back-compat: pre-0.7 projects stored a single 'bruteforce' path and a
+        # 'reference'. The reference role is gone (answers come from the solution
+        # now); a bruteforce folds into a stress-test rival so old projects keep
+        # their oracle.
+        legacy_bf = data.get("bruteforce")
+        if legacy_bf and not any(r.name == "brute" for r in proj.rivals):
+            proj.rivals.append(Rival(name="brute", path=legacy_bf, stress=True))
+        return proj
 
     def _config_dict(self) -> dict:
         return {
@@ -175,8 +179,6 @@ class Project:
             "languages": self.languages,
             "raw_build": self.raw_build,
             "raw_run": self.raw_run,
-            "reference": self.reference,
-            "bruteforce": self.bruteforce,
             "solution": self.solution,
             "solution_copied": self.solution_copied,
             "language": self.language,
@@ -194,11 +196,6 @@ class Project:
         _save_runners(self.root, self.runners)
 
     # --- convenience ---
-
-    def _migrate_bruteforce(self) -> None:
-        # Old projects used a single 'bruteforce'; fold it into a stress rival.
-        if self.bruteforce and not any(r.name == "brute" for r in self.rivals):
-            self.rivals.append(Rival(name="brute", path=self.bruteforce, stress=True))
 
     def get_rival(self, name: str) -> Optional[Rival]:
         for r in self.rivals:
@@ -330,7 +327,9 @@ def _prefix_copied_paths(root: str) -> None:
     with open(path, "r", encoding="utf-8") as f:
         d = json.load(f)
     changed = False
-    for key in ("solution", "reference", "bruteforce"):
+    # Only the solution is ever copied in under solutions/; a legacy bruteforce
+    # may still carry a relative path that needs re-homing too.
+    for key in ("solution", "bruteforce"):
         v = d.get(key)
         if v and not os.path.isabs(v) and (v.startswith("solutions" + os.sep) or v.startswith("solutions/")):
             d[key] = _with_state(v)

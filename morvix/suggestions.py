@@ -11,7 +11,7 @@
 #   warn_backend_metrics(ctx, runner) -> None
 #   suggest_exit_status(ctx, project, crashing_case_ids) -> None
 #   confirm_locale(ctx, project) -> None
-#   explain_missing_bruteforce(ctx, project) -> None
+#   explain_missing_stress_oracle(ctx, project) -> None
 
 from morvix.components.confirm import confirm
 
@@ -126,11 +126,11 @@ def confirm_locale(ctx, project):
     )
 
 
-def explain_missing_bruteforce(ctx, project):
-    # Stress testing compares a fast solution against a slow-but-trusted
-    # brute-force reference. Without one registered, stress mode can't run
+def explain_missing_stress_oracle(ctx, project):
+    # Stress testing compares the solution under test against a trusted oracle -
+    # a rival tagged --stress. Without one registered, stress mode can't run
     # (Section 22).
     ctx.messenger.warning(
-        "Stress testing requires a registered brute-force reference solution.",
-        hint="Register one with:  bruteforce <path>",
+        "Stress testing needs a trusted oracle to compare against.",
+        hint="Register one with:  rival add <path> --stress",
     )

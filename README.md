@@ -13,7 +13,7 @@ classmates can check their code too. Morvix automates that whole loop - building
 sharing these self-made test harnesses - quickly and consistently, across languages and platforms.
 
 It's an honest tool. The "expected answers" come from one student's own solution, so passing every
-test does **not** prove a solution is correct - it proves it agrees with that one reference on the
+test does **not** prove a solution is correct - it proves it agrees with that one solution on the
 cases tried. Morvix says so plainly (it's baked into every package's README) and makes the real
 signal - lots of independent solutions agreeing - easy to see.
 
@@ -41,10 +41,9 @@ other way.
 cd my-assignment
 morvix init                       # create a project here (guided)
 morvix config cpp                 # how to build/run your language
-morvix import solution.cpp        # the solution under test
-morvix reference solution.cpp     # it also defines the expected answers
+morvix import solution.cpp        # the solution under test (it also defines the answers)
 morvix gen --random --count 100   # generate inputs from the built-in shapes
-morvix gen --expected             # compute answers by running the reference
+morvix gen --expected             # compute answers by running your solution
 morvix run --all                  # build, run, judge - with a live table
 morvix runner new full            # a named, shareable run profile
 morvix package --zip              # bundle it up to share (your source is left out)
@@ -89,7 +88,7 @@ tests, re-run selectively, and diff your per-case results against the author's.
 - **Limits & checks**: wall/CPU time, peak memory (approximate), hard memory caps, output caps, and
   an optional valgrind memory-correctness pass.
 - **Generation**: a built-in random-shape library, custom generators, stress testing against a
-  brute force, and crash-case candidates.
+  trusted rival oracle, and crash-case candidates.
 - **Sharing**: zip / tar / tar.gz / tar.xz packages with an auto-generated README and a manifest.
 - **Workflows**: record a sequence of commands and replay it on the next assignment.
 

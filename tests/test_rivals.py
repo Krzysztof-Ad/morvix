@@ -41,9 +41,21 @@ def test_rival_add_persists(tmp_path):
 
 
 def test_bruteforce_migrates_to_stress_rival(tmp_path):
+    # A pre-0.7 project stored a single 'bruteforce' path; loading it folds that
+    # into a stress-test rival so old projects keep their oracle.
+    import json
+
+    from morvix.layout import PROJECT_FILE
+
     proj = Project.create(str(tmp_path), "t")
-    proj.bruteforce = "/x/old_brute.py"      # pre-0.6 style
     proj.save()
+    cfg = os.path.join(str(tmp_path), PROJECT_FILE)
+    with open(cfg) as f:
+        data = json.load(f)
+    data["bruteforce"] = "/x/old_brute.py"     # pre-0.7 style
+    with open(cfg, "w") as f:
+        json.dump(data, f)
+
     reloaded = Project.load(str(tmp_path))
     sr = reloaded.stress_rival()
     assert sr is not None and sr.path == "/x/old_brute.py"
@@ -128,10 +140,11 @@ def test_package_ships_precomputed_and_runner_compares(tmp_path, py_project):
 
 def test_stress_uses_stress_rival(tmp_path, py_project, make_ctx):
     ctx, proj = py_project
+    correct = proj.solution                    # the fixture's correct sum solution
     buggy = tmp_path / "buggy.py"
     buggy.write_text(SUM_BUGGY)
     proj.solution = str(buggy)                 # the solution under test is wrong
-    proj.add_rival(Rival(name="ref", path=proj.reference, stress=True))  # trusted oracle
+    proj.add_rival(Rival(name="ref", path=correct, stress=True))  # trusted oracle
     proj.save()
     case = gen_stress(ctx, proj, count=30, seed=3)
     assert case is not None                    # a disagreement was found and saved

@@ -42,14 +42,13 @@ def make_ctx():
 
 @pytest.fixture
 def py_project(tmp_path, make_ctx):
-    """A ready python project in tmp_path with the reference solution imported."""
+    """A ready python project in tmp_path with the solution imported."""
     sol = tmp_path / "sol.py"
     sol.write_text(SUM_ALL_PY)
     proj = Project.create(str(tmp_path), "t")
     proj.language = "python"
     proj.model = "stdio"
     proj.solution = str(sol)
-    proj.reference = str(sol)
     proj.save()
     ctx = make_ctx(tmp_path)
     ctx.project = proj

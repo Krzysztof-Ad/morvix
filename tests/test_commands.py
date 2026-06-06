@@ -37,7 +37,7 @@ def test_init_idempotent(tmp_path, make_ctx):
 
 
 # ---------------------------------------------------------------------------
-# import + reference commands
+# import command
 # ---------------------------------------------------------------------------
 
 def test_import_sets_solution(tmp_path, make_ctx):
@@ -55,27 +55,12 @@ def test_import_sets_solution(tmp_path, make_ctx):
     assert "sol.py" in ctx.project.solution
 
 
-def test_reference_sets_reference(tmp_path, make_ctx):
-    """After init + reference, ctx.project.reference is set."""
-    ctx = make_ctx(tmp_path)
-    safe_dispatch(ctx, ["init", "--name", "t", "--language", "python"])
-
-    sol = tmp_path / "sol.py"
-    sol.write_text("import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n")
-
-    rc = safe_dispatch(ctx, ["reference", str(sol)])
-    assert rc == 0
-    ctx.reload_project()
-    assert ctx.project.reference is not None
-    assert "sol.py" in ctx.project.reference
-
-
 # ---------------------------------------------------------------------------
 # gen --random / gen --expected / run --all pipeline
 # ---------------------------------------------------------------------------
 
 def test_gen_random_and_run(tmp_path, make_ctx):
-    """Full pipeline: init -> import -> reference -> gen --random -> gen --expected -> run --all."""
+    """Full pipeline: init -> import -> gen --random -> gen --expected -> run --all."""
     ctx = make_ctx(tmp_path)
 
     safe_dispatch(ctx, ["init", "--name", "t", "--language", "python"])
@@ -84,9 +69,6 @@ def test_gen_random_and_run(tmp_path, make_ctx):
     sol.write_text("import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n")
 
     rc = safe_dispatch(ctx, ["import", str(sol)])
-    assert rc == 0
-
-    rc = safe_dispatch(ctx, ["reference", str(sol)])
     assert rc == 0
 
     ctx.reload_project()
@@ -122,7 +104,6 @@ def test_gen_manual_case_and_run(tmp_path, make_ctx):
     sol = tmp_path / "sol.py"
     sol.write_text("import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n")
     safe_dispatch(ctx, ["import", str(sol)])
-    safe_dispatch(ctx, ["reference", str(sol)])
     ctx.reload_project()
 
     rc = safe_dispatch(ctx, ["gen", "--manual", "case1"])
