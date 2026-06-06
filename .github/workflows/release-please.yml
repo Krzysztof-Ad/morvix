@@ -16,7 +16,7 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         with:
           # A PAT (RELEASE_PLEASE_TOKEN) is needed so the Release this creates
           # triggers publish.yml; falls back to GITHUB_TOKEN (which can open the
