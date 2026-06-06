@@ -61,7 +61,6 @@ jobs:
           printf 'import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n' > sol.py
           morvix init --name demo --language python
           morvix import sol.py
-          morvix reference sol.py
           morvix gen --random --shape ints --count 5 --seed 1
           morvix gen --expected
           morvix package --zip --out ../pkg.zip
