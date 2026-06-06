@@ -35,7 +35,7 @@ def main(argv=None) -> int:
     debug = False
     plain = False
     root = os.getcwd()
-    rest = []
+    rest: list[str] = []
 
     i = 0
     while i < len(raw):
@@ -67,6 +67,7 @@ def main(argv=None) -> int:
 
     if not rest:
         from morvix.shell import run_shell
+
         return run_shell(ctx)
     return registry.safe_dispatch(ctx, rest)
 

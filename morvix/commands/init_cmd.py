@@ -9,8 +9,8 @@ import os
 
 from morvix import layout
 from morvix.adapters import list_languages
-from morvix.components.form import Field, run_form
 from morvix.compare import list_strategies
+from morvix.components.form import Field, run_form
 from morvix.models import list_models
 from morvix.project import DEFAULT_COMPARE, DEFAULT_LIMITS, Project, ensure_gitignore
 
@@ -51,18 +51,45 @@ def run(ctx, args) -> int:
         # Language choices include a blank "decide later" option.
         lang_choices = [("", "(decide later)")] + [(l, l) for l in languages]
         fields = [
-            Field("name", "Project name", "text", default=name, required=True,
-                  help="A short label for this assignment."),
-            Field("language", "Language", "choice", choices=lang_choices,
-                  default=language or "", help="Default language for build/run."),
-            Field("model", "Execution model", "choice",
-                  choices=[(m, m) for m in models], default=model,
-                  help="How the solution is invoked and what is judged."),
-            Field("compare", "Comparison", "choice",
-                  choices=[(s, s) for s in strategies], default=compare,
-                  help="How output is checked for correctness."),
-            Field("wall", "Wall-clock limit (s)", "int", default=int(wall),
-                  help="Default per-case time limit in seconds."),
+            Field(
+                "name",
+                "Project name",
+                "text",
+                default=name,
+                required=True,
+                help="A short label for this assignment.",
+            ),
+            Field(
+                "language",
+                "Language",
+                "choice",
+                choices=lang_choices,
+                default=language or "",
+                help="Default language for build/run.",
+            ),
+            Field(
+                "model",
+                "Execution model",
+                "choice",
+                choices=[(m, m) for m in models],
+                default=model,
+                help="How the solution is invoked and what is judged.",
+            ),
+            Field(
+                "compare",
+                "Comparison",
+                "choice",
+                choices=[(s, s) for s in strategies],
+                default=compare,
+                help="How output is checked for correctness.",
+            ),
+            Field(
+                "wall",
+                "Wall-clock limit (s)",
+                "int",
+                default=int(wall),
+                help="Default per-case time limit in seconds.",
+            ),
         ]
         answers = run_form(ctx, "New Morvix project", fields)
         if answers is None:
@@ -87,7 +114,9 @@ def run(ctx, args) -> int:
     # Drop a .gitignore so the directory is git-ready (build artifacts and the
     # private solution stay out of version control). Never clobber an existing one.
     if ensure_gitignore(ctx.root):
-        ctx.messenger.info("Wrote a .gitignore (build artifacts, .morvix/results, .morvix/solutions).")
+        ctx.messenger.info(
+            "Wrote a .gitignore (build artifacts, .morvix/results, .morvix/solutions)."
+        )
 
     ctx.messenger.success(f"Created project '{name}'.")
     _next_steps(ctx, language)

@@ -9,7 +9,7 @@
 # After a change we print the adapter's one-line describe() summary.
 
 from morvix.adapters import get_adapter, list_languages
-from morvix.components.form import run_form, Field
+from morvix.components.form import Field, run_form
 from morvix.errors import UserError
 
 NAME = "config"
@@ -42,35 +42,56 @@ def configure(parser):
 # Which flags are meaningful for each language, mapping CLI arg -> config key.
 # Anything not listed for a language is simply ignored for that language.
 _LANG_FLAGS = {
-    "cpp":    {"compiler": "compiler", "std": "std", "opt": "opt", "flags": "flags",
-               "include": "include", "lib": "lib", "libdirs": "libdirs"},
-    "c":      {"compiler": "compiler", "std": "std", "opt": "opt", "flags": "flags",
-               "include": "include", "lib": "lib", "libdirs": "libdirs"},
+    "cpp": {
+        "compiler": "compiler",
+        "std": "std",
+        "opt": "opt",
+        "flags": "flags",
+        "include": "include",
+        "lib": "lib",
+        "libdirs": "libdirs",
+    },
+    "c": {
+        "compiler": "compiler",
+        "std": "std",
+        "opt": "opt",
+        "flags": "flags",
+        "include": "include",
+        "lib": "lib",
+        "libdirs": "libdirs",
+    },
     "python": {"interpreter": "interpreter"},
-    "java":   {"compiler": "javac", "classpath": "classpath", "release": "release"},
-    "nasm":   {"format": "format", "link": "link", "flags": "flags"},
-    "rust":   {"compiler": "rustc", "edition": "edition", "release": "release"},
+    "java": {"compiler": "javac", "classpath": "classpath", "release": "release"},
+    "nasm": {"format": "format", "link": "link", "flags": "flags"},
+    "rust": {"compiler": "rustc", "edition": "edition", "release": "release"},
 }
 
 # A small, sensible field set per language for the interactive form. Each entry
 # is (config-key, label, kind, default-when-unset).
 _LANG_FORM = {
-    "cpp":    [("compiler", "Compiler", "text", "g++"),
-               ("std", "Standard", "text", "c++20"),
-               ("opt", "Optimisation", "text", "O2")],
-    "c":      [("compiler", "Compiler", "text", "gcc"),
-               ("std", "Standard", "text", "gnu23"),
-               ("opt", "Optimisation", "text", "O2")],
+    "cpp": [
+        ("compiler", "Compiler", "text", "g++"),
+        ("std", "Standard", "text", "c++20"),
+        ("opt", "Optimisation", "text", "O2"),
+    ],
+    "c": [
+        ("compiler", "Compiler", "text", "gcc"),
+        ("std", "Standard", "text", "gnu23"),
+        ("opt", "Optimisation", "text", "O2"),
+    ],
     "python": [("interpreter", "Interpreter", "text", "python3")],
-    "java":   [("javac", "javac", "text", "javac"),
-               ("java", "java", "text", "java"),
-               ("classpath", "Classpath", "text", ""),
-               ("release", "Release", "text", "")],
-    "nasm":   [("format", "Object format", "text", "elf64"),
-               ("link", "Linker", "choice", "gcc")],
-    "rust":   [("rustc", "rustc", "text", "rustc"),
-               ("edition", "Edition", "text", "2021"),
-               ("release", "Release build", "bool", False)],
+    "java": [
+        ("javac", "javac", "text", "javac"),
+        ("java", "java", "text", "java"),
+        ("classpath", "Classpath", "text", ""),
+        ("release", "Release", "text", ""),
+    ],
+    "nasm": [("format", "Object format", "text", "elf64"), ("link", "Linker", "choice", "gcc")],
+    "rust": [
+        ("rustc", "rustc", "text", "rustc"),
+        ("edition", "Edition", "text", "2021"),
+        ("release", "Release build", "bool", False),
+    ],
 }
 
 
@@ -100,7 +121,7 @@ def run(ctx, args) -> int:
             hint="Pass a language (e.g. 'config cpp') or use --raw-build/--raw-run.",
         )
 
-    cfg = dict(project.lang_config(lang))   # start from what's already stored
+    cfg = dict(project.lang_config(lang))  # start from what's already stored
 
     provided = _collect_flags(args, lang)
     if provided:

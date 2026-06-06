@@ -54,6 +54,7 @@ def compare_live(project, solution, language, cases, rivals, runner=None, parall
     cols = []
     if parallel and rivals:
         import concurrent.futures
+
         runs = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(rivals))) as ex:
             futs = {ex.submit(_run_rival, project, r, cases, runner): r for r in rivals}
@@ -63,8 +64,14 @@ def compare_live(project, solution, language, cases, rivals, runner=None, parall
             cols.append({"label": r.name, "run": runs[r.name], "precomputed": False, "env": ""})
     else:
         for r in rivals:
-            cols.append({"label": r.name, "run": _run_rival(project, r, cases, runner),
-                         "precomputed": False, "env": ""})
+            cols.append(
+                {
+                    "label": r.name,
+                    "run": _run_rival(project, r, cases, runner),
+                    "precomputed": False,
+                    "env": "",
+                }
+            )
     return main, cols
 
 

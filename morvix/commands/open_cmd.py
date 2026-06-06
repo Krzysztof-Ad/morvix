@@ -48,8 +48,7 @@ def run(ctx, args) -> int:
 
     if adopted:
         ctx.messenger.success(
-            f"Package adopted: '{ctx.project.name}' "
-            f"— morvix.json converted to editable project."
+            f"Package adopted: '{ctx.project.name}' — morvix.json converted to editable project."
         )
         # Persist config + manifest so config_mtime flips back below manifest_mtime;
         # subsequent opens show "Opened" rather than "Package adopted".
@@ -62,8 +61,6 @@ def run(ctx, args) -> int:
     lang = p.language or "(none)"
     solution = os.path.basename(p.solution) if p.solution else "(none)"
     total = len(p.cases)
-    ctx.messenger.plain(
-        f"  language={lang}  model={p.model}  solution={solution}  cases={total}"
-    )
+    ctx.messenger.plain(f"  language={lang}  model={p.model}  solution={solution}  cases={total}")
 
     return 0

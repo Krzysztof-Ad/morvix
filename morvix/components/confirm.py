@@ -22,6 +22,7 @@ def confirm(ctx, question, default=False):
         try:
             try:
                 from prompt_toolkit import prompt as pt_prompt
+
                 raw = pt_prompt(prompt_text)
             except ImportError:
                 raw = input(prompt_text)

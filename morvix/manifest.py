@@ -12,7 +12,7 @@ import os
 from typing import Optional
 
 from morvix import layout
-from morvix.cases import list_groups, save_cases
+from morvix.cases import list_groups
 from morvix.project import Project, Runner
 from morvix.version import __version__
 
@@ -26,12 +26,12 @@ def build_manifest(project: Project) -> dict:
     return {
         "morvix": __version__,
         "name": project.name,
-        "language": project.language,    # so the runner builds with the right toolchain
+        "language": project.language,  # so the runner builds with the right toolchain
         "model": project.model,
         "locale": project.locale,
         "compare": project.compare,
         "limits": project.limits,
-        "languages": project.languages,     # so a Receiver compiles with the same flags
+        "languages": project.languages,  # so a Receiver compiles with the same flags
         "raw_build": project.raw_build,
         "raw_run": project.raw_run,
         "groups": list_groups(project.cases),
@@ -88,6 +88,7 @@ def adopt_manifest(root: str) -> Project:
         os.makedirs(os.path.join(root, d), exist_ok=True)
 
     from morvix.cases import TestCase
+
     # A package's manifest stores case paths package-relative (tests/...); inside
     # a project they live under .morvix/, so re-prefix them as we adopt.
     cases = []

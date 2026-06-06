@@ -5,10 +5,8 @@
 # prints through ctx.messenger, and checks ctx.interactive to decide whether to
 # open a component or read flags.
 
-import os
-import sys
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import TYPE_CHECKING, Optional
 
 from rich.console import Console
 
@@ -16,6 +14,9 @@ from morvix import layout
 from morvix.errors import UserError
 from morvix.messages import Messenger
 from morvix.project import Project, load_global_config
+
+if TYPE_CHECKING:
+    from morvix.workflow import WorkflowRecorder
 
 
 @dataclass
@@ -27,12 +28,14 @@ class Context:
     project: Optional[Project] = None
     global_config: dict = field(default_factory=dict)
     debug: bool = False
-    recorder: object = None          # a WorkflowRecorder while recording; else None
-    should_exit: bool = False        # set by the exit command; the shell loop checks it
-    last_result: object = None       # the most recent RunResult, for the result command
+    recorder: Optional["WorkflowRecorder"] = None  # set while a workflow is recording
+    should_exit: bool = False  # set by the exit command; the shell loop checks it
+    last_result: object = None  # the most recent RunResult, for the result command
 
     @classmethod
-    def create(cls, root: str, interactive: bool, console: Console, debug: bool = False) -> "Context":
+    def create(
+        cls, root: str, interactive: bool, console: Console, debug: bool = False
+    ) -> "Context":
         ctx = cls(
             root=root,
             console=console,
@@ -66,6 +69,7 @@ class Context:
             return
         self.project.save()
         from morvix.manifest import write_manifest
+
         write_manifest(self.project)
 
     def record(self, command: str) -> None:

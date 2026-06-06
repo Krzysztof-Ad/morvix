@@ -47,9 +47,16 @@ STATE_DIR = ".morvix"
 
 # Map a source file extension to a language name (mirrors adapters/__init__.py).
 _EXTENSIONS = {
-    ".c": "c", ".h": "c",
-    ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp", ".c++": "cpp", ".hpp": "cpp",
-    ".asm": "nasm", ".s": "nasm", ".nasm": "nasm",
+    ".c": "c",
+    ".h": "c",
+    ".cc": "cpp",
+    ".cpp": "cpp",
+    ".cxx": "cpp",
+    ".c++": "cpp",
+    ".hpp": "cpp",
+    ".asm": "nasm",
+    ".s": "nasm",
+    ".nasm": "nasm",
     ".py": "python",
     ".java": "java",
     ".rs": "rust",
@@ -66,17 +73,29 @@ _NOTED_MODELS = set()
 # Process layer (mirrors morvix/process.py)
 # ===========================================================================
 
+
 class ProcessResult(object):
     """Everything observable about one run of a program."""
 
-    def __init__(self, exit_code, term_signal, timed_out, wall_time, cpu_time,
-                 peak_mem_kb, stdout, stderr, output_truncated, mem_exceeded):
-        self.exit_code = exit_code        # None if killed by a signal
-        self.term_signal = term_signal    # the signal number, if signalled
-        self.timed_out = timed_out        # we killed it for the wall limit
-        self.wall_time = wall_time        # seconds, measured by us
-        self.cpu_time = cpu_time          # user + system CPU seconds
-        self.peak_mem_kb = peak_mem_kb    # peak RSS in KB (approximate)
+    def __init__(
+        self,
+        exit_code,
+        term_signal,
+        timed_out,
+        wall_time,
+        cpu_time,
+        peak_mem_kb,
+        stdout,
+        stderr,
+        output_truncated,
+        mem_exceeded,
+    ):
+        self.exit_code = exit_code  # None if killed by a signal
+        self.term_signal = term_signal  # the signal number, if signalled
+        self.timed_out = timed_out  # we killed it for the wall limit
+        self.wall_time = wall_time  # seconds, measured by us
+        self.cpu_time = cpu_time  # user + system CPU seconds
+        self.peak_mem_kb = peak_mem_kb  # peak RSS in KB (approximate)
         self.stdout = stdout
         self.stderr = stderr
         self.output_truncated = output_truncated
@@ -123,8 +142,17 @@ def base_env(locale="C", overrides=None):
     return env
 
 
-def run(argv, stdin=None, cwd=None, env=None, locale="C", wall_limit=None,
-        cpu_limit=None, mem_limit_kb=None, output_cap_bytes=None):
+def run(
+    argv,
+    stdin=None,
+    cwd=None,
+    env=None,
+    locale="C",
+    wall_limit=None,
+    cpu_limit=None,
+    mem_limit_kb=None,
+    output_cap_bytes=None,
+):
     """Run a program once and report what it did.
 
     Never raises for a program that merely crashed or timed out - that is data,
@@ -133,8 +161,9 @@ def run(argv, stdin=None, cwd=None, env=None, locale="C", wall_limit=None,
     full_env = env if env is not None else base_env(locale)
     if not POSIX:
         return _run_windows(argv, stdin, cwd, full_env, wall_limit, output_cap_bytes)
-    return _run_posix(argv, stdin, cwd, full_env, wall_limit, cpu_limit,
-                      mem_limit_kb, output_cap_bytes)
+    return _run_posix(
+        argv, stdin, cwd, full_env, wall_limit, cpu_limit, mem_limit_kb, output_cap_bytes
+    )
 
 
 def _run_posix(argv, stdin_bytes, cwd, env, wall_limit, cpu_limit, mem_limit_kb, output_cap):
@@ -171,8 +200,14 @@ def _run_posix(argv, stdin_bytes, cwd, env, wall_limit, cpu_limit, mem_limit_kb,
         ferr = os.open(err_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             proc = subprocess.Popen(
-                argv, stdin=fin, stdout=fout, stderr=ferr, cwd=cwd, env=env,
-                preexec_fn=child_setup, close_fds=True,
+                argv,
+                stdin=fin,
+                stdout=fout,
+                stderr=ferr,
+                cwd=cwd,
+                env=env,
+                preexec_fn=child_setup,
+                close_fds=True,
             )
             pid = proc.pid
         finally:
@@ -201,9 +236,15 @@ def _run_posix(argv, stdin_bytes, cwd, env, wall_limit, cpu_limit, mem_limit_kb,
 
         return ProcessResult(
             exit_code=exit_code if not timed_out else None,
-            term_signal=term_signal, timed_out=timed_out, wall_time=wall,
-            cpu_time=cpu, peak_mem_kb=peak_kb, stdout=stdout, stderr=stderr,
-            output_truncated=out_trunc, mem_exceeded=mem_exceeded,
+            term_signal=term_signal,
+            timed_out=timed_out,
+            wall_time=wall,
+            cpu_time=cpu,
+            peak_mem_kb=peak_kb,
+            stdout=stdout,
+            stderr=stderr,
+            output_truncated=out_trunc,
+            mem_exceeded=mem_exceeded,
         )
     except FileNotFoundError as exc:
         raise RunnerError("Could not run '%s': %s." % (argv[0], exc.strerror))
@@ -270,25 +311,43 @@ def _run_windows(argv, stdin_bytes, cwd, env, wall_limit, output_cap):
     start = time.monotonic()
     try:
         proc = subprocess.run(
-            argv, input=stdin_bytes or b"", cwd=cwd, env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=wall_limit,
+            argv,
+            input=stdin_bytes or b"",
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=wall_limit,
         )
         wall = time.monotonic() - start
         stdout = proc.stdout[:output_cap] if output_cap else proc.stdout
         trunc = bool(output_cap and len(proc.stdout) > output_cap)
         return ProcessResult(
-            exit_code=proc.returncode, term_signal=None, timed_out=False,
-            wall_time=wall, cpu_time=0.0, peak_mem_kb=0, stdout=stdout,
-            stderr=proc.stderr, output_truncated=trunc, mem_exceeded=False,
+            exit_code=proc.returncode,
+            term_signal=None,
+            timed_out=False,
+            wall_time=wall,
+            cpu_time=0.0,
+            peak_mem_kb=0,
+            stdout=stdout,
+            stderr=proc.stderr,
+            output_truncated=trunc,
+            mem_exceeded=False,
         )
     except subprocess.TimeoutExpired as exc:
         wall = time.monotonic() - start
         out = exc.stdout or b""
         return ProcessResult(
-            exit_code=None, term_signal=None, timed_out=True, wall_time=wall,
-            cpu_time=0.0, peak_mem_kb=0,
+            exit_code=None,
+            term_signal=None,
+            timed_out=True,
+            wall_time=wall,
+            cpu_time=0.0,
+            peak_mem_kb=0,
             stdout=(out[:output_cap] if output_cap else out),
-            stderr=exc.stderr or b"", output_truncated=False, mem_exceeded=False,
+            stderr=exc.stderr or b"",
+            output_truncated=False,
+            mem_exceeded=False,
         )
     except FileNotFoundError as exc:
         raise RunnerError("Could not run '%s': %s." % (argv[0], exc.strerror))
@@ -296,6 +355,7 @@ def _run_windows(argv, stdin_bytes, cwd, env, wall_limit, output_cap):
 
 class RunnerError(Exception):
     """A fatal, user-facing problem (bad config, missing tool, build failure)."""
+
     pass
 
 
@@ -303,16 +363,18 @@ class RunnerError(Exception):
 # Building the solution (mirrors judge.build_solution + the language adapters)
 # ===========================================================================
 
+
 class Build(object):
     """The outcome of compiling/assembling: how to run it, or why it failed."""
 
-    def __init__(self, ok, artifact=None, run_argv=None, run_env=None,
-                 diagnostics="", build_command=""):
+    def __init__(
+        self, ok, artifact=None, run_argv=None, run_env=None, diagnostics="", build_command=""
+    ):
         self.ok = ok
-        self.artifact = artifact          # binary / class dir / script path
+        self.artifact = artifact  # binary / class dir / script path
         self.run_argv = run_argv or []
         self.run_env = run_env or {}
-        self.diagnostics = diagnostics    # toolchain output, shown on failure
+        self.diagnostics = diagnostics  # toolchain output, shown on failure
         self.build_command = build_command
 
 
@@ -337,8 +399,9 @@ def build_solution(manifest, source, language, workdir):
         if not res.ok:
             return Build(ok=False, diagnostics=diag, build_command=raw_build)
         run_cmd = raw_run or source
-        return Build(ok=True, artifact=source, run_argv=["/bin/sh", "-c", run_cmd],
-                     build_command=raw_build)
+        return Build(
+            ok=True, artifact=source, run_argv=["/bin/sh", "-c", run_cmd], build_command=raw_build
+        )
 
     config = manifest.get("languages", {}).get(language, {})
     builder = _BUILDERS.get(language)
@@ -359,8 +422,9 @@ def _build_python(source, config, workdir):
     if not res.ok:
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         return Build(ok=False, diagnostics=diag, build_command=" ".join(cmd))
-    return Build(ok=True, artifact=source, run_argv=[interpreter, source],
-                 build_command=" ".join(cmd))
+    return Build(
+        ok=True, artifact=source, run_argv=[interpreter, source], build_command=" ".join(cmd)
+    )
 
 
 # Shared logic for the gcc/g++/cc family (C and C++ differ only in defaults).
@@ -389,8 +453,7 @@ def _build_cfamily(source, config, workdir, default_compiler, default_std):
     if not res.ok:
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         return Build(ok=False, diagnostics=diag, build_command=" ".join(cmd))
-    return Build(ok=True, artifact=artifact, run_argv=[artifact],
-                 build_command=" ".join(cmd))
+    return Build(ok=True, artifact=artifact, run_argv=[artifact], build_command=" ".join(cmd))
 
 
 def _build_c(source, config, workdir):
@@ -416,8 +479,7 @@ def _build_rust(source, config, workdir):
     if not res.ok:
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         return Build(ok=False, diagnostics=diag, build_command=" ".join(cmd))
-    return Build(ok=True, artifact=artifact, run_argv=[artifact],
-                 build_command=" ".join(cmd))
+    return Build(ok=True, artifact=artifact, run_argv=[artifact], build_command=" ".join(cmd))
 
 
 def _build_nasm(source, config, workdir):
@@ -446,8 +508,12 @@ def _build_nasm(source, config, workdir):
     if not res2.ok:
         diag = (res2.stdout + res2.stderr).decode("utf-8", "replace")
         return Build(ok=False, diagnostics=diag, build_command=" ".join(link_cmd))
-    return Build(ok=True, artifact=out, run_argv=[out],
-                 build_command=" ".join(asm_cmd) + " && " + " ".join(link_cmd))
+    return Build(
+        ok=True,
+        artifact=out,
+        run_argv=[out],
+        build_command=" ".join(asm_cmd) + " && " + " ".join(link_cmd),
+    )
 
 
 def _build_java(source, config, workdir):
@@ -472,13 +538,18 @@ def _build_java(source, config, workdir):
 
     main_class = _java_main_class(source)
     rt_cp = workdir + ((os.pathsep + classpath) if classpath else "")
-    return Build(ok=True, artifact=workdir, run_argv=[java, "-cp", rt_cp, main_class],
-                 build_command=" ".join(cmd))
+    return Build(
+        ok=True,
+        artifact=workdir,
+        run_argv=[java, "-cp", rt_cp, main_class],
+        build_command=" ".join(cmd),
+    )
 
 
 def _java_main_class(source):
     # The class name is the file stem; prepend the package if one is declared.
     import re
+
     stem = os.path.splitext(os.path.basename(source))[0]
     try:
         text = open(source, encoding="utf-8", errors="replace").read()
@@ -504,6 +575,7 @@ _BUILDERS = {
 # Comparison (mirrors morvix/compare.py + comparators.py)
 # ===========================================================================
 
+
 class Verdict(object):
     def __init__(self, passed, detail="", diff=None):
         self.passed = passed
@@ -513,10 +585,10 @@ class Verdict(object):
 
 def make_diff(expected, observed, context=3):
     import difflib
+
     exp = expected.decode("utf-8", "replace").splitlines()
     obs = observed.decode("utf-8", "replace").splitlines()
-    lines = difflib.unified_diff(exp, obs, "expected", "observed",
-                                 n=context, lineterm="")
+    lines = difflib.unified_diff(exp, obs, "expected", "observed", n=context, lineterm="")
     return "\n".join(lines)
 
 
@@ -538,8 +610,9 @@ def _normalize_ws(data):
 def _cmp_whitespace(observed, expected, case, params):
     if _normalize_ws(observed) == _normalize_ws(expected):
         return Verdict(True)
-    return Verdict(False, "output differs (ignoring whitespace)",
-                   diff=make_diff(expected, observed))
+    return Verdict(
+        False, "output differs (ignoring whitespace)", diff=make_diff(expected, observed)
+    )
 
 
 def _cmp_float(observed, expected, case, params):
@@ -548,8 +621,7 @@ def _cmp_float(observed, expected, case, params):
     obs_tokens = observed.decode("utf-8", "replace").split()
     exp_tokens = expected.decode("utf-8", "replace").split()
     if len(obs_tokens) != len(exp_tokens):
-        detail = "token count mismatch: expected %d, got %d" % (
-            len(exp_tokens), len(obs_tokens))
+        detail = "token count mismatch: expected %d, got %d" % (len(exp_tokens), len(obs_tokens))
         return Verdict(False, detail, diff=make_diff(expected, observed))
     for i in range(len(exp_tokens)):
         a_tok, b_tok = exp_tokens[i], obs_tokens[i]
@@ -574,8 +646,7 @@ def _cmp_hash(observed, expected, case, params):
     expected_hex = case.get("expected_hash") or ""
     if observed_hex == expected_hex:
         return Verdict(True)
-    detail = "hash mismatch: expected %s..., got %s..." % (
-        expected_hex[:12], observed_hex[:12])
+    detail = "hash mismatch: expected %s..., got %s..." % (expected_hex[:12], observed_hex[:12])
     return Verdict(False, detail)
 
 
@@ -616,8 +687,9 @@ def compare(strategy, observed, expected, case, params):
     fn = _COMPARATORS.get(strategy)
     if fn is None:
         known = ", ".join(sorted(_COMPARATORS))
-        raise RunnerError("Unknown comparison strategy '%s'. Choose one of: %s."
-                          % (strategy, known))
+        raise RunnerError(
+            "Unknown comparison strategy '%s'. Choose one of: %s." % (strategy, known)
+        )
     return fn(observed, expected, case, params)
 
 
@@ -625,11 +697,12 @@ def compare(strategy, observed, expected, case, params):
 # Case results + run results (mirrors morvix/results.py)
 # ===========================================================================
 
+
 class CaseResult(object):
     def __init__(self, case_id, group):
         self.case_id = case_id
         self.group = group
-        self.status = "pass"              # pass | fail | skip | error
+        self.status = "pass"  # pass | fail | skip | error
         self.verdict = ""
         self.exit_code = None
         self.signal = None
@@ -638,7 +711,7 @@ class CaseResult(object):
         self.cpu_time = 0.0
         self.peak_mem_kb = 0
         self.diff = None
-        self.memcheck = None              # valgrind verdict; None if not run
+        self.memcheck = None  # valgrind verdict; None if not run
 
     @property
     def passed(self):
@@ -685,8 +758,9 @@ class RunResult(object):
         self.runner = runner
         self.cases = []
         from datetime import datetime
+
         self.started_at = datetime.now().isoformat(timespec="seconds")
-        self.memory_note = "peak, approximate"   # honest label (Section 15.1)
+        self.memory_note = "peak, approximate"  # honest label (Section 15.1)
 
     @staticmethod
     def from_json(d):
@@ -725,6 +799,7 @@ class RunResult(object):
 
 # --- performance aggregation + formatting (mirrors morvix/results.py) ---
 
+
 def fmt_secs(s):
     return "%.3fs" % s
 
@@ -753,8 +828,9 @@ def performance(run_result, slowest_n=5):
             return {"total": 0.0, "avg": 0.0, "min": 0.0, "max": 0.0}
         return {"total": sum(xs), "avg": sum(xs) / len(xs), "min": min(xs), "max": max(xs)}
 
-    slowest = sorted([c for c in cases if c.wall_time > 0],
-                     key=lambda c: c.wall_time, reverse=True)[:slowest_n]
+    slowest = sorted(
+        [c for c in cases if c.wall_time > 0], key=lambda c: c.wall_time, reverse=True
+    )[:slowest_n]
     return {
         "cases": len(cases),
         "wall": stats(walls),
@@ -771,16 +847,22 @@ def perf_text_lines(run_result, slowest_n=5, show_time=True, show_mem=True):
     lines = ["Performance:"]
     if show_time:
         w, c = p["wall"], p["cpu"]
-        lines.append("  wall   total %s   avg %s   min %s   max %s" % (
-            fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])))
+        lines.append(
+            "  wall   total %s   avg %s   min %s   max %s"
+            % (fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"]))
+        )
         lines.append("  cpu    total %s   max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"])))
     if show_mem and p["memory_kb"]:
         m = p["memory_kb"]
-        lines.append("  memory max %s   avg %s   (%s)" % (
-            fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])), run_result.memory_note))
+        lines.append(
+            "  memory max %s   avg %s   (%s)"
+            % (fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])), run_result.memory_note)
+        )
     if p["slowest"]:
-        lines.append("  slowest " + ", ".join(
-            "%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+        lines.append(
+            "  slowest "
+            + ", ".join("%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"])
+        )
     return lines
 
 
@@ -799,7 +881,9 @@ def _cmp_cell(cr, show_mem):
 
 def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
     """Solution-vs-rivals comparison text (mirrors morvix/results.py)."""
-    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(rival_cols)
+    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(
+        rival_cols
+    )
     lines = []
     if per_case:
         index = [(c["label"], dict((x.case_id, x) for x in c["run"].cases)) for c in cols]
@@ -831,7 +915,9 @@ def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
         if show_mem:
             bits += "  peak %s" % (fmt_mem_kb(p["memory_kb"]["max"]) if p["memory_kb"] else "n/a")
         ratio = "" if c["label"] == "solution" else "  %.2fx" % (p["wall"]["total"] / main_total)
-        note = "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        note = (
+            "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        )
         tag = ""
         if c.get("precomputed"):
             tag = "  [precomputed: %s]" % c["env"] if c.get("env") else "  [precomputed]"
@@ -842,15 +928,18 @@ def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
 def result_to_json(run_result):
     groups = {}
     for g, cs in run_result.by_group().items():
-        groups[g] = {"passed": sum(1 for c in cs if c.status == "pass"),
-                     "total": len(cs)}
+        groups[g] = {"passed": sum(1 for c in cs if c.status == "pass"), "total": len(cs)}
     return {
         "solution": run_result.solution,
         "runner": run_result.runner,
         "started_at": run_result.started_at,
         "memory_note": run_result.memory_note,
-        "summary": {"passed": run_result.passed, "failed": run_result.failed,
-                    "skipped": run_result.skipped, "total": run_result.total},
+        "summary": {
+            "passed": run_result.passed,
+            "failed": run_result.failed,
+            "skipped": run_result.skipped,
+            "total": run_result.total,
+        },
         "groups": groups,
         "performance": performance(run_result),
         "cases": [c.to_dict() for c in run_result.cases],
@@ -874,33 +963,45 @@ def result_to_markdown(run_result):
         "| --- | --- | --- |",
     ]
     for g, cs in r.by_group().items():
-        lines.append("| %s | %d | %d |" % (
-            g, sum(1 for c in cs if c.status == "pass"), len(cs)))
+        lines.append("| %s | %d | %d |" % (g, sum(1 for c in cs if c.status == "pass"), len(cs)))
 
     p = performance(r)
     if p["cases"]:
         w, c = p["wall"], p["cpu"]
-        lines += ["", "## Performance", "",
-                  "- Wall time: total %s, avg %s, min %s, max %s" % (
-                      fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])),
-                  "- CPU time: total %s, max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"]))]
+        lines += [
+            "",
+            "## Performance",
+            "",
+            "- Wall time: total %s, avg %s, min %s, max %s"
+            % (fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])),
+            "- CPU time: total %s, max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"])),
+        ]
         if p["memory_kb"]:
             m = p["memory_kb"]
-            lines.append("- Peak memory: max %s, avg %s" % (
-                fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"]))))
+            lines.append(
+                "- Peak memory: max %s, avg %s" % (fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])))
+            )
         if p["slowest"]:
-            lines.append("- Slowest: " + ", ".join(
-                "%s (%s)" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+            lines.append(
+                "- Slowest: "
+                + ", ".join("%s (%s)" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"])
+            )
 
-    lines += ["", "## Cases", "",
-              "| Case | Status | Time | Peak mem | Notes |",
-              "| --- | --- | --- | --- | --- |"]
+    lines += [
+        "",
+        "## Cases",
+        "",
+        "| Case | Status | Time | Peak mem | Notes |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for c in r.cases:
         note = c.verdict
         if c.memcheck is not None:
-            note += (" / mem ok" if c.memcheck else " / mem error")
-        lines.append("| %s | %s | %s | %s | %s |" % (
-            c.case_id, c.status, fmt_secs(c.wall_time), fmt_mem_kb(c.peak_mem_kb), note))
+            note += " / mem ok" if c.memcheck else " / mem error"
+        lines.append(
+            "| %s | %s | %s | %s | %s |"
+            % (c.case_id, c.status, fmt_secs(c.wall_time), fmt_mem_kb(c.peak_mem_kb), note)
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -940,6 +1041,7 @@ def export_result(run_result, fmt):
 # ===========================================================================
 # Judging (mirrors morvix/judge.py)
 # ===========================================================================
+
 
 def _primary_input(case):
     # The main input relpath: "stdin" if present, else the first one.
@@ -987,8 +1089,9 @@ def run_case_program(manifest, build, case, workdir):
     # as stdio, but say so plainly (once) rather than failing silently.
     if model not in ("stdio", "args") and model not in _NOTED_MODELS:
         _NOTED_MODELS.add(model)
-        sys.stderr.write("note: model '%s' is not driven by this portable core; "
-                         "running it as stdio.\n" % model)
+        sys.stderr.write(
+            "note: model '%s' is not driven by this portable core; running it as stdio.\n" % model
+        )
 
     argv = list(build.run_argv)
     if model == "args":
@@ -1143,8 +1246,9 @@ def run_memcheck(manifest, build, case, workdir, runner):
                 stdin = f.read()
     limits = resolve_limits(manifest, runner, case)
     wall = (limits.get("wall") or 10) * 4
-    res = run(argv, stdin=stdin, cwd=workdir, env=base_env(manifest.get("locale", "C")),
-              wall_limit=wall)
+    res = run(
+        argv, stdin=stdin, cwd=workdir, env=base_env(manifest.get("locale", "C")), wall_limit=wall
+    )
     return res.exit_code != 99
 
 
@@ -1175,8 +1279,9 @@ def judge(manifest, solution, language, cases, runner, opts):
     show_live = not getattr(opts, "_quiet", False)
     printer = TablePrinter(opts, _display_config(runner, opts)) if show_live else None
 
-    run_result = RunResult(solution=os.path.basename(solution),
-                           runner=(runner.get("name") if runner else None))
+    run_result = RunResult(
+        solution=os.path.basename(solution), runner=(runner.get("name") if runner else None)
+    )
     manifest["_runner"] = runner
     opts.language = language
 
@@ -1222,8 +1327,14 @@ def _build_rival_cols(manifest, rivals_meta, language, cases, runner, opts):
                 continue
             with open(path, "r", encoding="utf-8") as f:
                 d = json.load(f)
-            cols.append({"label": name, "run": RunResult.from_json(d),
-                         "precomputed": True, "env": rv.get("env") or d.get("env", "")})
+            cols.append(
+                {
+                    "label": name,
+                    "run": RunResult.from_json(d),
+                    "precomputed": True,
+                    "env": rv.get("env") or d.get("env", ""),
+                }
+            )
         elif mode == "code":
             src = os.path.join(root, rv.get("source", ""))
             if not os.path.exists(src):
@@ -1246,13 +1357,14 @@ class BuildFailure(Exception):
 # Terminal table (plain text always; ANSI colour only on a tty when asked)
 # ===========================================================================
 
+
 def _display_config(runner, opts):
     """What to show: the runner profile decides, CLI flags override."""
     show_time = runner.get("time", True) if runner else True
     show_mem = runner.get("measure_mem", True) if runner else True
     show_perf = runner.get("report", True) if runner else True
     slowest = runner.get("slowest", 5) if runner else 5
-    if getattr(opts, "time", False):       # --time forces the detail columns on
+    if getattr(opts, "time", False):  # --time forces the detail columns on
         show_time = True
         show_mem = True
     if getattr(opts, "perf", None) is not None:
@@ -1267,7 +1379,7 @@ class TablePrinter(object):
 
     def __init__(self, opts, display):
         self.opts = opts
-        self.display = display          # {time, mem, perf, slowest}
+        self.display = display  # {time, mem, perf, slowest}
         self.color = opts.color and sys.stdout.isatty()
 
     def _c(self, text, code):
@@ -1281,8 +1393,12 @@ class TablePrinter(object):
 
     def case_done(self, result):
         # A coloured badge, the case id, its time/memory, and the short verdict.
-        marks = {"pass": ("PASS", "32"), "fail": ("FAIL", "31"),
-                 "skip": ("SKIP", "33"), "error": ("ERR ", "35")}
+        marks = {
+            "pass": ("PASS", "32"),
+            "fail": ("FAIL", "31"),
+            "skip": ("SKIP", "33"),
+            "error": ("ERR ", "35"),
+        }
         label, code = marks.get(result.status, ("?", "0"))
         line = "  [%s] %-24s" % (self._c(label, code), result.case_id)
         if self.display["time"]:
@@ -1306,15 +1422,19 @@ class TablePrinter(object):
             print("  %-20s %d/%d" % (g, p, len(cs)))
         print("")
         summary = "%d/%d passed (%s)" % (
-            run_result.passed, run_result.total, pct(run_result.passed, run_result.total))
+            run_result.passed,
+            run_result.total,
+            pct(run_result.passed, run_result.total),
+        )
         if run_result.failed:
             summary += ", %d failed" % run_result.failed
         if run_result.skipped:
             summary += ", %d skipped" % run_result.skipped
         print(self._c(summary, "32" if run_result.all_passed else "31"))
         if self.display["perf"]:
-            lines = perf_text_lines(run_result, self.display["slowest"],
-                                    self.display["time"], self.display["mem"])
+            lines = perf_text_lines(
+                run_result, self.display["slowest"], self.display["time"], self.display["mem"]
+            )
             if lines:
                 print("")
                 for ln in lines:
@@ -1327,6 +1447,7 @@ class TablePrinter(object):
 # Manifest discovery + CLI
 # ===========================================================================
 
+
 def find_manifest(start_dir, script_dir):
     """Locate morvix.json: search the start dir and walk up, then the script dir.
 
@@ -1336,8 +1457,10 @@ def find_manifest(start_dir, script_dir):
     for base in (start_dir, script_dir):
         cur = os.path.abspath(base)
         while True:
-            for candidate in (os.path.join(cur, MANIFEST_NAME),
-                              os.path.join(cur, STATE_DIR, MANIFEST_NAME)):
+            for candidate in (
+                os.path.join(cur, MANIFEST_NAME),
+                os.path.join(cur, STATE_DIR, MANIFEST_NAME),
+            ):
                 if os.path.exists(candidate):
                     return candidate
             parent = os.path.dirname(cur)
@@ -1378,12 +1501,21 @@ def build_parser():
     )
     p.add_argument("solution", help="path to the solution to test")
     p.add_argument("--runner", metavar="NAME", help="use this runner profile from the manifest")
-    p.add_argument("--language", metavar="LANG",
-                   help="override the detected language (c, cpp, python, java, rust, nasm)")
-    p.add_argument("--group", action="append", default=[], metavar="G",
-                   help="only run this group (repeatable)")
-    p.add_argument("--case", action="append", default=[], metavar="C",
-                   help="only run this case id or name (repeatable)")
+    p.add_argument(
+        "--language",
+        metavar="LANG",
+        help="override the detected language (c, cpp, python, java, rust, nasm)",
+    )
+    p.add_argument(
+        "--group", action="append", default=[], metavar="G", help="only run this group (repeatable)"
+    )
+    p.add_argument(
+        "--case",
+        action="append",
+        default=[],
+        metavar="C",
+        help="only run this case id or name (repeatable)",
+    )
     p.add_argument("--all", action="store_true", help="run every case (the default)")
 
     # On/off toggles, in the style real harnesses use.
@@ -1392,13 +1524,25 @@ def build_parser():
     _toggle(p, "diff", True, "show a unified diff on output mismatch")
     p.add_argument("--time", action="store_true", help="show per-case CPU time and peak memory")
     _toggle(p, "perf", None, "show the performance summary at the end")
-    p.add_argument("--slowest", type=int, default=None, metavar="N",
-                   help="list the N slowest cases in the performance summary")
-    p.add_argument("--no-rivals", action="store_true",
-                   help="skip the rival performance comparison shipped in this package")
+    p.add_argument(
+        "--slowest",
+        type=int,
+        default=None,
+        metavar="N",
+        help="list the N slowest cases in the performance summary",
+    )
+    p.add_argument(
+        "--no-rivals",
+        action="store_true",
+        help="skip the rival performance comparison shipped in this package",
+    )
 
-    p.add_argument("--results", metavar="FORMAT", choices=["json", "md", "text"],
-                   help="also write a results file in this format")
+    p.add_argument(
+        "--results",
+        metavar="FORMAT",
+        choices=["json", "md", "text"],
+        help="also write a results file in this format",
+    )
     p.add_argument("--out", metavar="PATH", help="path for the --results file")
 
     _toggle(p, "color", True, "colourise the table (only on a tty)")
@@ -1408,10 +1552,10 @@ def build_parser():
 def _toggle(parser, name, default, help_text):
     # Add a paired --name / --no-name flag with a shared destination.
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--" + name, dest=name, action="store_true",
-                       default=default, help=help_text)
-    group.add_argument("--no-" + name, dest=name, action="store_false",
-                       help="disable: " + help_text)
+    group.add_argument("--" + name, dest=name, action="store_true", default=default, help=help_text)
+    group.add_argument(
+        "--no-" + name, dest=name, action="store_false", help="disable: " + help_text
+    )
 
 
 def main(argv=None):
@@ -1420,8 +1564,9 @@ def main(argv=None):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     manifest_path = find_manifest(os.getcwd(), script_dir)
     if manifest_path is None:
-        sys.stderr.write("error: could not find %s in the current directory or "
-                         "above it.\n" % MANIFEST_NAME)
+        sys.stderr.write(
+            "error: could not find %s in the current directory or above it.\n" % MANIFEST_NAME
+        )
         return 2
     manifest = load_manifest(manifest_path)
 
@@ -1434,8 +1579,10 @@ def main(argv=None):
     # detect from the file extension. raw_build needs no language.
     language = args.language or manifest.get("language") or detect_language(solution)
     if not language and not manifest.get("raw_build"):
-        sys.stderr.write("error: could not detect a language for %s; pass --language.\n"
-                         % os.path.basename(solution))
+        sys.stderr.write(
+            "error: could not detect a language for %s; pass --language.\n"
+            % os.path.basename(solution)
+        )
         return 2
 
     try:
@@ -1458,8 +1605,11 @@ def main(argv=None):
             print("")
             for line in comparison_block(run_result, cols, show_mem=display["mem"]):
                 print(line)
-            line = "%d/%d passed (%s)" % (run_result.passed, run_result.total,
-                                          pct(run_result.passed, run_result.total))
+            line = "%d/%d passed (%s)" % (
+                run_result.passed,
+                run_result.total,
+                pct(run_result.passed, run_result.total),
+            )
             if run_result.failed:
                 line += ", %d failed" % run_result.failed
             print(line)

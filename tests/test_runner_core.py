@@ -12,13 +12,15 @@ import sys
 
 import pytest
 
-from morvix.manifest import write_manifest
 from morvix.cases import TestCase
-from morvix.layout import TESTS_DIR, EXPECTED_DIR
+from morvix.layout import EXPECTED_DIR, TESTS_DIR
+from morvix.manifest import write_manifest
 
 RUNNER_SRC = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "morvix", "runner_core", "morvix_runner.py",
+    "morvix",
+    "runner_core",
+    "morvix_runner.py",
 )
 
 SUM_SOL = "import sys\nd = sys.stdin.read().split()\nprint(sum(int(x) for x in d))\n"
@@ -80,6 +82,7 @@ def _run_runner(pkg_dir, sol_path, extra_args=None):
 # The runner core must contain no "import morvix" anywhere.
 # ---------------------------------------------------------------------------
 
+
 def test_runner_core_no_morvix_import():
     content = open(RUNNER_SRC, "r", encoding="utf-8").read()
     assert "import morvix" not in content
@@ -88,6 +91,7 @@ def test_runner_core_no_morvix_import():
 # ---------------------------------------------------------------------------
 # A correct solution: returncode 0, "passed" in stdout.
 # ---------------------------------------------------------------------------
+
 
 def test_runner_core_correct_solution(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
@@ -109,6 +113,7 @@ def test_runner_core_correct_solution(py_project, tmp_path):
 # A wrong solution: returncode 1.
 # ---------------------------------------------------------------------------
 
+
 def test_runner_core_wrong_solution(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
 
@@ -126,6 +131,7 @@ def test_runner_core_wrong_solution(py_project, tmp_path):
 # A solution missing from disk produces returncode 2 (not a test failure).
 # ---------------------------------------------------------------------------
 
+
 def test_runner_core_missing_solution(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
 
@@ -137,6 +143,7 @@ def test_runner_core_missing_solution(py_project, tmp_path):
 # ---------------------------------------------------------------------------
 # Output format: correct run mentions each case and a summary line.
 # ---------------------------------------------------------------------------
+
 
 def test_runner_core_output_mentions_cases(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
@@ -154,6 +161,7 @@ def test_runner_core_output_mentions_cases(py_project, tmp_path):
 # ---------------------------------------------------------------------------
 # JSON results export: --results json writes a parseable file.
 # ---------------------------------------------------------------------------
+
 
 def test_runner_core_json_results(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
@@ -179,6 +187,7 @@ def test_runner_core_json_results(py_project, tmp_path):
 # Wrong solution's JSON results reflect the failures.
 # ---------------------------------------------------------------------------
 
+
 def test_runner_core_json_results_wrong_solution(py_project, tmp_path):
     pkg = _setup_package(py_project, tmp_path)
 
@@ -202,6 +211,7 @@ def test_runner_core_json_results_wrong_solution(py_project, tmp_path):
 # Hand-written manifest (no py_project): ensures the runner works without
 # the morvix library being installed at all (pure stdlib path).
 # ---------------------------------------------------------------------------
+
 
 def test_runner_core_hand_written_manifest(tmp_path):
     """Build everything by hand, without using any morvix imports."""
@@ -245,7 +255,5 @@ def test_runner_core_hand_written_manifest(tmp_path):
         text=True,
     )
 
-    assert result.returncode == 0, (
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "passed" in result.stdout.lower()

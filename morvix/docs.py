@@ -19,7 +19,10 @@ from morvix.shapes import list_shapes
 # Conceptual sections - the only hand-written prose here. Keep them concise and
 # practical; point at documentation.md for the full reasoning.
 CONCEPTS = [
-    ("overview", "What Morvix is", """\
+    (
+        "overview",
+        "What Morvix is",
+        """\
 Morvix builds, runs, and shares the self-made test harnesses students already
 create by hand for programming assignments. You import your solution, generate
 test cases, decide how outputs are judged, run them, and package the result so a
@@ -27,25 +30,34 @@ classmate can check their own code - even without Morvix installed.
 
 It is honest by design: the "expected" answers come from one student's own
 solution, so passing every test does **not** prove correctness - it proves
-agreement with that one solution on the cases tried."""),
-
-    ("roles", "Author and Receiver", """\
+agreement with that one solution on the cases tried.""",
+    ),
+    (
+        "roles",
+        "Author and Receiver",
+        """\
 - **Author** - builds tests from their own solution and shares them. Their
   solution is the de-facto reference that defines the expected answers.
 - **Receiver** - drops their own code into a received package and runs it.
   Without Morvix they just run `./run.sh`; with Morvix they get the rich view
-  and can diff their results against the Author's."""),
-
-    ("stages", "The four stages", """\
+  and can diff their results against the Author's.""",
+    ),
+    (
+        "stages",
+        "The four stages",
+        """\
 Work flows through four stages, and most commands belong to exactly one:
 
 1. **Define** - language build/run settings, the solution, the execution model
    (`config`, `import`, `model`).
 2. **Generate** - produce inputs and compute expected answers (`gen`, `clean`).
 3. **Run** - build and judge under limits, report (`run`, `runner`).
-4. **Share** - assemble a report and a package (`result`, `package`)."""),
-
-    ("axes", "The three independent axes", """\
+4. **Share** - assemble a report and a package (`result`, `package`).""",
+    ),
+    (
+        "axes",
+        "The three independent axes",
+        """\
 Everything is the product of three orthogonal choices that never multiply
 against each other:
 
@@ -54,9 +66,12 @@ against each other:
 - **Execution model** - how the program is driven and what is observed
   (stdio, library, args, file, interactive).
 - **Comparison strategy** - how pass/fail is decided (exact, whitespace, float,
-  hash, checker, expected exit/crash - combinable per case)."""),
-
-    ("generators", "Generators and structured input", """\
+  hash, checker, expected exit/crash - combinable per case).""",
+    ),
+    (
+        "generators",
+        "Generators and structured input",
+        """\
 Random shapes (`gen --random`) suit simple stdin formats. Most real assignments
 read something structured, where random data produces meaningless tests - Morvix
 warns you when `gen --expected` comes back all-empty. The fix is a custom
@@ -68,22 +83,29 @@ generator:
 
 A generator just prints one input to stdout, parameterized by a seed. Stress
 testing (`gen --stress`) pits your solution against a trusted brute force and
-saves the first disagreement."""),
-
-    ("layout", "Where things live, and packages", """\
+saves the first disagreement.""",
+    ),
+    (
+        "layout",
+        "Where things live, and packages",
+        """\
 A project keeps all its state under a single hidden `.morvix/` directory, so
 your project root stays clean. A **package** is flat instead: `run.sh`,
 `README.md`, `morvix.json`, `tests/`, `expected/` and `runner/` sit at the
 archive root so a Receiver sees the harness directly. Unpack it into an empty
 folder and run `./run.sh <your-solution>` - only Python 3 is needed. Opening a
-package with Morvix re-adopts it into a `.morvix/` project."""),
-
-    ("honesty", "The honesty principle", """\
+package with Morvix re-adopts it into a `.morvix/` project.""",
+    ),
+    (
+        "honesty",
+        "The honesty principle",
+        """\
 Expected answers are produced by one peer's solution, not an authority. Passing
 all tests proves agreement, not correctness; the real signal is many independent
 solutions agreeing. Every generated package README says so. Morvix never invents
 an answer it cannot derive by running a solution, and its suggestions explain and
-ask rather than changing behavior silently."""),
+ask rather than changing behavior silently.""",
+    ),
 ]
 
 
@@ -98,7 +120,9 @@ def _md_arguments(name):
     if positionals:
         lines += ["Arguments:", ""]
         for p in positionals:
-            choices = "  (one of: %s)" % ", ".join(str(c) for c in p["choices"]) if p["choices"] else ""
+            choices = (
+                "  (one of: %s)" % ", ".join(str(c) for c in p["choices"]) if p["choices"] else ""
+            )
             lines.append("- `<%s>` - %s%s" % (p["name"].lower(), p["help"], choices))
         lines.append("")
     if options:
@@ -107,7 +131,9 @@ def _md_arguments(name):
             flag = o["names"][0]
             shown = flag + (" " + o["metavar"] if o["takes_value"] and o["metavar"] else "")
             alias = " (or `%s`)" % o["names"][1] if len(o["names"]) > 1 else ""
-            choices = "  (one of: %s)" % ", ".join(str(c) for c in o["choices"]) if o["choices"] else ""
+            choices = (
+                "  (one of: %s)" % ", ".join(str(c) for c in o["choices"]) if o["choices"] else ""
+            )
             lines.append("- `%s`%s - %s%s" % (shown, alias, o["help"], choices))
         lines.append("")
     return lines
@@ -191,7 +217,15 @@ def full_markdown():
         "`morvix docs --out GUIDE.md` to regenerate. CI fails if it is stale._",
         "",
     ]
-    return "\n".join(head) + "\n" + concepts_md() + "\n" + capabilities_md() + "\n" + command_reference_md()
+    return (
+        "\n".join(head)
+        + "\n"
+        + concepts_md()
+        + "\n"
+        + capabilities_md()
+        + "\n"
+        + command_reference_md()
+    )
 
 
 def overview_markdown():

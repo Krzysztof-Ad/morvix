@@ -12,10 +12,10 @@ from morvix.cases import TestCase, save_cases
 from morvix.judge import judge, select_cases
 from morvix.layout import EXPECTED_DIR, TESTS_DIR
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _write(path, text: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,6 +44,7 @@ def _add_stdio_case(proj, tmp_path, name, group, stdin_text, expected_text):
 # Fixture: three baseline cases with correct expected files
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def judged_project(py_project, tmp_path):
     """py_project + 3 test cases, saved, ready for judge()."""
@@ -60,6 +61,7 @@ def judged_project(py_project, tmp_path):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_judge_all_pass(judged_project):
     """All three cases produce the correct sum -> all_passed, passed==3."""
@@ -136,7 +138,7 @@ def test_judge_expected_exit_wrong_code_fails(tmp_path, make_ctx):
         group="baseline",
         manual=True,
         inputs={"stdin": stdin_rel},
-        expected_exit=3,   # wrong expectation
+        expected_exit=3,  # wrong expectation
     )
     proj.add_case(case)
     proj.save()

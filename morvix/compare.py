@@ -11,25 +11,28 @@
 
 import difflib
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 from morvix.cases import TestCase
+
+if TYPE_CHECKING:
+    from morvix.project import Project
 
 
 @dataclass
 class CompareInput:
     observed: bytes
-    expected: bytes               # expected output bytes (may be empty for hash/checker)
+    expected: bytes  # expected output bytes (may be empty for hash/checker)
     case: TestCase
-    project: object
-    params: dict                  # the project's comparison settings (epsilon, checker, ...)
+    project: "Project"
+    params: dict  # the project's comparison settings (epsilon, checker, ...)
 
 
 @dataclass
 class Verdict:
     passed: bool
     detail: str = ""
-    diff: Optional[str] = None    # a unified diff when one is meaningful (never for hash)
+    diff: Optional[str] = None  # a unified diff when one is meaningful (never for hash)
 
 
 CompareFn = Callable[[CompareInput], Verdict]
@@ -70,6 +73,7 @@ def make_diff(expected: bytes, observed: bytes, context: int = 3) -> str:
 
 # --- exact (byte-for-byte, Section 14.1) ---
 
+
 def _exact(ci: CompareInput) -> Verdict:
     if ci.observed == ci.expected:
         return Verdict(True)
@@ -77,6 +81,7 @@ def _exact(ci: CompareInput) -> Verdict:
 
 
 # --- whitespace-insensitive (the sane default, Section 14.2) ---
+
 
 def _normalize_ws(data: bytes) -> bytes:
     # Collapse runs of whitespace to single spaces and strip each line, so
@@ -91,8 +96,9 @@ def _normalize_ws(data: bytes) -> bytes:
 def _whitespace(ci: CompareInput) -> Verdict:
     if _normalize_ws(ci.observed) == _normalize_ws(ci.expected):
         return Verdict(True)
-    return Verdict(False, "output differs (ignoring whitespace)",
-                   diff=make_diff(ci.expected, ci.observed))
+    return Verdict(
+        False, "output differs (ignoring whitespace)", diff=make_diff(ci.expected, ci.observed)
+    )
 
 
 register_comparator("exact", _exact)

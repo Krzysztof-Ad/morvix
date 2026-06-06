@@ -16,8 +16,9 @@ from morvix.project import Project, Runner
 
 pytestmark = [
     pytest.mark.skipif(shutil.which("valgrind") is None, reason="valgrind not installed"),
-    pytest.mark.skipif(shutil.which("gcc") is None and shutil.which("cc") is None,
-                       reason="no C compiler"),
+    pytest.mark.skipif(
+        shutil.which("gcc") is None and shutil.which("cc") is None, reason="no C compiler"
+    ),
 ]
 
 CLEAN_C = """#include <stdio.h>
@@ -57,9 +58,15 @@ def _judge_one(tmp_path, src_text):
     (tmp_path / "expected" / "baseline").mkdir(parents=True)
     (tmp_path / "tests" / "baseline" / "t.in").write_text("3 4\n")
     (tmp_path / "expected" / "baseline" / "t.out").write_text("7\n")
-    proj.add_case(TestCase(name="t", group="baseline", manual=True,
-                           inputs={"stdin": "tests/baseline/t.in"},
-                           expected_output="expected/baseline/t.out"))
+    proj.add_case(
+        TestCase(
+            name="t",
+            group="baseline",
+            manual=True,
+            inputs={"stdin": "tests/baseline/t.in"},
+            expected_output="expected/baseline/t.out",
+        )
+    )
     proj.save()
     runner = Runner(name="vg", backend="valgrind", memcheck=True)
     return judge(proj, str(sol), "c", select_cases(proj), runner=runner).cases[0]

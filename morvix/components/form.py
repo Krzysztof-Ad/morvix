@@ -20,8 +20,8 @@ from morvix.theme import GLYPHS, PROMPT_TOOLKIT_STYLE
 class Field:
     name: str
     label: str
-    kind: str = "text"          # text | int | float | choice | bool | path
-    choices: Optional[List] = None   # for kind=choice: list of (value, label) or list of str
+    kind: str = "text"  # text | int | float | choice | bool | path
+    choices: Optional[List] = None  # for kind=choice: list of (value, label) or list of str
     default: Any = None
     help: str = ""
     required: bool = False
@@ -47,9 +47,9 @@ class _FieldState:
 
         self.field = field
         self.choices = _normalize_choices(field.choices) if field.kind == "choice" else []
-        self.index = 0          # selected option for kind=choice
+        self.index = 0  # selected option for kind=choice
         self.bool_value = False  # current value for kind=bool
-        self.buffer = None       # Buffer for text/int/float/path
+        self.buffer = None  # Buffer for text/int/float/path
         self._init_from_default(Buffer)
 
     def _init_from_default(self, Buffer):
@@ -125,8 +125,8 @@ def _interactive_form(ctx, title, fields):
     from prompt_toolkit.styles import Style
 
     states = [_FieldState(f) for f in fields]
-    active = {"row": 0}        # which field is highlighted
-    error = {"text": ""}       # inline validation error, shown under the form
+    active = {"row": 0}  # which field is highlighted
+    error = {"text": ""}  # inline validation error, shown under the form
 
     # Move the highlight, wrapping around the ends.
     def move(delta):
@@ -149,7 +149,12 @@ def _interactive_form(ctx, title, fields):
             lines.append(("class:muted", f"\n  {help_text}\n"))
         if error["text"]:
             lines.append(("class:error", f"\n{GLYPHS['error']} {error['text']}\n"))
-        lines.append(("class:muted", "\n  Up/Down move • Left/Right or Space change • Enter submit • Esc cancel\n"))
+        lines.append(
+            (
+                "class:muted",
+                "\n  Up/Down move • Left/Right or Space change • Enter submit • Esc cancel\n",
+            )
+        )
         return lines
 
     # The value cell for one field; choice shows arrows, bool a checkbox, typed

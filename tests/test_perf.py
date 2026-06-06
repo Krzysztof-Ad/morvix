@@ -8,8 +8,7 @@ import zipfile
 
 from morvix import layout, packaging
 from morvix.cases import TestCase
-from morvix.results import (CaseResult, RunResult, performance, to_json,
-                            to_markdown, to_text)
+from morvix.results import CaseResult, RunResult, performance, to_json, to_markdown, to_text
 
 
 def _run():
@@ -28,7 +27,7 @@ def test_performance_aggregates():
     assert abs(p["wall"]["max"] - 0.30) < 1e-9
     assert abs(p["wall"]["min"] - 0.10) < 1e-9
     assert p["memory_kb"]["max"] == 2000
-    assert p["slowest"][0]["case"] == "g/b"          # the slowest first
+    assert p["slowest"][0]["case"] == "g/b"  # the slowest first
 
 
 def test_renderers_include_performance_and_percent():
@@ -48,8 +47,15 @@ def test_runner_core_reports_performance(tmp_path, py_project):
         os.makedirs(os.path.dirname(proj.abspath(erel)), exist_ok=True)
         open(proj.abspath(irel), "w").write(inp + "\n")
         open(proj.abspath(erel), "w").write(out + "\n")
-        proj.add_case(TestCase(name="p%d" % n, group="baseline", manual=True,
-                               inputs={"stdin": irel}, expected_output=erel))
+        proj.add_case(
+            TestCase(
+                name="p%d" % n,
+                group="baseline",
+                manual=True,
+                inputs={"stdin": irel},
+                expected_output=erel,
+            )
+        )
     proj.save()
     zip_path = str(tmp_path / "p.zip")
     packaging.build_package(ctx, proj, fmt="zip", out=zip_path)
@@ -60,8 +66,12 @@ def test_runner_core_reports_performance(tmp_path, py_project):
         z.extractall(str(extracted))
     (extracted / "sol.py").write_text(open(proj.solution).read())
 
-    r = subprocess.run([sys.executable, str(extracted / "runner" / "morvix_runner.py"),
-                        "sol.py", "--all"], cwd=str(extracted), capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, str(extracted / "runner" / "morvix_runner.py"), "sol.py", "--all"],
+        cwd=str(extracted),
+        capture_output=True,
+        text=True,
+    )
     assert r.returncode == 0, r.stderr
-    assert "Performance:" in r.stdout          # the shipped runner prints it too
-    assert "passed (" in r.stdout              # with a percentage
+    assert "Performance:" in r.stdout  # the shipped runner prints it too
+    assert "passed (" in r.stdout  # with a percentage

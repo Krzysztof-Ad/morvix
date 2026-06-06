@@ -27,13 +27,12 @@ from morvix import layout, process, shapes, suggestions
 from morvix.adapters import detect_language, get_adapter
 from morvix.cases import TestCase, default_expected_relpath, default_input_relpath
 from morvix.errors import UserError
-from morvix.judge import build_solution, _runspec, select_cases, _signal_name
+from morvix.judge import _runspec, _signal_name, build_solution, select_cases
 from morvix.models import ExecEnv, run_case
 from morvix.project import resolve_limits
 
-
 # A starter generator the user edits to match their program's input format.
-GENERATOR_TEMPLATE = '''#!/usr/bin/env python3
+GENERATOR_TEMPLATE = """#!/usr/bin/env python3
 # A Morvix generator: print ONE test input to stdout, parameterized by a seed.
 #
 # Morvix runs this once per case as:  python3 <thisfile> <seed> [mode]
@@ -63,7 +62,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+"""
 
 
 # Write text to an absolute path, creating parent dirs first.
@@ -80,8 +79,9 @@ def new_generator(ctx, project, name="gen"):
     rel = os.path.join(layout.GENERATORS_DIR, name)
     path = project.abspath(rel)
     if os.path.exists(path):
-        raise UserError(f"Generator already exists: {name}",
-                        hint="Pick another name, or edit the existing one.")
+        raise UserError(
+            f"Generator already exists: {name}", hint="Pick another name, or edit the existing one."
+        )
     _write_text(path, GENERATOR_TEMPLATE.format(name=name[:-3]))
     return rel
 
@@ -95,6 +95,7 @@ def _run_over_cases(project, solution, language, cases):
         build = build_solution(project, solution, language, workdir)
         if not build.ok:
             from morvix.errors import MorvixError
+
             raise MorvixError(build.error or "build failed", hint=build.diagnostics)
         runspec = _runspec(project, build, language)
         env = ExecEnv(project=project, build=build, runspec=runspec, workdir=workdir)
@@ -103,6 +104,7 @@ def _run_over_cases(project, solution, language, cases):
             observations[case.id] = run_case(project.model, case, env, limits)
     finally:
         import shutil
+
         shutil.rmtree(workdir, ignore_errors=True)
     return observations
 
@@ -136,20 +138,22 @@ def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=N
     # - run it count times, each with argv [seed+i] + modes, capturing stdout
     language = detect_language(generator_path)
     if not language:
-        raise UserError(f"Could not detect the language of '{generator_path}'.",
-                        hint="Use a recognised extension (.py, .c, .cpp, .rs, ...).")
+        raise UserError(
+            f"Could not detect the language of '{generator_path}'.",
+            hint="Use a recognised extension (.py, .c, .cpp, .rs, ...).",
+        )
     workdir = tempfile.mkdtemp(prefix="morvix-gen-")
     cases = []
     try:
         build = get_adapter(language).build(generator_path, project.lang_config(language), workdir)
         if not build.ok:
             from morvix.errors import MorvixError
+
             raise MorvixError(build.error or "generator build failed", hint=build.diagnostics)
         spec = get_adapter(language).run_spec(build, project.lang_config(language))
         for i in range(count):
             argv = spec.argv + [str(seed + i)] + list(modes or [])
-            res = process.run(argv, cwd=workdir,
-                              env=process.base_env(project.locale, spec.env))
+            res = process.run(argv, cwd=workdir, env=process.base_env(project.locale, spec.env))
             name = f"g{seed}_{i}"
             rel = default_input_relpath(group, name)
             _write_text(project.abspath(rel), res.stdout.decode("utf-8", "replace"))
@@ -158,6 +162,7 @@ def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=N
             cases.append(case)
     finally:
         import shutil
+
         shutil.rmtree(workdir, ignore_errors=True)
     return cases
 
@@ -167,15 +172,17 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
     # case and freeze its outputs as the expected answers.
     solution = project.solution
     if not solution:
-        raise UserError("No solution to compute expected answers from.",
-                        hint="Import one first with 'import <file>'.")
+        raise UserError(
+            "No solution to compute expected answers from.",
+            hint="Import one first with 'import <file>'.",
+        )
     language = project.language or detect_language(solution)
 
     cases = select_cases(project, groups=groups) if groups else list(project.cases)
     observations = _run_over_cases(project, solution, language, cases)
 
     computed = 0
-    clean_outputs = []   # captured answers from clean runs, to sanity-check below
+    clean_outputs = []  # captured answers from clean runs, to sanity-check below
     for case in cases:
         # Clear any stale expectation so re-running never leaves an impossible
         # combination (e.g. expected_output + expected_signal from two separate runs).
@@ -226,8 +233,7 @@ def gen_stress(ctx, project, count, seed, group="regression"):
 
     solution = project.solution
     if not solution:
-        raise UserError("No solution under test to stress.",
-                        hint="Set one with 'solution'.")
+        raise UserError("No solution under test to stress.", hint="Set one with 'solution'.")
 
     sol_lang = project.language or detect_language(solution)
     bf_lang = detect_language(oracle_path) or project.language
@@ -236,19 +242,24 @@ def gen_stress(ctx, project, count, seed, group="regression"):
 
     # Build both programs once before the loop (mirrors _run_over_cases).
     import shutil
+
     sol_workdir = tempfile.mkdtemp(prefix="morvix-stress-sol-")
     bf_workdir = tempfile.mkdtemp(prefix="morvix-stress-bf-")
     try:
         sol_build = build_solution(project, solution, sol_lang, sol_workdir)
         if not sol_build.ok:
             from morvix.errors import MorvixError
+
             raise MorvixError(sol_build.error or "build failed", hint=sol_build.diagnostics)
         sol_runspec = _runspec(project, sol_build, sol_lang)
-        sol_env = ExecEnv(project=project, build=sol_build, runspec=sol_runspec, workdir=sol_workdir)
+        sol_env = ExecEnv(
+            project=project, build=sol_build, runspec=sol_runspec, workdir=sol_workdir
+        )
 
         bf_build = build_solution(project, oracle_path, bf_lang, bf_workdir)
         if not bf_build.ok:
             from morvix.errors import MorvixError
+
             raise MorvixError(bf_build.error or "build failed", hint=bf_build.diagnostics)
         bf_runspec = _runspec(project, bf_build, bf_lang)
         bf_env = ExecEnv(project=project, build=bf_build, runspec=bf_runspec, workdir=bf_workdir)
@@ -260,8 +271,9 @@ def gen_stress(ctx, project, count, seed, group="regression"):
             # Write input to a temporary case so run_case can feed it as stdin.
             in_rel = default_input_relpath("_stress_tmp", f"{seed}_{i}")
             _write_text(project.abspath(in_rel), text)
-            tmp_case = TestCase(name=f"{seed}_{i}", group="_stress_tmp",
-                                manual=False, inputs={"stdin": in_rel})
+            tmp_case = TestCase(
+                name=f"{seed}_{i}", group="_stress_tmp", manual=False, inputs={"stdin": in_rel}
+            )
             try:
                 obs_sol = run_case(project.model, tmp_case, sol_env, limits)
                 obs_bf = run_case(project.model, tmp_case, bf_env, limits)
@@ -290,8 +302,9 @@ def _save_regression(project, group, seed, text, expected_bytes):
     os.makedirs(os.path.dirname(project.abspath(exp_rel)), exist_ok=True)
     with open(project.abspath(exp_rel), "wb") as f:
         f.write(expected_bytes)
-    case = TestCase(name=name, group=group, manual=True,
-                    inputs={"stdin": in_rel}, expected_output=exp_rel)
+    case = TestCase(
+        name=name, group=group, manual=True, inputs={"stdin": in_rel}, expected_output=exp_rel
+    )
     project.add_case(case)
     return case
 

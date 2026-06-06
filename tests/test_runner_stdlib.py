@@ -7,8 +7,12 @@ import importlib
 import os
 import sys
 
-RUNNER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "morvix", "runner_core", "morvix_runner.py")
+RUNNER = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "morvix",
+    "runner_core",
+    "morvix_runner.py",
+)
 
 
 def _top_level_imports(path):
@@ -19,7 +23,7 @@ def _top_level_imports(path):
             for alias in node.names:
                 mods.add(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and node.module:   # absolute imports only
+            if node.level == 0 and node.module:  # absolute imports only
                 mods.add(node.module.split(".")[0])
     return mods
 

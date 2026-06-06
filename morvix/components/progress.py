@@ -18,8 +18,10 @@ from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, T
 def progress_bar(ctx, total, description="working"):
     # Non-interactive: no output, just yield a no-op step
     if not ctx.interactive:
+
         def _noop(n=1):
             pass
+
         yield _noop
         return
 

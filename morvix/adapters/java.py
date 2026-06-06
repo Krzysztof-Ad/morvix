@@ -11,7 +11,6 @@ import re
 from morvix import process
 from morvix.adapters import Adapter, BuildResult, RunSpec, register
 
-
 # Matches: package some.pkg.name;
 _PACKAGE_RE = re.compile(r"^\s*package\s+([\w.]+)\s*;", re.MULTILINE)
 
@@ -47,7 +46,7 @@ class JavaAdapter(Adapter):
         process.require_tool(
             javac,
             install_hint="Install a JDK (e.g. 'sudo apt install default-jdk' or "
-                         "'brew install openjdk') and make sure 'javac' is on your PATH.",
+            "'brew install openjdk') and make sure 'javac' is on your PATH.",
         )
         process.require_tool(
             java,

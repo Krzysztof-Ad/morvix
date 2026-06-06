@@ -25,8 +25,9 @@ def configure(parser):
     parser.add_argument("action", choices=_ACTIONS, help="what to do")
     parser.add_argument("target", nargs="?", help="path (add) or rival name (remove)")
     parser.add_argument("--name", help="name for the rival (default: the file stem)")
-    parser.add_argument("--stress", action="store_true",
-                        help="use this rival as the stress-test oracle")
+    parser.add_argument(
+        "--stress", action="store_true", help="use this rival as the stress-test oracle"
+    )
 
 
 def run(ctx, args) -> int:
@@ -57,8 +58,10 @@ def _add(ctx, project, args):
     ctx.save_project()
     extra = " (stress oracle)" if args.stress else ""
     ctx.messenger.success(f"Added rival '{name}'{extra}.")
-    ctx.messenger.info("It is used for performance comparison only - never for correctness, "
-                       "and not shipped unless you choose to.")
+    ctx.messenger.info(
+        "It is used for performance comparison only - never for correctness, "
+        "and not shipped unless you choose to."
+    )
     return 0
 
 
@@ -80,8 +83,7 @@ def _list(ctx, project):
 
 def _remove(ctx, project, args):
     if not args.target or project.get_rival(args.target) is None:
-        raise UserError(f"No rival named '{args.target}'.",
-                        hint="See 'rival list'.")
+        raise UserError(f"No rival named '{args.target}'.", hint="See 'rival list'.")
     project.remove_rival(args.target)
     ctx.save_project()
     ctx.messenger.success(f"Removed rival '{args.target}'.")
@@ -94,14 +96,16 @@ def _precompute(ctx, project):
     cases = select_cases(project)
     if not cases:
         raise UserError("No cases to run.", hint="Generate cases first (gen).")
-    ctx.messenger.info(f"Running {len(project.rivals)} rival(s) over {len(cases)} case(s) "
-                       "on this machine...")
+    ctx.messenger.info(
+        f"Running {len(project.rivals)} rival(s) over {len(cases)} case(s) on this machine..."
+    )
     done = comparison.precompute_rivals(project, cases)
     for name, run in done.items():
-        ctx.messenger.success(f"{name}: {run.passed}/{run.total} passed, "
-                              f"recorded time/memory")
-    ctx.messenger.info("These numbers will ship with the package (code-free) so a Receiver on "
-                       "a comparable machine sees the comparison.")
+        ctx.messenger.success(f"{name}: {run.passed}/{run.total} passed, recorded time/memory")
+    ctx.messenger.info(
+        "These numbers will ship with the package (code-free) so a Receiver on "
+        "a comparable machine sees the comparison."
+    )
     return 0
 
 

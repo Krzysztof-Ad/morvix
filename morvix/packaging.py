@@ -19,7 +19,6 @@
 import json
 import os
 import shutil
-import stat
 import tarfile
 import tempfile
 import zipfile
@@ -30,15 +29,22 @@ from morvix.readme import generate_readme
 
 # Map format names to (file extension, tarfile mode or None-for-zip)
 _FORMATS = {
-    "zip":    (".zip",    None),
-    "tar":    (".tar",    "w"),
+    "zip": (".zip", None),
+    "tar": (".tar", "w"),
     "tar.gz": (".tar.gz", "w:gz"),
     "tar.xz": (".tar.xz", "w:xz"),
 }
 
 
-def build_package(ctx, project, fmt="zip", runners=None, include_generators=False,
-                  out=None, rivals_mode="precomputed"):
+def build_package(
+    ctx,
+    project,
+    fmt="zip",
+    runners=None,
+    include_generators=False,
+    out=None,
+    rivals_mode="precomputed",
+):
     """Assemble a shareable archive of the project.
 
     Stages tests/, expected/, the manifest, the runner core, run.sh, and the
@@ -66,10 +72,7 @@ def build_package(ctx, project, fmt="zip", runners=None, include_generators=Fals
         unknown = [n for n in runners if n not in project.runners]
         if unknown:
             available = ", ".join(sorted(project.runners)) or "(none)"
-            raise UserError(
-                f"Unknown runner(s): {', '.join(unknown)}. "
-                f"Available: {available}."
-            )
+            raise UserError(f"Unknown runner(s): {', '.join(unknown)}. Available: {available}.")
 
     with tempfile.TemporaryDirectory() as staging:
         _stage(ctx, project, staging, include_generators, runners, rivals_mode)
@@ -95,6 +98,7 @@ def estimate_size(project):
 
 
 # --- internal helpers ---
+
 
 def _stage(ctx, project, staging, include_generators, runners=None, rivals_mode="precomputed"):
     """Copy everything that belongs in the package into the staging dir, flat."""
@@ -139,10 +143,7 @@ def _stage(ctx, project, staging, include_generators, runners=None, rivals_mode=
     except NotImplementedError:
         # Minimal fallback - must still carry the honesty disclaimer so a
         # Receiver is never misled into thinking test passage equals correctness.
-        readme_text = (
-            f"# {project.name}\n\n"
-            "Note: passing all tests does not prove correctness.\n"
-        )
+        readme_text = f"# {project.name}\n\nNote: passing all tests does not prove correctness.\n"
     with open(os.path.join(staging, layout.README), "w", encoding="utf-8") as f:
         f.write(readme_text)
 
@@ -176,7 +177,8 @@ def _stage_rivals(ctx, project, staging, manifest_dict, mode):
         if missing and ctx is not None:
             ctx.messenger.warning(
                 "No precomputed results for: %s." % ", ".join(missing),
-                hint="Run 'rival precompute' first so their numbers can ship.")
+                hint="Run 'rival precompute' first so their numbers can ship.",
+            )
     elif mode == "code":
         for r in project.rivals:
             if not os.path.exists(r.path):
@@ -185,8 +187,9 @@ def _stage_rivals(ctx, project, staging, manifest_dict, mode):
             os.makedirs(rivals_dir, exist_ok=True)
             base = os.path.basename(r.path)
             shutil.copy2(r.path, os.path.join(rivals_dir, base))
-            entries.append({"name": r.name, "stress": r.stress, "mode": "code",
-                            "source": "rivals/" + base})
+            entries.append(
+                {"name": r.name, "stress": r.stress, "mode": "code", "source": "rivals/" + base}
+            )
 
     if entries:
         manifest_dict["rivals"] = entries
@@ -199,7 +202,7 @@ def _flatten_manifest_paths(m):
     def strip(p):
         for pre in prefixes:
             if p.startswith(pre):
-                return p[len(pre):]
+                return p[len(pre) :]
         return p
 
     for c in m.get("cases", []):

@@ -21,21 +21,31 @@ NAME = "result"
 
 def configure(parser):
     fmt = parser.add_mutually_exclusive_group()
-    fmt.add_argument("--json", dest="fmt", action="store_const", const="json",
-                     help="output as JSON (machine-readable)")
-    fmt.add_argument("--md", dest="fmt", action="store_const", const="md",
-                     help="output as Markdown (default)")
-    fmt.add_argument("--text", dest="fmt", action="store_const", const="text",
-                     help="output as plain text")
+    fmt.add_argument(
+        "--json",
+        dest="fmt",
+        action="store_const",
+        const="json",
+        help="output as JSON (machine-readable)",
+    )
+    fmt.add_argument(
+        "--md", dest="fmt", action="store_const", const="md", help="output as Markdown (default)"
+    )
+    fmt.add_argument(
+        "--text", dest="fmt", action="store_const", const="text", help="output as plain text"
+    )
     parser.set_defaults(fmt="md")
 
-    parser.add_argument("--out", metavar="PATH",
-                        help="write output to this file instead of stdout")
+    parser.add_argument("--out", metavar="PATH", help="write output to this file instead of stdout")
 
     # Catch "result diff <other.json>" or bare invocation.
     # nargs="*" so "result" with no positionals is valid too.
-    parser.add_argument("args", nargs="*", metavar="[diff OTHER]",
-                        help="optional: diff <path-to-other-results.json>")
+    parser.add_argument(
+        "args",
+        nargs="*",
+        metavar="[diff OTHER]",
+        help="optional: diff <path-to-other-results.json>",
+    )
 
 
 def run(ctx, args) -> int:
@@ -53,6 +63,7 @@ def run(ctx, args) -> int:
 
 
 # --- diff ---
+
 
 def _run_diff(ctx, project, positional):
     if len(positional) < 2:
@@ -82,7 +93,6 @@ def _run_diff(ctx, project, positional):
 
     # Build a diff table: only rows where something differs.
     from rich.table import Table
-    from rich.text import Text
 
     agree, differ = [], []
     for cid in all_ids:
@@ -129,6 +139,7 @@ def _run_diff(ctx, project, positional):
 
 # --- normal export ---
 
+
 def _run_export(ctx, project, args):
     fmt = args.fmt
 
@@ -147,6 +158,7 @@ def _run_export(ctx, project, args):
 
         if fmt == "json":
             import json as _json
+
             rendered = _json.dumps(data, indent=2) + "\n"
         else:
             # Reconstruct a minimal RunResult from the stored dict so we can
@@ -166,10 +178,12 @@ def _run_export(ctx, project, args):
 
 # --- helpers ---
 
+
 def _load_last_dict(ctx, project) -> dict:
     """Return last run data as a dict (from memory or disk)."""
     if ctx.last_result is not None:
         import json as _json
+
         raw = export(ctx.last_result, "json")
         return _json.loads(raw)
     last_path = os.path.join(project.root, layout.RESULTS_DIR, "last.json")
@@ -184,7 +198,7 @@ def _load_last_dict(ctx, project) -> dict:
 
 def _format_dict(data: dict, fmt: str) -> str:
     """Reconstruct a RunResult from the stored JSON dict and format it."""
-    from morvix.results import RunResult, CaseResult
+    from morvix.results import CaseResult, RunResult
 
     run = RunResult(
         solution=data.get("solution", "?"),
@@ -193,33 +207,38 @@ def _format_dict(data: dict, fmt: str) -> str:
         memory_note=data.get("memory_note", "peak, approximate"),
     )
     for c in data.get("cases", []):
-        run.cases.append(CaseResult(
-            case_id=c.get("case", "?"),
-            group=c.get("group", ""),
-            status=c.get("status", "?"),
-            verdict=c.get("verdict", ""),
-            exit_code=c.get("exit_code"),
-            signal=c.get("signal"),
-            timed_out=c.get("timed_out", False),
-            wall_time=c.get("wall_time", 0.0),
-            cpu_time=c.get("cpu_time", 0.0),
-            peak_mem_kb=c.get("peak_mem_kb", 0),
-            memcheck=c.get("memcheck"),
-        ))
+        run.cases.append(
+            CaseResult(
+                case_id=c.get("case", "?"),
+                group=c.get("group", ""),
+                status=c.get("status", "?"),
+                verdict=c.get("verdict", ""),
+                exit_code=c.get("exit_code"),
+                signal=c.get("signal"),
+                timed_out=c.get("timed_out", False),
+                wall_time=c.get("wall_time", 0.0),
+                cpu_time=c.get("cpu_time", 0.0),
+                peak_mem_kb=c.get("peak_mem_kb", 0),
+                memcheck=c.get("memcheck"),
+            )
+        )
     return export(run, fmt)
 
 
 # --- completion ---
+
 
 def complete(ctx, prev_words, word):
     # "result diff <path>" - offer json files
     last = prev_words[-1] if prev_words else ""
     if last == "diff" or (len(prev_words) >= 2 and prev_words[-2] == "diff"):
         import glob
+
         matches = glob.glob(word + "*.json") if word else glob.glob("*.json")
         return [(m, "json file") for m in matches]
     if last == "--out":
         import glob
+
         matches = glob.glob(word + "*") if word else []
         return [(m, "path") for m in matches]
     # offer "diff" as the first positional

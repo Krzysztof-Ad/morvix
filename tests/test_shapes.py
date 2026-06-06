@@ -21,6 +21,7 @@ def test_list_shapes_contains_expected():
 # Reproducibility and seed sensitivity
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("shape", list_shapes())
 def test_generate_reproducible(shape):
     a = generate(shape, seed=42, params={})
@@ -33,6 +34,7 @@ _DETERMINISTIC_SHAPES = {
     # seed — the rng is never consulted, so identical output for all seeds is correct.
     "edge",
 }
+
 
 @pytest.mark.parametrize("shape", [s for s in list_shapes() if s not in _DETERMINISTIC_SHAPES])
 def test_generate_varies_with_seed(shape):
@@ -51,6 +53,7 @@ def test_generate_unknown_shape_raises():
 # Every shape produces non-empty str for empty params
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("shape", list_shapes())
 def test_generate_nonempty_str_empty_params(shape):
     result = generate(shape, seed=1, params={})
@@ -61,6 +64,7 @@ def test_generate_nonempty_str_empty_params(shape):
 # ---------------------------------------------------------------------------
 # Shape-specific checks
 # ---------------------------------------------------------------------------
+
 
 def test_permutation_valid():
     # With n=8 explicitly supplied, result must be a permutation of 1..8.

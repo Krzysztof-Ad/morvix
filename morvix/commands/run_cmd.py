@@ -7,7 +7,6 @@
 # reflecting the flags is built on the fly. The result is stashed on the context
 # and written to results/last.json so 'result' can pick it up.
 
-import json
 import os
 
 from morvix import comparison, layout
@@ -25,40 +24,53 @@ NAME = "run"
 
 def configure(parser):
     scope = parser.add_argument_group("scope")
-    scope.add_argument("--all", action="store_true", default=True,
-                       help="run every case (the default)")
-    scope.add_argument("--group", action="append", metavar="G",
-                       help="only this group (repeatable)")
-    scope.add_argument("--case", action="append", metavar="C",
-                       help="only this case (repeatable)")
+    scope.add_argument(
+        "--all", action="store_true", default=True, help="run every case (the default)"
+    )
+    scope.add_argument("--group", action="append", metavar="G", help="only this group (repeatable)")
+    scope.add_argument("--case", action="append", metavar="C", help="only this case (repeatable)")
 
-    parser.add_argument("--time", action="store_true",
-                        help="show wall/cpu time per case (on by default for run)")
-    parser.add_argument("--mem", action="store_true",
-                        help="show peak memory per case (on by default for run)")
-    parser.add_argument("--no-perf", action="store_true",
-                        help="hide the performance summary at the end")
-    parser.add_argument("--slowest", type=int, default=5, metavar="N",
-                        help="list the N slowest cases in the performance summary (default 5)")
-    parser.add_argument("--no-rivals", action="store_true",
-                        help="skip the rival performance comparison")
-    parser.add_argument("--parallel", action="store_true",
-                        help="run rivals in parallel (faster, but perf numbers become approximate)")
-    parser.add_argument("--valgrind", action="store_true",
-                        help="check for memory errors under valgrind")
-    parser.add_argument("--compare", metavar="MODE", choices=list_strategies(),
-                        help="override the comparison strategy")
-    parser.add_argument("--runner", metavar="NAME",
-                        help="use a saved runner profile instead of the flags")
+    parser.add_argument(
+        "--time", action="store_true", help="show wall/cpu time per case (on by default for run)"
+    )
+    parser.add_argument(
+        "--mem", action="store_true", help="show peak memory per case (on by default for run)"
+    )
+    parser.add_argument(
+        "--no-perf", action="store_true", help="hide the performance summary at the end"
+    )
+    parser.add_argument(
+        "--slowest",
+        type=int,
+        default=5,
+        metavar="N",
+        help="list the N slowest cases in the performance summary (default 5)",
+    )
+    parser.add_argument(
+        "--no-rivals", action="store_true", help="skip the rival performance comparison"
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="run rivals in parallel (faster, but perf numbers become approximate)",
+    )
+    parser.add_argument(
+        "--valgrind", action="store_true", help="check for memory errors under valgrind"
+    )
+    parser.add_argument(
+        "--compare",
+        metavar="MODE",
+        choices=list_strategies(),
+        help="override the comparison strategy",
+    )
+    parser.add_argument(
+        "--runner", metavar="NAME", help="use a saved runner profile instead of the flags"
+    )
 
-    parser.add_argument("--wall", type=float, metavar="SEC",
-                        help="wall-clock time limit (seconds)")
-    parser.add_argument("--cpu", type=float, metavar="SEC",
-                        help="cpu time limit (seconds)")
-    parser.add_argument("--memkb", type=int, metavar="KB",
-                        help="address-space limit (KB)")
-    parser.add_argument("--output-kb", type=int, metavar="KB",
-                        help="output size limit (KB)")
+    parser.add_argument("--wall", type=float, metavar="SEC", help="wall-clock time limit (seconds)")
+    parser.add_argument("--cpu", type=float, metavar="SEC", help="cpu time limit (seconds)")
+    parser.add_argument("--memkb", type=int, metavar="KB", help="address-space limit (KB)")
+    parser.add_argument("--output-kb", type=int, metavar="KB", help="output size limit (KB)")
 
 
 def run(ctx, args) -> int:
@@ -74,22 +86,30 @@ def run(ctx, args) -> int:
 
     cases = select_cases(project, runner, groups=args.group, case_ids=args.case)
     if not cases:
-        raise UserError("No cases match that scope.",
-                        hint="Generate cases first, or widen --group/--case.")
+        raise UserError(
+            "No cases match that scope.", hint="Generate cases first, or widen --group/--case."
+        )
 
     language = project.language or detect_language(project.solution) or ""
 
     # If rivals are registered (and not skipped), run the performance comparison.
     rivals = [] if args.no_rivals else comparison.selected_rivals(project, runner)
     if rivals:
-        return _run_with_comparison(ctx, project, runner, project.solution,
-                                    language, cases, rivals, args)
+        return _run_with_comparison(
+            ctx, project, runner, project.solution, language, cases, rivals, args
+        )
 
-    table = RunTable(ctx.console, live=ctx.interactive,
-                     show_time=runner.time, show_mem=runner.measure_mem,
-                     show_perf=runner.report, slowest_n=runner.slowest)
-    run_result = judge(project, project.solution, language, cases,
-                       runner=runner, on_case=table.update)
+    table = RunTable(
+        ctx.console,
+        live=ctx.interactive,
+        show_time=runner.time,
+        show_mem=runner.measure_mem,
+        show_perf=runner.report,
+        slowest_n=runner.slowest,
+    )
+    run_result = judge(
+        project, project.solution, language, cases, runner=runner, on_case=table.update
+    )
     table.finish(run_result)
 
     # Stash for the result command, both in memory and on disk.
@@ -110,11 +130,13 @@ def run(ctx, args) -> int:
 
 def _run_with_comparison(ctx, project, runner, solution, language, cases, rivals, args):
     """Run the solution + rivals and print the comparison (no live table)."""
-    main, cols = comparison.compare_live(project, solution, language, cases,
-                                         rivals, runner=runner, parallel=args.parallel)
+    main, cols = comparison.compare_live(
+        project, solution, language, cases, rivals, runner=runner, parallel=args.parallel
+    )
     ctx.console.print("")
-    for line in comparison_block(main, cols, show_mem=runner.measure_mem,
-                                 per_case=(runner.verbosity != "quiet")):
+    for line in comparison_block(
+        main, cols, show_mem=runner.measure_mem, per_case=(runner.verbosity != "quiet")
+    ):
         ctx.console.print(f"[muted]{line}[/muted]")
 
     ctx.last_result = main
@@ -138,8 +160,7 @@ def _pick_runner(project, args):
         runner = project.runners.get(args.runner)
         if runner is None:
             known = ", ".join(sorted(project.runners)) or "(none)"
-            raise UserError(f"No runner named '{args.runner}'.",
-                            hint=f"Known runners: {known}.")
+            raise UserError(f"No runner named '{args.runner}'.", hint=f"Known runners: {known}.")
         return runner
 
     limits = dict(DEFAULT_LIMITS)
@@ -174,8 +195,9 @@ def _emit_configured_report(ctx, project, runner, run_result):
     fmt = runner.result_format
     if not fmt or fmt == "none":
         return
-    rel = runner.result_path or os.path.join(layout.RESULTS_DIR,
-                                             f"{runner.name}.{_EXT.get(fmt, 'txt')}")
+    rel = runner.result_path or os.path.join(
+        layout.RESULTS_DIR, f"{runner.name}.{_EXT.get(fmt, 'txt')}"
+    )
     path = rel if os.path.isabs(rel) else project.abspath(rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:

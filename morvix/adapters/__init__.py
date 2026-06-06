@@ -23,12 +23,12 @@ class BuildResult:
     """
 
     ok: bool
-    artifact: Optional[str] = None        # the produced binary / class dir / script path
-    run_argv: List[str] = field(default_factory=list)   # how to invoke the artifact
+    artifact: Optional[str] = None  # the produced binary / class dir / script path
+    run_argv: List[str] = field(default_factory=list)  # how to invoke the artifact
     run_env: Dict[str, str] = field(default_factory=dict)  # extra env (LD_LIBRARY_PATH, ...)
-    diagnostics: str = ""                 # compiler output, shown on failure
-    error: Optional[str] = None           # short summary of what went wrong
-    build_command: str = ""               # the command line we ran, for messages
+    diagnostics: str = ""  # compiler output, shown on failure
+    error: Optional[str] = None  # short summary of what went wrong
+    build_command: str = ""  # the command line we ran, for messages
 
 
 @dataclass
@@ -67,8 +67,14 @@ _REGISTRY: Dict[str, Adapter] = {}
 _EXTENSIONS = {
     ".c": "c",
     ".h": "c",
-    ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp", ".c++": "cpp", ".hpp": "cpp",
-    ".asm": "nasm", ".s": "nasm", ".nasm": "nasm",
+    ".cc": "cpp",
+    ".cpp": "cpp",
+    ".cxx": "cpp",
+    ".c++": "cpp",
+    ".hpp": "cpp",
+    ".asm": "nasm",
+    ".s": "nasm",
+    ".nasm": "nasm",
     ".py": "python",
     ".java": "java",
     ".rs": "rust",
@@ -114,4 +120,4 @@ def _load_builtins() -> None:
     if _loaded:
         return
     _loaded = True
-    from morvix.adapters import c, cpp, nasm, python, java, rust  # noqa: F401
+    from morvix.adapters import c, cpp, java, nasm, python, rust  # noqa: F401

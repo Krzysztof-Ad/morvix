@@ -11,19 +11,22 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Dict
+from typing import TYPE_CHECKING, Callable, Dict
 
 from morvix import process
 from morvix.adapters import BuildResult, RunSpec
 from morvix.cases import TestCase
 from morvix.process import ProcessResult
 
+if TYPE_CHECKING:
+    from morvix.project import Project
+
 
 @dataclass
 class ExecEnv:
     """Everything a model needs to run a case, bundled so signatures stay short."""
 
-    project: object          # the Project (avoids a circular import to type it)
+    project: "Project"  # typed via TYPE_CHECKING to avoid a runtime import cycle
     build: BuildResult
     runspec: RunSpec
     workdir: str
@@ -34,7 +37,7 @@ class Observation:
     """What was observed from one run."""
 
     result: ProcessResult
-    output: bytes = b""                                   # the bytes to judge
+    output: bytes = b""  # the bytes to judge
     produced_files: Dict[str, bytes] = field(default_factory=dict)  # for the file model
 
 
@@ -87,6 +90,7 @@ def run_env(env: ExecEnv) -> Dict[str, str]:
 
 # --- the stdio model (the classic, and the default) ---
 
+
 def _stdio(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
     stdin = b""
     primary = case.primary_input()
@@ -120,5 +124,5 @@ def _load_builtins() -> None:
     # The remaining models self-register on import.
     from morvix.execmodels import args as _args  # noqa: F401
     from morvix.execmodels import file as _file  # noqa: F401
-    from morvix.execmodels import library as _library  # noqa: F401
     from morvix.execmodels import interactive as _interactive  # noqa: F401
+    from morvix.execmodels import library as _library  # noqa: F401

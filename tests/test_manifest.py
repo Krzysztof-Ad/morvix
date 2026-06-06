@@ -25,6 +25,7 @@ def _add_case(proj, tmp_path, name="c1", group="baseline"):
 # write_manifest
 # ---------------------------------------------------------------------------
 
+
 def test_write_manifest_required_keys(py_project, tmp_path):
     ctx, proj = py_project
     _add_case(proj, tmp_path)
@@ -83,6 +84,7 @@ def test_write_manifest_cases_and_runners_content(py_project, tmp_path):
 # adopt_manifest (round-trip)
 # ---------------------------------------------------------------------------
 
+
 def test_adopt_manifest_creates_project_json(py_project, tmp_path):
     ctx, proj = py_project
     _add_case(proj, tmp_path, name="a1", group="baseline")
@@ -94,7 +96,7 @@ def test_adopt_manifest_creates_project_json(py_project, tmp_path):
     (fresh / ".morvix").mkdir(parents=True)
     shutil.copy(os.path.join(proj.root, MANIFEST), str(fresh / MANIFEST))
 
-    adopted = adopt_manifest(str(fresh))
+    adopt_manifest(str(fresh))
 
     config_path = fresh / PROJECT_FILE
     assert config_path.exists(), "config/project.json should be created by adopt_manifest"

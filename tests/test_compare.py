@@ -41,6 +41,7 @@ def _ci(observed: bytes, expected: bytes, case=None, project=None, params=None, 
 
 # --- exact ---
 
+
 class TestExact:
     def test_pass_equal(self):
         v = compare("exact", _ci(b"hello\n", b"hello\n"))
@@ -67,6 +68,7 @@ class TestExact:
 
 # --- whitespace ---
 
+
 class TestWhitespace:
     def test_pass_equal(self):
         assert compare("whitespace", _ci(b"42\n", b"42\n")).passed
@@ -91,6 +93,7 @@ class TestWhitespace:
 
 
 # --- float ---
+
 
 class TestFloat:
     def test_pass_exact(self):
@@ -136,6 +139,7 @@ class TestFloat:
 
 # --- hash ---
 
+
 class TestHash:
     def test_pass_correct_hash(self):
         data = b"output line\n"
@@ -169,6 +173,7 @@ class TestHash:
 
 # --- checker ---
 
+
 class TestChecker:
     def test_no_checker_configured(self):
         v = compare("checker", _ci(b"x", b"", params={}))
@@ -194,6 +199,7 @@ class TestChecker:
 
 
 # --- make_diff helper ---
+
 
 class TestMakeDiff:
     def test_identical_produces_empty(self):

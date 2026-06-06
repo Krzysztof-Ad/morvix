@@ -10,22 +10,21 @@
 
 from morvix.cases import list_groups
 
-
 # Descriptions for each comparison strategy (must match morvix.compare.list_strategies())
 _STRATEGY_DESC = {
-    "exact":      "Outputs are compared byte-for-byte (exact match required).",
+    "exact": "Outputs are compared byte-for-byte (exact match required).",
     "whitespace": "Outputs are compared after normalising whitespace (extra spaces and blank lines are ignored).",
-    "float":      "Outputs are compared numerically, allowing small floating-point differences.",
-    "hash":       "The expected output stores a hash; the actual output is hashed and compared.",
-    "checker":    "A custom checker program decides whether the output is accepted.",
+    "float": "Outputs are compared numerically, allowing small floating-point differences.",
+    "hash": "The expected output stores a hash; the actual output is hashed and compared.",
+    "checker": "A custom checker program decides whether the output is accepted.",
 }
 
 # Descriptions for execution models (must match morvix.models.list_models())
 _MODEL_DESC = {
-    "stdio":       "The program reads from **stdin** and writes to **stdout**.",
-    "args":        "The program receives its input as **command-line arguments**.",
-    "file":        "The program reads from and writes to **files** on disk.",
-    "library":     "The program is tested as a **library** — functions are called directly.",
+    "stdio": "The program reads from **stdin** and writes to **stdout**.",
+    "args": "The program receives its input as **command-line arguments**.",
+    "file": "The program reads from and writes to **files** on disk.",
+    "library": "The program is tested as a **library** — functions are called directly.",
     "interactive": "The program runs **interactively**, exchanging multiple lines of input and output.",
 }
 
@@ -83,7 +82,7 @@ def generate_readme(project) -> str:
     groups = list_groups(project.cases)
     if groups:
         # Count cases per group
-        group_counts = {}
+        group_counts: dict[str, int] = {}
         for case in project.cases:
             group_counts[case.group] = group_counts.get(case.group, 0) + 1
 
@@ -108,9 +107,7 @@ def generate_readme(project) -> str:
     if strategy == "float":
         eps_abs = project.compare.get("epsilon_abs", 1e-6)
         eps_rel = project.compare.get("epsilon_rel", 1e-9)
-        parts.append(
-            f"Absolute epsilon: `{eps_abs}`. Relative epsilon: `{eps_rel}`.\n"
-        )
+        parts.append(f"Absolute epsilon: `{eps_abs}`. Relative epsilon: `{eps_rel}`.\n")
 
     # Execution model
     model = project.model

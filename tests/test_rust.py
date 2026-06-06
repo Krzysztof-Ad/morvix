@@ -33,9 +33,15 @@ def test_rust_build_run_judge(tmp_path):
     for i, (inp, out) in enumerate([("40 2", "42"), ("100 -50", "50")]):
         (tmp_path / "tests" / "baseline" / ("r%d.in" % i)).write_text(inp + "\n")
         (tmp_path / "expected" / "baseline" / ("r%d.out" % i)).write_text(out + "\n")
-        proj.add_case(TestCase(name="r%d" % i, group="baseline", manual=True,
-                               inputs={"stdin": "tests/baseline/r%d.in" % i},
-                               expected_output="expected/baseline/r%d.out" % i))
+        proj.add_case(
+            TestCase(
+                name="r%d" % i,
+                group="baseline",
+                manual=True,
+                inputs={"stdin": "tests/baseline/r%d.in" % i},
+                expected_output="expected/baseline/r%d.out" % i,
+            )
+        )
     proj.save()
     run = judge(proj, str(sol), "rust", select_cases(proj))
     assert run.all_passed

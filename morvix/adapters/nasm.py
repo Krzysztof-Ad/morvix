@@ -8,8 +8,8 @@
 import os
 import sys
 
-from morvix.adapters import Adapter, BuildResult, RunSpec, register
 from morvix import process
+from morvix.adapters import Adapter, BuildResult, RunSpec, register
 
 
 def _default_format():
@@ -29,7 +29,7 @@ class NasmAdapter(Adapter):
         # Locate required tools before we attempt anything.
         asm_path = process.require_tool(
             assembler,
-            f"Install nasm (e.g. 'brew install nasm' or 'apt install nasm').",
+            "Install nasm (e.g. 'brew install nasm' or 'apt install nasm').",
         )
 
         # Step 1: assemble source -> object file.

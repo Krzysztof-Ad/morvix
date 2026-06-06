@@ -18,7 +18,7 @@ class CppAdapter(Adapter):
         process.require_tool(
             compiler,
             install_hint=f"Install g++ (e.g. 'sudo apt install g++' or 'brew install gcc') "
-                         f"and make sure '{compiler}' is on your PATH.",
+            f"and make sure '{compiler}' is on your PATH.",
         )
 
         artifact = os.path.join(workdir, "a.out")

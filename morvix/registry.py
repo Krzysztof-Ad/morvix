@@ -14,7 +14,7 @@
 import argparse
 import importlib
 import shlex
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from morvix import help_text
 from morvix.context import Context
@@ -22,11 +22,22 @@ from morvix.errors import MorvixError, UserError
 
 # The command modules, in the order help should list them within each stage.
 COMMAND_MODULES = [
-    "init_cmd", "open_cmd", "status_cmd", "help_cmd", "docs_cmd", "exit_cmd",
-    "config_cmd", "import_cmd", "rival_cmd", "model_cmd",
-    "gen_cmd", "clean_cmd",
-    "run_cmd", "runner_cmd",
-    "result_cmd", "package_cmd",
+    "init_cmd",
+    "open_cmd",
+    "status_cmd",
+    "help_cmd",
+    "docs_cmd",
+    "exit_cmd",
+    "config_cmd",
+    "import_cmd",
+    "rival_cmd",
+    "model_cmd",
+    "gen_cmd",
+    "clean_cmd",
+    "run_cmd",
+    "runner_cmd",
+    "result_cmd",
+    "package_cmd",
     "workflow_cmd",
 ]
 
@@ -57,7 +68,7 @@ class ShellArgumentParser(argparse.ArgumentParser):
 
 
 _parser: Optional[ShellArgumentParser] = None
-_modules: Dict[str, object] = {}
+_modules: Dict[str, Any] = {}  # command modules, accessed dynamically (NAME/run/configure)
 _subparsers: Dict[str, argparse.ArgumentParser] = {}
 
 
@@ -72,8 +83,8 @@ def _build() -> None:
         info = help_text.COMMANDS.get(mod.NAME, {})
         p = sub.add_parser(
             mod.NAME,
-            help=info.get("summary", ""),
-            description=info.get("long", ""),
+            help=str(info.get("summary", "")),
+            description=str(info.get("long", "")),
             add_help=True,
         )
         mod.configure(p)
@@ -84,6 +95,7 @@ def _build() -> None:
 def dispatch(ctx: Context, argv: List[str]) -> int:
     """Parse one command line and run it. Returns an exit code."""
     _build()
+    assert _parser is not None  # _build() always sets it
     if not argv:
         return 0
     # Resolve aliases (quit -> exit) on the leading verb.
@@ -134,6 +146,7 @@ def safe_dispatch_line(ctx: Context, line: str) -> int:
 
 
 # --- introspection for help and autocomplete ---
+
 
 def all_commands() -> List[Tuple[str, str]]:
     _build()
@@ -187,14 +200,26 @@ def arguments(name: str):
         if action.option_strings:
             # store_true/false/const and count take no value; everything else does.
             takes_value = not isinstance(
-                action, (argparse._StoreConstAction, argparse._CountAction))
+                action, (argparse._StoreConstAction, argparse._CountAction)
+            )
             metavar = action.metavar or (action.dest.upper() if takes_value else None)
-            options.append({"names": list(action.option_strings), "metavar": metavar,
-                            "choices": choices, "help": action.help or "",
-                            "takes_value": takes_value})
+            options.append(
+                {
+                    "names": list(action.option_strings),
+                    "metavar": metavar,
+                    "choices": choices,
+                    "help": action.help or "",
+                    "takes_value": takes_value,
+                }
+            )
         else:
-            positionals.append({"name": action.metavar or action.dest,
-                                "choices": choices, "help": action.help or ""})
+            positionals.append(
+                {
+                    "name": action.metavar or action.dest,
+                    "choices": choices,
+                    "help": action.help or "",
+                }
+            )
     return positionals, options
 
 

@@ -35,7 +35,7 @@ def select(ctx, title, items, preselected=None):
 class _SelectionUI:
     def __init__(self, title, items, preselected):
         self.title = title
-        self.items = list(items)                      # (value, label, group)
+        self.items = list(items)  # (value, label, group)
         self.values = [v for v, _, _ in self.items]
 
         # Start with preselected (or everything) marked.
@@ -43,12 +43,12 @@ class _SelectionUI:
             self.selected = set(self.values)
         else:
             self.selected = set(preselected)
-        self.original = set(self.selected)            # restored on cancel
+        self.original = set(self.selected)  # restored on cancel
 
-        self.cursor = 0                               # index into items
-        self.filtering = False                        # in type-to-filter mode?
-        self.query = ""                               # current filter text
-        self.result = None                            # values list, set on confirm
+        self.cursor = 0  # index into items
+        self.filtering = False  # in type-to-filter mode?
+        self.query = ""  # current filter text
+        self.result = None  # values list, set on confirm
 
     # The indexes of the items currently visible under the filter. When not
     # filtering this is simply every item.
@@ -118,7 +118,7 @@ class _SelectionUI:
             ch = event.data
             if ch and ch.isprintable():
                 self.query += ch
-                self._move(0)            # keep cursor on a visible row
+                self._move(0)  # keep cursor on a visible row
 
         @kb.add("backspace", filter=_when(self, True))
         def _backspace(event):
@@ -206,13 +206,15 @@ class _SelectionUI:
         footer = Window(FormattedTextControl(self._render_footer), height=3)
         layout = Layout(HSplit([header, body, footer]))
 
-        style = Style.from_dict({
-            **theme.PROMPT_TOOLKIT_STYLE,
-            "group": "bold",
-            "count": "bold",
-            "hint": "italic",
-            "muted": "italic",
-        })
+        style = Style.from_dict(
+            {
+                **theme.PROMPT_TOOLKIT_STYLE,
+                "group": "bold",
+                "count": "bold",
+                "hint": "italic",
+                "muted": "italic",
+            }
+        )
         app = Application(
             layout=layout,
             key_bindings=self._build_keys(),

@@ -35,8 +35,10 @@ SUM_ALL_PY = "import sys\nd = sys.stdin.read().split()\nprint(sum(int(x) for x i
 @pytest.fixture
 def make_ctx():
     """Return a factory that builds a non-interactive Context on a directory."""
+
     def _make(root):
         return Context.create(str(root), interactive=False, console=make_console(force_plain=True))
+
     return _make
 
 

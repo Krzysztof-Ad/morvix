@@ -26,11 +26,19 @@ def build_solution(project: Project, source: str, language: str, workdir: str) -
         res = process.run(["/bin/sh", "-c", project.raw_build], cwd=project.root, wall_limit=180)
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         if not res.ok:
-            return BuildResult(ok=False, diagnostics=diag, error="raw build failed",
-                               build_command=project.raw_build)
+            return BuildResult(
+                ok=False,
+                diagnostics=diag,
+                error="raw build failed",
+                build_command=project.raw_build,
+            )
         run_cmd = project.raw_run or source
-        return BuildResult(ok=True, artifact=source, run_argv=["/bin/sh", "-c", run_cmd],
-                           build_command=project.raw_build)
+        return BuildResult(
+            ok=True,
+            artifact=source,
+            run_argv=["/bin/sh", "-c", run_cmd],
+            build_command=project.raw_build,
+        )
 
     adapter = get_adapter(language)
     return adapter.build(source, project.lang_config(language), workdir)
@@ -60,18 +68,24 @@ def _has_output_expectation(project: Project, case: TestCase, strategy: str) -> 
     return bool(path and os.path.exists(path))
 
 
-def judge_case(project: Project, build: BuildResult, case: TestCase, env: ExecEnv,
-               runner: Optional[Runner]) -> CaseResult:
+def judge_case(
+    project: Project, build: BuildResult, case: TestCase, env: ExecEnv, runner: Optional[Runner]
+) -> CaseResult:
     """Run one case and combine every enabled dimension into a verdict."""
     limits = resolve_limits(project, runner, case)
     obs = run_case(project.model, case, env, limits)
     res = obs.result
 
     result = CaseResult(
-        case_id=case.id, group=case.group, status="pass",
-        exit_code=res.exit_code, signal=_signal_name(res.term_signal),
-        timed_out=res.timed_out, wall_time=res.wall_time,
-        cpu_time=res.cpu_time, peak_mem_kb=res.peak_mem_kb,
+        case_id=case.id,
+        group=case.group,
+        status="pass",
+        exit_code=res.exit_code,
+        signal=_signal_name(res.term_signal),
+        timed_out=res.timed_out,
+        wall_time=res.wall_time,
+        cpu_time=res.cpu_time,
+        peak_mem_kb=res.peak_mem_kb,
     )
 
     def fail(reason: str, diff: Optional[str] = None):
@@ -106,8 +120,11 @@ def judge_case(project: Project, build: BuildResult, case: TestCase, env: ExecEn
         return result
 
     # --- output dimension ---
-    strategy = case.compare or (runner.compare if runner and runner.compare else
-                                project.compare.get("strategy", "whitespace"))
+    strategy = case.compare or (
+        runner.compare
+        if runner and runner.compare
+        else project.compare.get("strategy", "whitespace")
+    )
     if case.expected_hash and strategy != "checker":
         strategy = "hash"
     if _has_output_expectation(project, case, strategy):
@@ -116,8 +133,13 @@ def judge_case(project: Project, build: BuildResult, case: TestCase, env: ExecEn
         if path and os.path.exists(path):
             with open(path, "rb") as f:
                 expected = f.read()
-        ci = CompareInput(observed=obs.output, expected=expected, case=case,
-                          project=project, params=project.compare)
+        ci = CompareInput(
+            observed=obs.output,
+            expected=expected,
+            case=case,
+            project=project,
+            params=project.compare,
+        )
         verdict = compare(strategy, ci)
         if not verdict.passed:
             fail(verdict.detail or "output differs", diff=verdict.diff)
@@ -151,16 +173,24 @@ def _run_memcheck(project, build, case, env, limits) -> Optional[bool]:
         if os.path.exists(p):
             with open(p, "rb") as f:
                 stdin = f.read()
-    res = process.run(argv, stdin=stdin, cwd=env.workdir, env=process.base_env(project.locale),
-                      wall_limit=(limits.get("wall") or 10) * 4)
+    res = process.run(
+        argv,
+        stdin=stdin,
+        cwd=env.workdir,
+        env=process.base_env(project.locale),
+        wall_limit=(limits.get("wall") or 10) * 4,
+    )
     if res.timed_out or res.signaled:
         return None  # valgrind itself was killed - no clean verdict to report
     return res.exit_code != 99
 
 
-def select_cases(project: Project, runner: Optional[Runner] = None,
-                 groups: Optional[List[str]] = None,
-                 case_ids: Optional[List[str]] = None) -> List[TestCase]:
+def select_cases(
+    project: Project,
+    runner: Optional[Runner] = None,
+    groups: Optional[List[str]] = None,
+    case_ids: Optional[List[str]] = None,
+) -> List[TestCase]:
     """Pick which cases a run covers, applying runner scope then explicit filters."""
     cases = list(project.cases)
     if runner and runner.groups:
@@ -175,20 +205,25 @@ def select_cases(project: Project, runner: Optional[Runner] = None,
     return cases
 
 
-def judge(project: Project, solution: str, language: str, cases: List[TestCase],
-          runner: Optional[Runner] = None,
-          on_case: Optional[Callable[[CaseResult], None]] = None) -> RunResult:
+def judge(
+    project: Project,
+    solution: str,
+    language: str,
+    cases: List[TestCase],
+    runner: Optional[Runner] = None,
+    on_case: Optional[Callable[[CaseResult], None]] = None,
+) -> RunResult:
     """Build the solution, run every selected case, return the full result.
 
     on_case is called as each case finishes, so a live table can update.
     """
-    run = RunResult(solution=os.path.basename(solution),
-                    runner=runner.name if runner else None)
+    run = RunResult(solution=os.path.basename(solution), runner=runner.name if runner else None)
     workdir = tempfile.mkdtemp(prefix="morvix-build-")
     try:
         build = build_solution(project, solution, language, workdir)
         if not build.ok:
             from morvix.errors import MorvixError
+
             raise MorvixError(build.error or "build failed", hint=build.diagnostics)
         runspec = _runspec(project, build, language)
         env = ExecEnv(project=project, build=build, runspec=runspec, workdir=workdir)
@@ -199,5 +234,6 @@ def judge(project: Project, solution: str, language: str, cases: List[TestCase],
                 on_case(result)
     finally:
         import shutil
+
         shutil.rmtree(workdir, ignore_errors=True)
     return run

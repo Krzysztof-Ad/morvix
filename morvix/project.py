@@ -26,21 +26,21 @@ class Runner:
     """A named, shareable execution profile (Section 16)."""
 
     name: str
-    groups: List[str] = field(default_factory=list)   # [] means every group
-    cases: List[str] = field(default_factory=list)     # specific case ids; [] means all
-    compare: Optional[str] = None                      # None = project default
-    backend: str = "python"                            # bash | python | valgrind
+    groups: List[str] = field(default_factory=list)  # [] means every group
+    cases: List[str] = field(default_factory=list)  # specific case ids; [] means all
+    compare: Optional[str] = None  # None = project default
+    backend: str = "python"  # bash | python | valgrind
     time: bool = True
     measure_mem: bool = True
     hard_kill: bool = False
     memcheck: bool = False
     diff: bool = True
     color: bool = True
-    verbosity: str = "normal"                          # quiet | normal | verbose
-    report: bool = True                                # show the performance summary after the run
-    slowest: int = 5                                   # how many slowest cases to list
+    verbosity: str = "normal"  # quiet | normal | verbose
+    report: bool = True  # show the performance summary after the run
+    slowest: int = 5  # how many slowest cases to list
     limits: Dict[str, Optional[float]] = field(default_factory=lambda: dict(DEFAULT_LIMITS))
-    result_format: str = "md"                          # md | json | text | none
+    result_format: str = "md"  # md | json | text | none
     result_path: Optional[str] = None
 
     def to_dict(self) -> dict:
@@ -66,7 +66,7 @@ class Runner:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Runner":
-        known = {f for f in cls.__dataclass_fields__}  # type: ignore[attr-defined]
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in d.items() if k in known})
 
 
@@ -79,7 +79,7 @@ class Rival:
 
     name: str
     path: str
-    stress: bool = False                  # use this one as the stress-test oracle
+    stress: bool = False  # use this one as the stress-test oracle
 
     def to_dict(self) -> dict:
         return {"name": self.name, "path": self.path, "stress": self.stress}
@@ -97,13 +97,13 @@ class Project:
     locale: str = "C"
     compare: Dict = field(default_factory=lambda: dict(DEFAULT_COMPARE))
     limits: Dict = field(default_factory=lambda: dict(DEFAULT_LIMITS))
-    languages: Dict[str, dict] = field(default_factory=dict)   # lang -> settings
+    languages: Dict[str, dict] = field(default_factory=dict)  # lang -> settings
     raw_build: Optional[str] = None
     raw_run: Optional[str] = None
-    solution: Optional[str] = None         # current solution under test
-    solution_copied: bool = False          # was it copied in, or referenced in place
-    language: Optional[str] = None         # active language for build/run
-    rivals: List[Rival] = field(default_factory=list)   # perf-comparison solutions
+    solution: Optional[str] = None  # current solution under test
+    solution_copied: bool = False  # was it copied in, or referenced in place
+    language: Optional[str] = None  # active language for build/run
+    rivals: List[Rival] = field(default_factory=list)  # perf-comparison solutions
     cases: List[TestCase] = field(default_factory=list)
     runners: Dict[str, Runner] = field(default_factory=dict)
 
@@ -136,6 +136,7 @@ class Project:
             proj = cls._from_config(root, data)
         elif os.path.exists(os.path.join(root, layout.MANIFEST)):
             from morvix.manifest import adopt_manifest
+
             proj = adopt_manifest(root)
         else:
             raise FileNotFoundError(f"No Morvix project in {root}")
@@ -277,6 +278,7 @@ def _save_runners(root: str, runners: Dict[str, Runner]) -> None:
 
 # --- migrating a pre-0.2 flat project into .morvix/ ---
 
+
 def migrate_legacy_layout(root: str) -> None:
     """Move an old flat layout (config/, tests/, ... at the root) into .morvix/.
 
@@ -331,7 +333,11 @@ def _prefix_copied_paths(root: str) -> None:
     # may still carry a relative path that needs re-homing too.
     for key in ("solution", "bruteforce"):
         v = d.get(key)
-        if v and not os.path.isabs(v) and (v.startswith("solutions" + os.sep) or v.startswith("solutions/")):
+        if (
+            v
+            and not os.path.isabs(v)
+            and (v.startswith("solutions" + os.sep) or v.startswith("solutions/"))
+        ):
             d[key] = _with_state(v)
             changed = True
     if changed:
@@ -376,6 +382,7 @@ def ensure_gitignore(root: str) -> bool:
 
 
 # --- global personal config (Section 25.5) ---
+
 
 def global_config_path() -> str:
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")

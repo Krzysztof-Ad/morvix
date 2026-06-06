@@ -16,10 +16,18 @@ NAME = "import"
 def configure(parser):
     parser.add_argument("path", help="path to the solution file")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--copy", action="store_true", default=False,
-                      help="copy the file into solutions/ (frozen snapshot)")
-    mode.add_argument("--reference", action="store_true", default=False,
-                      help="keep the file in place and track its path (default)")
+    mode.add_argument(
+        "--copy",
+        action="store_true",
+        default=False,
+        help="copy the file into solutions/ (frozen snapshot)",
+    )
+    mode.add_argument(
+        "--reference",
+        action="store_true",
+        default=False,
+        help="keep the file in place and track its path (default)",
+    )
 
 
 def run(ctx, args) -> int:
@@ -43,9 +51,7 @@ def run(ctx, args) -> int:
     elif lang != project.language:
         # - inform the user only when we're actually changing something
         if project.language:
-            ctx.messenger.info(
-                f"Language updated: {project.language} -> {lang}"
-            )
+            ctx.messenger.info(f"Language updated: {project.language} -> {lang}")
         project.language = lang
 
     if args.copy:
@@ -67,9 +73,7 @@ def run(ctx, args) -> int:
     lang_label = f" ({lang})" if lang else ""
     solution_label = os.path.basename(project.solution)
     mode_label = "copied to solutions/" if args.copy else "referenced"
-    ctx.messenger.success(
-        f"Solution set: {solution_label}{lang_label} — {mode_label}"
-    )
+    ctx.messenger.success(f"Solution set: {solution_label}{lang_label} — {mode_label}")
     return 0
 
 

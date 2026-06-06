@@ -5,14 +5,13 @@
 # diff, ...). 'runner new'/'edit' open a guided form; 'runner build' writes the
 # portable runner/ (run.sh + the stdlib Python core) so the profile can ship.
 
-from morvix.compare import list_strategies
-from morvix.components.choice import choose
-from morvix.components.form import run_form, Field
-from morvix.components.selection import select
-from morvix.errors import UserError
-from morvix.project import Runner, DEFAULT_LIMITS
 from morvix import runner_build, suggestions
 from morvix.cases import list_groups
+from morvix.compare import list_strategies
+from morvix.components.form import Field, run_form
+from morvix.components.selection import select
+from morvix.errors import UserError
+from morvix.project import DEFAULT_LIMITS, Runner
 
 NAME = "runner"
 
@@ -35,7 +34,9 @@ def configure(parser):
         help="new | edit | show | list | build | backend (default: list)",
     )
     parser.add_argument("name", nargs="?", help="runner profile name")
-    parser.add_argument("backend_value", nargs="?", help="backend name for 'backend' action (bash|python|valgrind)")
+    parser.add_argument(
+        "backend_value", nargs="?", help="backend name for 'backend' action (bash|python|valgrind)"
+    )
 
 
 def run(ctx, args) -> int:
@@ -59,6 +60,7 @@ def run(ctx, args) -> int:
 
 # --- list ---
 
+
 def _list(ctx, project) -> int:
     if not project.runners:
         ctx.messenger.info("No runner profiles yet.")
@@ -73,18 +75,23 @@ def _list(ctx, project) -> int:
 # One-line summary: backend, comparison and the enabled toggles.
 def _summary(project, runner) -> str:
     compare = runner.compare or f"{project.compare.get('strategy', 'whitespace')} (project default)"
-    toggles = [name for name, on in (
-        ("time", runner.time),
-        ("mem", runner.measure_mem),
-        ("hard-kill", runner.hard_kill),
-        ("memcheck", runner.memcheck),
-        ("diff", runner.diff),
-    ) if on]
+    toggles = [
+        name
+        for name, on in (
+            ("time", runner.time),
+            ("mem", runner.measure_mem),
+            ("hard-kill", runner.hard_kill),
+            ("memcheck", runner.memcheck),
+            ("diff", runner.diff),
+        )
+        if on
+    ]
     toggle_str = ", ".join(toggles) if toggles else "no toggles"
     return f"backend={runner.backend}, compare={compare}, {toggle_str}"
 
 
 # --- show ---
+
 
 def _show(ctx, project, name) -> int:
     runner = _require_runner(project, name, "show")
@@ -93,7 +100,10 @@ def _show(ctx, project, name) -> int:
     cases = ", ".join(runner.cases) if runner.cases else "all cases"
     rows = [
         ("backend", runner.backend),
-        ("compare", runner.compare or f"(project default: {project.compare.get('strategy', 'whitespace')})"),
+        (
+            "compare",
+            runner.compare or f"(project default: {project.compare.get('strategy', 'whitespace')})",
+        ),
         ("groups", groups),
         ("cases", cases),
         ("time", runner.time),
@@ -120,6 +130,7 @@ def _fmt_limit(value):
 
 
 # --- new / edit ---
+
 
 def _new_or_edit(ctx, project, name, action) -> int:
     if not name:
@@ -177,32 +188,87 @@ def _form_runner(ctx, project, name, existing):
     compare_default = base.compare if base.compare is not None else _PROJECT_DEFAULT
 
     fields = [
-        Field("backend", "Backend", "choice",
-              choices=[(b, b) for b in _BACKENDS], default=base.backend,
-              help="how tests run: bash (coarse), python (precise), valgrind (+memcheck)"),
-        Field("compare", "Comparison", "choice",
-              choices=compare_choices, default=compare_default,
-              help="output comparison strategy, or the project default"),
+        Field(
+            "backend",
+            "Backend",
+            "choice",
+            choices=[(b, b) for b in _BACKENDS],
+            default=base.backend,
+            help="how tests run: bash (coarse), python (precise), valgrind (+memcheck)",
+        ),
+        Field(
+            "compare",
+            "Comparison",
+            "choice",
+            choices=compare_choices,
+            default=compare_default,
+            help="output comparison strategy, or the project default",
+        ),
         Field("time", "Measure time", "bool", default=base.time, help="record per-run wall time"),
-        Field("measure_mem", "Measure memory", "bool", default=base.measure_mem,
-              help="record approximate peak memory"),
-        Field("hard_kill", "Hard kill on limit", "bool", default=base.hard_kill,
-              help="enforce limits with hard rlimit caps"),
-        Field("memcheck", "Memory check", "bool", default=base.memcheck,
-              help="run Valgrind memory-correctness check (valgrind backend)"),
+        Field(
+            "measure_mem",
+            "Measure memory",
+            "bool",
+            default=base.measure_mem,
+            help="record approximate peak memory",
+        ),
+        Field(
+            "hard_kill",
+            "Hard kill on limit",
+            "bool",
+            default=base.hard_kill,
+            help="enforce limits with hard rlimit caps",
+        ),
+        Field(
+            "memcheck",
+            "Memory check",
+            "bool",
+            default=base.memcheck,
+            help="run Valgrind memory-correctness check (valgrind backend)",
+        ),
         Field("diff", "Show diff", "bool", default=base.diff, help="show output diffs on failure"),
-        Field("report", "Performance summary", "bool", default=base.report,
-              help="print total/avg/min/max time, peak memory and slowest cases after the run"),
-        Field("slowest", "Slowest cases to list", "int", default=base.slowest,
-              help="how many slowest cases the performance summary lists"),
-        Field("verbosity", "Verbosity", "choice",
-              choices=[(v, v) for v in _VERBOSITIES], default=base.verbosity),
-        Field("result_format", "Result format", "choice",
-              choices=[(f, f) for f in _RESULT_FORMATS], default=base.result_format),
-        Field("wall", "Wall limit (s, blank = unset)", "float",
-              default=base.limits.get("wall"), help="seconds; blank leaves it unset"),
-        Field("cpu", "CPU limit (s, blank = unset)", "float",
-              default=base.limits.get("cpu"), help="seconds; blank leaves it unset"),
+        Field(
+            "report",
+            "Performance summary",
+            "bool",
+            default=base.report,
+            help="print total/avg/min/max time, peak memory and slowest cases after the run",
+        ),
+        Field(
+            "slowest",
+            "Slowest cases to list",
+            "int",
+            default=base.slowest,
+            help="how many slowest cases the performance summary lists",
+        ),
+        Field(
+            "verbosity",
+            "Verbosity",
+            "choice",
+            choices=[(v, v) for v in _VERBOSITIES],
+            default=base.verbosity,
+        ),
+        Field(
+            "result_format",
+            "Result format",
+            "choice",
+            choices=[(f, f) for f in _RESULT_FORMATS],
+            default=base.result_format,
+        ),
+        Field(
+            "wall",
+            "Wall limit (s, blank = unset)",
+            "float",
+            default=base.limits.get("wall"),
+            help="seconds; blank leaves it unset",
+        ),
+        Field(
+            "cpu",
+            "CPU limit (s, blank = unset)",
+            "float",
+            default=base.limits.get("cpu"),
+            help="seconds; blank leaves it unset",
+        ),
     ]
 
     result = run_form(ctx, f"Runner '{name}'", fields)
@@ -237,6 +303,7 @@ def _default_runner(name) -> Runner:
 
 # --- build ---
 
+
 def _build(ctx, project, name) -> int:
     runner = _require_runner(project, name, "build")
     runner_dir = runner_build.build_runner(project, runner)
@@ -254,11 +321,12 @@ def _build(ctx, project, name) -> int:
 
 # --- backend ---
 
+
 def _set_backend(ctx, project, name, backend_value) -> int:
     # Positional order after 'backend': first extra arg -> name (= backend token),
     # second extra arg -> backend_value (= runner name).  Rename for clarity.
-    backend_token = name        # e.g. "python"
-    runner_name = backend_value # e.g. "q" (optional)
+    backend_token = name  # e.g. "python"
+    runner_name = backend_value  # e.g. "q" (optional)
 
     if not backend_token:
         raise UserError(
@@ -299,6 +367,7 @@ def _set_backend(ctx, project, name, backend_value) -> int:
 
 
 # --- helpers ---
+
 
 def _require_runner(project, name, action) -> Runner:
     if not name:

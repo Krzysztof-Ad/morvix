@@ -18,16 +18,16 @@ from typing import Dict, List, Optional
 class CaseResult:
     case_id: str
     group: str
-    status: str                       # "pass" | "fail" | "skip" | "error"
-    verdict: str = ""                 # short human reason
+    status: str  # "pass" | "fail" | "skip" | "error"
+    verdict: str = ""  # short human reason
     exit_code: Optional[int] = None
     signal: Optional[str] = None
     timed_out: bool = False
     wall_time: float = 0.0
     cpu_time: float = 0.0
     peak_mem_kb: int = 0
-    diff: Optional[str] = None        # unified diff when available
-    memcheck: Optional[bool] = None   # valgrind verdict; None if not run
+    diff: Optional[str] = None  # unified diff when available
+    memcheck: Optional[bool] = None  # valgrind verdict; None if not run
 
     @property
     def passed(self) -> bool:
@@ -56,11 +56,16 @@ class CaseResult:
     @classmethod
     def from_dict(cls, d: dict) -> "CaseResult":
         return cls(
-            case_id=d.get("case", ""), group=d.get("group", ""),
-            status=d.get("status", "pass"), verdict=d.get("verdict", ""),
-            exit_code=d.get("exit_code"), signal=d.get("signal"),
-            timed_out=d.get("timed_out", False), wall_time=d.get("wall_time", 0.0),
-            cpu_time=d.get("cpu_time", 0.0), peak_mem_kb=d.get("peak_mem_kb", 0),
+            case_id=d.get("case", ""),
+            group=d.get("group", ""),
+            status=d.get("status", "pass"),
+            verdict=d.get("verdict", ""),
+            exit_code=d.get("exit_code"),
+            signal=d.get("signal"),
+            timed_out=d.get("timed_out", False),
+            wall_time=d.get("wall_time", 0.0),
+            cpu_time=d.get("cpu_time", 0.0),
+            peak_mem_kb=d.get("peak_mem_kb", 0),
             memcheck=d.get("memcheck"),
         )
 
@@ -71,7 +76,7 @@ class RunResult:
     runner: Optional[str] = None
     cases: List[CaseResult] = field(default_factory=list)
     started_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
-    memory_note: str = "peak, approximate"   # honest label (Section 15.1)
+    memory_note: str = "peak, approximate"  # honest label (Section 15.1)
 
     # --- summaries ---
 
@@ -104,14 +109,18 @@ class RunResult:
     @classmethod
     def from_json(cls, d: dict) -> "RunResult":
         """Reconstruct a run from its exported JSON (for precomputed rivals)."""
-        r = cls(solution=d.get("solution", ""), runner=d.get("runner"),
-                started_at=d.get("started_at", ""),
-                memory_note=d.get("memory_note", "peak, approximate"))
+        r = cls(
+            solution=d.get("solution", ""),
+            runner=d.get("runner"),
+            started_at=d.get("started_at", ""),
+            memory_note=d.get("memory_note", "peak, approximate"),
+        )
         r.cases = [CaseResult.from_dict(c) for c in d.get("cases", [])]
         return r
 
 
 # --- formatting (shared by every renderer) ---
+
 
 def fmt_secs(seconds: float) -> str:
     return "%.3fs" % seconds
@@ -131,11 +140,16 @@ def pct(passed: int, total: int) -> str:
 
 # --- performance aggregation (the single source for perf figures) ---
 
+
 def _stats(values):
     if not values:
         return {"total": 0.0, "avg": 0.0, "min": 0.0, "max": 0.0}
-    return {"total": sum(values), "avg": sum(values) / len(values),
-            "min": min(values), "max": max(values)}
+    return {
+        "total": sum(values),
+        "avg": sum(values) / len(values),
+        "min": min(values),
+        "max": max(values),
+    }
 
 
 def performance(run: RunResult, slowest_n: int = 5) -> dict:
@@ -145,8 +159,9 @@ def performance(run: RunResult, slowest_n: int = 5) -> dict:
     cpus = [c.cpu_time for c in cases]
     mems = [c.peak_mem_kb for c in cases]
     have_mem = any(m > 0 for m in mems)
-    slowest = sorted((c for c in cases if c.wall_time > 0),
-                     key=lambda c: c.wall_time, reverse=True)[:slowest_n]
+    slowest = sorted(
+        (c for c in cases if c.wall_time > 0), key=lambda c: c.wall_time, reverse=True
+    )[:slowest_n]
     return {
         "cases": len(cases),
         "wall": _stats(walls),
@@ -156,8 +171,9 @@ def performance(run: RunResult, slowest_n: int = 5) -> dict:
     }
 
 
-def perf_lines(run: RunResult, slowest_n: int = 5, show_time: bool = True,
-               show_mem: bool = True) -> List[str]:
+def perf_lines(
+    run: RunResult, slowest_n: int = 5, show_time: bool = True, show_mem: bool = True
+) -> List[str]:
     """Plain-text performance block, reused by the terminal table and exports."""
     p = performance(run, slowest_n)
     if not p["cases"]:
@@ -165,21 +181,28 @@ def perf_lines(run: RunResult, slowest_n: int = 5, show_time: bool = True,
     lines = ["Performance:"]
     if show_time:
         w = p["wall"]
-        lines.append("  wall   total %s   avg %s   min %s   max %s" % (
-            fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"])))
+        lines.append(
+            "  wall   total %s   avg %s   min %s   max %s"
+            % (fmt_secs(w["total"]), fmt_secs(w["avg"]), fmt_secs(w["min"]), fmt_secs(w["max"]))
+        )
         c = p["cpu"]
         lines.append("  cpu    total %s   max %s" % (fmt_secs(c["total"]), fmt_secs(c["max"])))
     if show_mem and p["memory_kb"]:
         m = p["memory_kb"]
-        lines.append("  memory max %s   avg %s   (%s)" % (
-            fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])), run.memory_note))
+        lines.append(
+            "  memory max %s   avg %s   (%s)"
+            % (fmt_mem_kb(m["max"]), fmt_mem_kb(int(m["avg"])), run.memory_note)
+        )
     if p["slowest"]:
-        lines.append("  slowest " + ", ".join(
-            "%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"]))
+        lines.append(
+            "  slowest "
+            + ", ".join("%s %s" % (s["case"], fmt_secs(s["wall_time"])) for s in p["slowest"])
+        )
     return lines
 
 
 # --- exports ---
+
 
 def to_json(run: RunResult) -> dict:
     groups = {
@@ -191,8 +214,12 @@ def to_json(run: RunResult) -> dict:
         "runner": run.runner,
         "started_at": run.started_at,
         "memory_note": run.memory_note,
-        "summary": {"passed": run.passed, "failed": run.failed,
-                    "skipped": run.skipped, "total": run.total},
+        "summary": {
+            "passed": run.passed,
+            "failed": run.failed,
+            "skipped": run.skipped,
+            "total": run.total,
+        },
         "groups": groups,
         "performance": performance(run),
         "cases": [c.to_dict() for c in run.cases],
@@ -220,23 +247,36 @@ def to_markdown(run: RunResult) -> str:
     p = performance(run)
     if p["cases"]:
         w, c = p["wall"], p["cpu"]
-        lines += ["", "## Performance", "",
-                  f"- Wall time: total {fmt_secs(w['total'])}, avg {fmt_secs(w['avg'])}, "
-                  f"min {fmt_secs(w['min'])}, max {fmt_secs(w['max'])}",
-                  f"- CPU time: total {fmt_secs(c['total'])}, max {fmt_secs(c['max'])}"]
+        lines += [
+            "",
+            "## Performance",
+            "",
+            f"- Wall time: total {fmt_secs(w['total'])}, avg {fmt_secs(w['avg'])}, "
+            f"min {fmt_secs(w['min'])}, max {fmt_secs(w['max'])}",
+            f"- CPU time: total {fmt_secs(c['total'])}, max {fmt_secs(c['max'])}",
+        ]
         if p["memory_kb"]:
             m = p["memory_kb"]
-            lines.append(f"- Peak memory: max {fmt_mem_kb(m['max'])}, avg {fmt_mem_kb(int(m['avg']))}")
+            lines.append(
+                f"- Peak memory: max {fmt_mem_kb(m['max'])}, avg {fmt_mem_kb(int(m['avg']))}"
+            )
         if p["slowest"]:
-            lines.append("- Slowest: "
-                         + ", ".join(f"{s['case']} ({fmt_secs(s['wall_time'])})" for s in p["slowest"]))
+            lines.append(
+                "- Slowest: "
+                + ", ".join(f"{s['case']} ({fmt_secs(s['wall_time'])})" for s in p["slowest"])
+            )
 
-    lines += ["", "## Cases", "", "| Case | Status | Time | Peak mem | Notes |",
-              "| --- | --- | --- | --- | --- |"]
+    lines += [
+        "",
+        "## Cases",
+        "",
+        "| Case | Status | Time | Peak mem | Notes |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for c in run.cases:
         note = c.verdict
         if c.memcheck is not None:
-            note += (" / mem ok" if c.memcheck else " / mem error")
+            note += " / mem ok" if c.memcheck else " / mem error"
         lines.append(
             f"| {c.case_id} | {c.status} | {fmt_secs(c.wall_time)} | {fmt_mem_kb(c.peak_mem_kb)} | {note} |"
         )
@@ -244,11 +284,13 @@ def to_markdown(run: RunResult) -> str:
 
 
 def to_text(run: RunResult) -> str:
-    lines = [f"Test results: {run.solution}",
-             f"  {run.passed}/{run.total} passed ({pct(run.passed, run.total)})"
-             + (f", {run.failed} failed" if run.failed else "")
-             + (f", {run.skipped} skipped" if run.skipped else ""),
-             ""]
+    lines = [
+        f"Test results: {run.solution}",
+        f"  {run.passed}/{run.total} passed ({pct(run.passed, run.total)})"
+        + (f", {run.failed} failed" if run.failed else "")
+        + (f", {run.skipped} skipped" if run.skipped else ""),
+        "",
+    ]
     for c in run.cases:
         mark = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP", "error": "ERR "}.get(c.status, "?")
         line = f"  [{mark}] {c.case_id}  {fmt_secs(c.wall_time)}"
@@ -279,6 +321,7 @@ def export(run: RunResult, fmt: str) -> str:
 #
 # A rival column is {label, run: RunResult, precomputed: bool, env: str}.
 
+
 def _cmp_cell(cr, show_mem):
     if cr is None:
         return "-"
@@ -294,7 +337,9 @@ def _cmp_cell(cr, show_mem):
 
 def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
     """Text lines comparing the solution against each rival."""
-    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(rival_cols)
+    cols = [{"label": "solution", "run": main_run, "precomputed": False, "env": ""}] + list(
+        rival_cols
+    )
     lines = []
 
     if per_case:
@@ -328,7 +373,9 @@ def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
         if show_mem:
             bits += "  peak %s" % (fmt_mem_kb(p["memory_kb"]["max"]) if p["memory_kb"] else "n/a")
         ratio = "" if c["label"] == "solution" else "  %.2fx" % (p["wall"]["total"] / main_total)
-        note = "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        note = (
+            "  %d/%d pass" % (run.passed, run.total) if run.total and run.passed < run.total else ""
+        )
         tag = ""
         if c.get("precomputed"):
             tag = "  [precomputed: %s]" % c["env"] if c.get("env") else "  [precomputed]"
@@ -338,10 +385,21 @@ def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
 
 def comparison_json(main_run, rival_cols):
     return {
-        "solution": {"name": "solution", "passed": main_run.passed,
-                     "total": main_run.total, "performance": performance(main_run)},
-        "rivals": [{"name": c["label"], "precomputed": c.get("precomputed", False),
-                    "env": c.get("env", ""), "passed": c["run"].passed,
-                    "total": c["run"].total, "performance": performance(c["run"])}
-                   for c in rival_cols],
+        "solution": {
+            "name": "solution",
+            "passed": main_run.passed,
+            "total": main_run.total,
+            "performance": performance(main_run),
+        },
+        "rivals": [
+            {
+                "name": c["label"],
+                "precomputed": c.get("precomputed", False),
+                "env": c.get("env", ""),
+                "passed": c["run"].passed,
+                "total": c["run"].total,
+                "performance": performance(c["run"]),
+            }
+            for c in rival_cols
+        ],
     }

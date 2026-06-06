@@ -60,6 +60,7 @@ def run(ctx, args) -> int:
 
 # --- action handlers ---
 
+
 def _record(ctx, name):
     wf_name = name or "workflow"
     ctx.recorder = wf.WorkflowRecorder(wf_name)
@@ -122,6 +123,7 @@ def _edit(ctx, project, name):
 
 
 # --- autocomplete ---
+
 
 def complete(ctx, prev_words, word):
     # - first meaningful token after "workflow": suggest actions

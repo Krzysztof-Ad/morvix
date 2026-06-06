@@ -42,16 +42,16 @@ _MAXRSS_IS_BYTES = sys.platform == "darwin"
 class ProcessResult:
     """Everything observable about one run of a program."""
 
-    exit_code: Optional[int]      # None if the process was killed by a signal
-    term_signal: Optional[int]    # the signal number, if it was signalled
-    timed_out: bool               # we killed it for exceeding the wall limit
-    wall_time: float              # seconds, measured by us
-    cpu_time: float               # user + system CPU seconds
-    peak_mem_kb: int              # peak RSS in kilobytes (approximate)
+    exit_code: Optional[int]  # None if the process was killed by a signal
+    term_signal: Optional[int]  # the signal number, if it was signalled
+    timed_out: bool  # we killed it for exceeding the wall limit
+    wall_time: float  # seconds, measured by us
+    cpu_time: float  # user + system CPU seconds
+    peak_mem_kb: int  # peak RSS in kilobytes (approximate)
     stdout: bytes
     stderr: bytes
-    output_truncated: bool        # output hit the cap and was cut off
-    mem_exceeded: bool            # best-effort: looks like it was killed for memory
+    output_truncated: bool  # output hit the cap and was cut off
+    mem_exceeded: bool  # best-effort: looks like it was killed for memory
 
     @property
     def signaled(self) -> bool:
@@ -86,7 +86,9 @@ def require_tool(name: str, install_hint: Optional[str] = None) -> str:
     return path
 
 
-def base_env(locale: Optional[str] = "C", overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def base_env(
+    locale: Optional[str] = "C", overrides: Optional[Dict[str, str]] = None
+) -> Dict[str, str]:
     """Build the environment for a run.
 
     Starts from the current environment, pins the locale (C by default, the

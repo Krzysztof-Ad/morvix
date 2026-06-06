@@ -15,7 +15,7 @@ from morvix.context import Context
 from morvix.judge import judge, select_cases
 from morvix.project import Project, ensure_gitignore
 
-NOOP_PY = "import sys\nsys.stdin.read()\n"   # reads input, prints nothing
+NOOP_PY = "import sys\nsys.stdin.read()\n"  # reads input, prints nothing
 SUM_ALL_PY = "import sys\nprint(sum(int(x) for x in sys.stdin.read().split()))\n"
 
 
@@ -27,6 +27,7 @@ def _capturing_ctx(root):
 
 
 # --- .morvix/ layout ---
+
 
 def test_create_uses_hidden_state_dir(tmp_path):
     Project.create(str(tmp_path), "t")
@@ -42,15 +43,32 @@ def test_legacy_flat_project_migrates_on_load(tmp_path):
     (tmp_path / "tests" / "baseline").mkdir(parents=True)
     (tmp_path / "expected" / "baseline").mkdir(parents=True)
     (tmp_path / "sol.py").write_text(SUM_ALL_PY)
-    (tmp_path / "config" / "project.json").write_text(json.dumps({
-        "name": "old", "language": "python", "model": "stdio",
-        "solution": str(tmp_path / "sol.py"), "reference": str(tmp_path / "sol.py"),
-    }))
-    (tmp_path / "config" / "cases.json").write_text(json.dumps({"cases": [
-        {"name": "a", "group": "baseline", "manual": True,
-         "inputs": {"stdin": "tests/baseline/a.in"},
-         "expected_output": "expected/baseline/a.out"}
-    ]}))
+    (tmp_path / "config" / "project.json").write_text(
+        json.dumps(
+            {
+                "name": "old",
+                "language": "python",
+                "model": "stdio",
+                "solution": str(tmp_path / "sol.py"),
+                "reference": str(tmp_path / "sol.py"),
+            }
+        )
+    )
+    (tmp_path / "config" / "cases.json").write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "name": "a",
+                        "group": "baseline",
+                        "manual": True,
+                        "inputs": {"stdin": "tests/baseline/a.in"},
+                        "expected_output": "expected/baseline/a.out",
+                    }
+                ]
+            }
+        )
+    )
     (tmp_path / "tests" / "baseline" / "a.in").write_text("1 2 3\n")
     (tmp_path / "expected" / "baseline" / "a.out").write_text("6\n")
 
@@ -62,8 +80,9 @@ def test_legacy_flat_project_migrates_on_load(tmp_path):
     assert not (tmp_path / "tests").exists()
     # Case paths were rewritten and still resolve.
     case = proj.cases[0]
-    assert case.inputs["stdin"].startswith(".morvix" + os.sep) or \
-        case.inputs["stdin"].startswith(".morvix/")
+    assert case.inputs["stdin"].startswith(".morvix" + os.sep) or case.inputs["stdin"].startswith(
+        ".morvix/"
+    )
     assert os.path.exists(case.input_abspath(str(tmp_path)))
     # And the migrated project still judges correctly.
     run = judge(proj, proj.solution, "python", select_cases(proj))
@@ -72,8 +91,10 @@ def test_legacy_flat_project_migrates_on_load(tmp_path):
 
 # --- .gitignore ---
 
+
 def test_init_writes_gitignore(tmp_path, make_ctx):
     from morvix import registry
+
     ctx = make_ctx(tmp_path)
     registry.safe_dispatch(ctx, ["init", "--name", "g", "--language", "python"])
     gi = tmp_path / ".gitignore"
@@ -88,14 +109,16 @@ def test_ensure_gitignore_never_clobbers(tmp_path):
     existing.write_text("my own rules\n")
     created = ensure_gitignore(str(tmp_path))
     assert created is False
-    assert existing.read_text() == "my own rules\n"   # left untouched
+    assert existing.read_text() == "my own rules\n"  # left untouched
 
 
 # --- flat package + receiver-with-morvix adoption ---
 
+
 def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
-    from morvix import packaging
     import zipfile
+
+    from morvix import packaging
 
     sol = tmp_path / "sol.py"
     sol.write_text(SUM_ALL_PY)
@@ -110,8 +133,15 @@ def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
         os.makedirs(os.path.dirname(proj.abspath(erel)), exist_ok=True)
         open(proj.abspath(irel), "w").write(inp + "\n")
         open(proj.abspath(erel), "w").write(out + "\n")
-        proj.add_case(TestCase(name=name, group="baseline", manual=True,
-                               inputs={"stdin": irel}, expected_output=erel))
+        proj.add_case(
+            TestCase(
+                name=name,
+                group="baseline",
+                manual=True,
+                inputs={"stdin": irel},
+                expected_output=erel,
+            )
+        )
     proj.save()
     ctx = make_ctx(tmp_path)
     ctx.project = proj
@@ -123,10 +153,10 @@ def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
     recv.mkdir()
     with zipfile.ZipFile(out_zip) as z:
         z.extractall(str(recv))
-    assert (recv / "morvix.json").exists()          # flat, visible
+    assert (recv / "morvix.json").exists()  # flat, visible
     assert not (recv / ".morvix").exists()
 
-    loaded = Project.load(str(recv))                # adopts/migrates into .morvix/
+    loaded = Project.load(str(recv))  # adopts/migrates into .morvix/
     assert len(loaded.cases) == 2
     c = loaded.cases[0]
     assert os.path.exists(c.input_abspath(str(recv)))
@@ -139,6 +169,7 @@ def test_receiver_with_morvix_adopts_flat_package(tmp_path, make_ctx):
 
 
 # --- generator scaffold ---
+
 
 def test_new_generator_scaffold(tmp_path):
     proj = Project.create(str(tmp_path), "t")
@@ -157,9 +188,10 @@ def test_new_generator_scaffold(tmp_path):
 
 # --- degenerate-output warning ---
 
+
 def test_warns_when_expected_outputs_are_empty(tmp_path):
     sol = tmp_path / "noop.py"
-    sol.write_text(NOOP_PY)            # never prints anything
+    sol.write_text(NOOP_PY)  # never prints anything
     proj = Project.create(str(tmp_path), "t")
     proj.language = "python"
     proj.model = "stdio"

@@ -9,13 +9,13 @@ import tempfile
 
 from morvix.compare import CompareInput, Verdict, make_diff, register_comparator
 
-
 # --- float (Section 14.3) ---
 #
 # Tokenise both sides by whitespace and compare pairwise:
 # - numeric pairs: pass if within eps_abs OR within eps_rel * max(|a|, |b|)
 # - non-numeric pairs: must be byte-for-byte equal
 # - token-count mismatch: immediate failure
+
 
 def _float(ci: CompareInput) -> Verdict:
     eps_abs = ci.params.get("epsilon_abs", 1e-6)
@@ -25,9 +25,7 @@ def _float(ci: CompareInput) -> Verdict:
     exp_tokens = ci.expected.decode("utf-8", "replace").split()
 
     if len(obs_tokens) != len(exp_tokens):
-        detail = (
-            f"token count mismatch: expected {len(exp_tokens)}, got {len(obs_tokens)}"
-        )
+        detail = f"token count mismatch: expected {len(exp_tokens)}, got {len(obs_tokens)}"
         return Verdict(False, detail, diff=make_diff(ci.expected, ci.observed))
 
     for i, (a_tok, b_tok) in enumerate(zip(exp_tokens, obs_tokens)):
@@ -57,6 +55,7 @@ def _float(ci: CompareInput) -> Verdict:
 # Compute sha256 of the observed bytes; compare against case.expected_hash.
 # No diff is produced for hash comparisons.
 
+
 def _hash(ci: CompareInput) -> Verdict:
     observed_hex = hashlib.sha256(ci.observed).hexdigest()
     expected_hex = ci.case.expected_hash or ""
@@ -71,6 +70,7 @@ def _hash(ci: CompareInput) -> Verdict:
 # Delegate to an external special-judge program. The checker receives:
 #   [checker_path, input_file, observed_file]
 # Exit 0 means accepted; any other exit means rejected.
+
 
 def _checker(ci: CompareInput) -> Verdict:
     checker_path = ci.params.get("checker")

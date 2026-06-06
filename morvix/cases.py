@@ -22,23 +22,23 @@ class TestCase:
 
     name: str
     group: str
-    manual: bool = False                       # hand-written & permanent vs generated & disposable
+    manual: bool = False  # hand-written & permanent vs generated & disposable
 
     # Inputs: logical name -> path relative to tests/<group>/. The stdio model
     # uses the key "stdin"; a case may carry several named inputs at once.
     inputs: Dict[str, str] = field(default_factory=dict)
-    args: List[str] = field(default_factory=list)   # argv, for the 'args' model
+    args: List[str] = field(default_factory=list)  # argv, for the 'args' model
 
     # Expected behaviour. Several dimensions can be set at once and the judge
     # requires all enabled ones to pass (Section 14.7).
-    expected_output: Optional[str] = None      # path under expected/ (full output)
-    expected_hash: Optional[str] = None        # hex digest, when hashing instead
-    expected_exit: Optional[int] = None        # expected exit code (None = expect clean 0)
-    expected_signal: Optional[str] = None      # expected terminating signal, e.g. "SIGSEGV"
+    expected_output: Optional[str] = None  # path under expected/ (full output)
+    expected_hash: Optional[str] = None  # hex digest, when hashing instead
+    expected_exit: Optional[int] = None  # expected exit code (None = expect clean 0)
+    expected_signal: Optional[str] = None  # expected terminating signal, e.g. "SIGSEGV"
     expected_files: Dict[str, str] = field(default_factory=dict)  # produced name -> expected path
 
-    compare: Optional[str] = None              # per-case comparison override
-    limits: Dict[str, float] = field(default_factory=dict)        # per-case limit overrides
+    compare: Optional[str] = None  # per-case comparison override
+    limits: Dict[str, float] = field(default_factory=dict)  # per-case limit overrides
 
     @property
     def id(self) -> str:
@@ -66,8 +66,13 @@ class TestCase:
             val = getattr(self, key)
             if val:
                 d[key] = val
-        for key in ("expected_output", "expected_hash", "expected_exit",
-                    "expected_signal", "compare"):
+        for key in (
+            "expected_output",
+            "expected_hash",
+            "expected_exit",
+            "expected_signal",
+            "compare",
+        ):
             val = getattr(self, key)
             if val is not None:
                 d[key] = val

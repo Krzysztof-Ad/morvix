@@ -12,10 +12,10 @@
 import random
 import string
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _lo_hi(params):
     return params.get("lo", 0), params.get("hi", 1_000_000)
@@ -45,6 +45,7 @@ def _apply_layout(nums, layout, rng):
 # ---------------------------------------------------------------------------
 # Shape functions — each returns the full input text as a string
 # ---------------------------------------------------------------------------
+
 
 def _shape_int(rng, params):
     lo, hi = _lo_hi(params)
@@ -187,10 +188,7 @@ def _shape_grid(rng, params):
     rows = int(params.get("rows", rng.randint(1, 10)))
     cols = int(params.get("cols", rng.randint(1, 10)))
     alphabet = list(params.get("alphabet", ".#"))
-    grid_lines = [
-        "".join(rng.choice(alphabet) for _ in range(cols))
-        for _ in range(rows)
-    ]
+    grid_lines = ["".join(rng.choice(alphabet) for _ in range(cols)) for _ in range(rows)]
     header = f"{rows} {cols}"
     return "\n".join([header] + grid_lines)
 
@@ -217,7 +215,9 @@ def _shape_edge(rng, params):
         # alternating lo and hi
         nums = [lo if i % 2 == 0 else hi for i in range(n)]
         return str(n) + "\n" + "\n".join(str(x) for x in nums)
-    raise ValueError(f"Unknown edge kind '{kind}'. Choose: empty, single, max, all_equal, boundary.")
+    raise ValueError(
+        f"Unknown edge kind '{kind}'. Choose: empty, single, max, all_equal, boundary."
+    )
 
 
 # ---------------------------------------------------------------------------

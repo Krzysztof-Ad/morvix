@@ -9,10 +9,10 @@ import pytest
 
 from morvix.registry import safe_dispatch
 
-
 # ---------------------------------------------------------------------------
 # init command
 # ---------------------------------------------------------------------------
+
 
 def test_init_creates_project_json(tmp_path, make_ctx):
     """init --name t --language python creates config/project.json and sets ctx.project."""
@@ -40,6 +40,7 @@ def test_init_idempotent(tmp_path, make_ctx):
 # import command
 # ---------------------------------------------------------------------------
 
+
 def test_import_sets_solution(tmp_path, make_ctx):
     """After init + import, ctx.project.solution is set to the absolute path."""
     ctx = make_ctx(tmp_path)
@@ -59,6 +60,7 @@ def test_import_sets_solution(tmp_path, make_ctx):
 # gen --random / gen --expected / run --all pipeline
 # ---------------------------------------------------------------------------
 
+
 def test_gen_random_and_run(tmp_path, make_ctx):
     """Full pipeline: init -> import -> gen --random -> gen --expected -> run --all."""
     ctx = make_ctx(tmp_path)
@@ -73,13 +75,21 @@ def test_gen_random_and_run(tmp_path, make_ctx):
 
     ctx.reload_project()
 
-    rc = safe_dispatch(ctx, [
-        "gen", "--random",
-        "--shape", "array",
-        "--count", "3",
-        "--param", "count=2",
-        "--param", "hi=20",
-    ])
+    rc = safe_dispatch(
+        ctx,
+        [
+            "gen",
+            "--random",
+            "--shape",
+            "array",
+            "--count",
+            "3",
+            "--param",
+            "count=2",
+            "--param",
+            "hi=20",
+        ],
+    )
     assert rc == 0
     ctx.reload_project()
     assert len(ctx.project.cases) == 3
@@ -94,6 +104,7 @@ def test_gen_random_and_run(tmp_path, make_ctx):
 # ---------------------------------------------------------------------------
 # gen --manual case + gen --expected + run
 # ---------------------------------------------------------------------------
+
 
 def test_gen_manual_case_and_run(tmp_path, make_ctx):
     """Manual case: write input, gen --expected, run --all passes."""
@@ -128,6 +139,7 @@ def test_gen_manual_case_and_run(tmp_path, make_ctx):
 # status command
 # ---------------------------------------------------------------------------
 
+
 def test_status_no_project(tmp_path, make_ctx):
     """status without a project returns 0 and does not crash."""
     ctx = make_ctx(tmp_path)
@@ -146,6 +158,7 @@ def test_status_with_project(tmp_path, make_ctx):
 # ---------------------------------------------------------------------------
 # help command
 # ---------------------------------------------------------------------------
+
 
 def test_help_returns_0(tmp_path, make_ctx):
     """help with no arguments returns 0."""

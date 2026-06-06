@@ -3,18 +3,18 @@
 # Models: stdio (stdin->stdout), library (link & assert), args (argv),
 #         file (file in/out), interactive (converses with a judge).
 
-from morvix.models import list_models
 from morvix.components.choice import choose
 from morvix.errors import UserError
+from morvix.models import list_models
 
 NAME = "model"
 
 # Short descriptions shown in the interactive picker
 _DESCRIPTIONS = {
-    "stdio":       "stdin -> stdout",
-    "library":     "link & assert",
-    "args":        "argv in / stdout out",
-    "file":        "file in / file out",
+    "stdio": "stdin -> stdout",
+    "library": "link & assert",
+    "args": "argv in / stdout out",
+    "file": "file in / file out",
     "interactive": "converses with a judge",
 }
 

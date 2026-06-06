@@ -21,7 +21,11 @@ class Messenger:
 
     def _line(self, role: str, text: str):
         marker = GLYPHS.get(role, "-")
-        self.console.print(Text.assemble((f"{marker} ", role), (text, role if role in ("error", "success") else "")))
+        self.console.print(
+            Text.assemble(
+                (f"{marker} ", role), (text, role if role in ("error", "success") else "")
+            )
+        )
 
     def error(self, message: str, hint: Optional[str] = None):
         # What failed, then (when we have one) the fix, on its own indented line.
@@ -30,15 +34,19 @@ class Messenger:
             self.console.print(Text(f"  {hint}", style="muted"))
 
     def warning(self, message: str, hint: Optional[str] = None):
-        self.console.print(Text.assemble((f"{GLYPHS['warning']} ", "warning"), (message, "warning")))
+        self.console.print(
+            Text.assemble((f"{GLYPHS['warning']} ", "warning"), (message, "warning"))
+        )
         if hint:
             self.console.print(Text(f"  {hint}", style="muted"))
 
     def success(self, message: str):
-        self.console.print(Text.assemble((f"{GLYPHS['success']} ", "success"), (message, "success")))
+        self.console.print(
+            Text.assemble((f"{GLYPHS['success']} ", "success"), (message, "success"))
+        )
 
     def info(self, message: str):
-        self.console.print(Text.assemble((f"{GLYPHS['info']} ", "muted"), (message,)))
+        self.console.print(Text.assemble((f"{GLYPHS['info']} ", "muted"), message))
 
     def plain(self, message: str = ""):
         self.console.print(message)

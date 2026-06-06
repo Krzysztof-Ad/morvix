@@ -16,8 +16,7 @@ import sys
 
 from prompt_toolkit.completion import Completer, Completion
 
-from morvix import registry
-from morvix import theme
+from morvix import registry, theme
 from morvix.banner import print_banner
 from morvix.context import Context
 
@@ -42,7 +41,7 @@ def _build_session(ctx: Context):
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.styles import Style
 
-    session = PromptSession(
+    session: PromptSession = PromptSession(
         completer=MorvixCompleter(ctx),
         complete_while_typing=True,
         history=FileHistory(HISTORY_PATH),

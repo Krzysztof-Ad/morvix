@@ -13,8 +13,8 @@ import os
 import sys
 
 from morvix import process
-from morvix.models import ExecEnv, Observation, limits_to_kwargs, register_model, run_env
 from morvix.cases import TestCase
+from morvix.models import ExecEnv, Observation, limits_to_kwargs, register_model, run_env
 from morvix.process import ProcessResult
 
 

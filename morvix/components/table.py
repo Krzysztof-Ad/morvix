@@ -71,8 +71,9 @@ def _print_summary(console, run, show_perf, show_time, show_mem, slowest_n):
 
 
 class RunTable:
-    def __init__(self, console, live=True, show_time=True, show_mem=True,
-                 show_perf=True, slowest_n=5):
+    def __init__(
+        self, console, live=True, show_time=True, show_mem=True, show_perf=True, slowest_n=5
+    ):
         self._console = console
         self._show_time = show_time
         self._show_mem = show_mem
@@ -96,12 +97,17 @@ class RunTable:
             self._live.stop()
         else:
             self._console.print(self._table)
-        _print_summary(self._console, run_result, self._show_perf,
-                       self._show_time, self._show_mem, self._slowest_n)
+        _print_summary(
+            self._console,
+            run_result,
+            self._show_perf,
+            self._show_time,
+            self._show_mem,
+            self._slowest_n,
+        )
 
 
-def render_run(console, run_result, show_time=True, show_mem=True,
-               show_perf=True, slowest_n=5):
+def render_run(console, run_result, show_time=True, show_mem=True, show_perf=True, slowest_n=5):
     """Build the full static table and summary from a finished RunResult."""
     table = _make_table(show_time, show_mem)
     for cr in run_result.cases:

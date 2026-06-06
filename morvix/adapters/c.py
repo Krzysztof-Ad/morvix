@@ -18,7 +18,7 @@ class CAdapter(Adapter):
         process.require_tool(
             compiler,
             install_hint=f"Install gcc (e.g. 'sudo apt install gcc' or 'brew install gcc') "
-                         f"and make sure '{compiler}' is on your PATH.",
+            f"and make sure '{compiler}' is on your PATH.",
         )
 
         artifact = os.path.join(workdir, "a.out")

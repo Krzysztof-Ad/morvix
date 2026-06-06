@@ -16,7 +16,7 @@ def _ctx(tmp_path):
 def test_full_markdown_lists_every_command():
     md = docs.full_markdown()
     for name in registry.command_names():
-        if name == "quit":            # an alias, not its own entry
+        if name == "quit":  # an alias, not its own entry
             continue
         assert "`%s`" % name in md, f"guide is missing command: {name}"
     assert "## Command reference" in md
@@ -27,15 +27,15 @@ def test_full_markdown_lists_every_command():
 def test_guide_documents_positionals_and_option_values():
     md = docs.full_markdown()
     # Positional arguments are documented (they used to be missing entirely).
-    assert "`<language>`" in md          # config's positional
-    assert "`<path>`" in md              # import/reference positional
+    assert "`<language>`" in md  # config's positional
+    assert "`<path>`" in md  # import/reference positional
     # Options that take a value show the value placeholder, not just the flag.
-    assert "--out FILE" in md            # docs --out FILE
+    assert "--out FILE" in md  # docs --out FILE
 
 
 def test_topic_md_known_and_unknown():
-    assert docs.topic_md("generators") is not None    # a concept
-    assert docs.topic_md("run") is not None           # a command
+    assert docs.topic_md("generators") is not None  # a concept
+    assert docs.topic_md("run") is not None  # a command
     assert docs.topic_md("not-a-real-topic") is None
 
 

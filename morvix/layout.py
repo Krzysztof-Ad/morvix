@@ -12,26 +12,26 @@
 
 import os
 
-STATE_DIR = ".morvix"             # the one hidden directory that holds everything
+STATE_DIR = ".morvix"  # the one hidden directory that holds everything
 
 # Top-level files
-MANIFEST = os.path.join(STATE_DIR, "morvix.json")   # generated, shareable descriptor
-README = "README.md"              # stays at the (project / archive) root
+MANIFEST = os.path.join(STATE_DIR, "morvix.json")  # generated, shareable descriptor
+README = "README.md"  # stays at the (project / archive) root
 
 # Directories, all under .morvix/
 CONFIG_DIR = os.path.join(STATE_DIR, "config")
-TESTS_DIR = os.path.join(STATE_DIR, "tests")          # input cases, grouped
-EXPECTED_DIR = os.path.join(STATE_DIR, "expected")    # expected outputs / hashes
+TESTS_DIR = os.path.join(STATE_DIR, "tests")  # input cases, grouped
+EXPECTED_DIR = os.path.join(STATE_DIR, "expected")  # expected outputs / hashes
 SOLUTIONS_DIR = os.path.join(STATE_DIR, "solutions")  # imported solutions (never packaged)
 GENERATORS_DIR = os.path.join(STATE_DIR, "generators")
-RUNNER_DIR = os.path.join(STATE_DIR, "runner")        # the shippable runner (core + run.sh)
+RUNNER_DIR = os.path.join(STATE_DIR, "runner")  # the shippable runner (core + run.sh)
 RESULTS_DIR = os.path.join(STATE_DIR, "results")
 WORKFLOWS_DIR = os.path.join(STATE_DIR, "workflows")
 
 # Files under config/
-PROJECT_FILE = os.path.join(CONFIG_DIR, "project.json")   # editable config
-CASES_FILE = os.path.join(CONFIG_DIR, "cases.json")       # the case index
-RUNNERS_DIR = os.path.join(CONFIG_DIR, "runners")         # one file per runner
+PROJECT_FILE = os.path.join(CONFIG_DIR, "project.json")  # editable config
+CASES_FILE = os.path.join(CONFIG_DIR, "cases.json")  # the case index
+RUNNERS_DIR = os.path.join(CONFIG_DIR, "runners")  # one file per runner
 
 DEFAULT_GROUP = "baseline"
 
@@ -52,8 +52,16 @@ PROJECT_DIRS = [
 # migrated into .morvix/ automatically.
 _LEGACY_PROJECT_FILE = os.path.join("config", "project.json")
 _LEGACY_MANIFEST = "morvix.json"
-_LEGACY_DIRS = ["config", "tests", "expected", "solutions", "generators",
-                "runner", "results", "workflows"]
+_LEGACY_DIRS = [
+    "config",
+    "tests",
+    "expected",
+    "solutions",
+    "generators",
+    "runner",
+    "results",
+    "workflows",
+]
 
 
 def is_project(root: str) -> bool:

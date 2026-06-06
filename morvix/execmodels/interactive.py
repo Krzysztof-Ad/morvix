@@ -86,7 +86,7 @@ def _interactive(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
     if not interactor:
         return _fail(b"no interactor configured")
 
-    argv = list(_interactor_argv(interactor))
+    argv = list(_interactor_argv(str(interactor)))
     # The interactor may want the test input file as its first real argument.
     primary = case.primary_input()
     if primary:

@@ -48,14 +48,20 @@ def test_multifile_java_compiles_and_judges(tmp_path):
     for name, inp, out in cases:
         (tmp_path / "tests" / "baseline" / (name + ".in")).write_text(inp + "\n")
         (tmp_path / "expected" / "baseline" / (name + ".out")).write_text(out + "\n")
-        proj.add_case(TestCase(name=name, group="baseline", manual=True,
-                               inputs={"stdin": "tests/baseline/%s.in" % name},
-                               expected_output="expected/baseline/%s.out" % name))
+        proj.add_case(
+            TestCase(
+                name=name,
+                group="baseline",
+                manual=True,
+                inputs={"stdin": "tests/baseline/%s.in" % name},
+                expected_output="expected/baseline/%s.out" % name,
+            )
+        )
     proj.save()
 
     run = judge(proj, sol, "java", select_cases(proj))
     assert run.total == 3
-    assert run.passed == 2          # the multi-file project built via -sourcepath and ran
+    assert run.passed == 2  # the multi-file project built via -sourcepath and ran
     byid = {c.case_id: c for c in run.cases}
     assert byid["baseline/c1"].status == "pass"
-    assert byid["baseline/c3"].status == "fail"   # judging really discriminates
+    assert byid["baseline/c3"].status == "fail"  # judging really discriminates

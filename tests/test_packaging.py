@@ -56,13 +56,16 @@ class TestBuildPackageZipContents:
         # The package is FLAT: manifest, run.sh and the test trees at the root.
         assert "morvix.json" in names
         assert "run.sh" in names
-        assert any(n.startswith("tests/") for n in names), \
+        assert any(n.startswith("tests/") for n in names), (
             "zip must contain at least one tests/ entry"
-        assert any(n.startswith("expected/") for n in names), \
+        )
+        assert any(n.startswith("expected/") for n in names), (
             "zip must contain at least one expected/ entry"
+        )
         # It must NOT carry the project's hidden .morvix/ directory.
-        assert not any(".morvix" in n for n in names), \
+        assert not any(".morvix" in n for n in names), (
             "package should be flat, not nested under .morvix/"
+        )
 
     def test_private_paths_absent(self, py_project, tmp_path):
         ctx, proj = py_project
@@ -76,10 +79,12 @@ class TestBuildPackageZipContents:
 
         # The solution source and the private config dir must never travel.
         for entry in names:
-            assert not entry.startswith("solutions/"), \
+            assert not entry.startswith("solutions/"), (
                 f"solutions/ must not appear in package; found {entry!r}"
-            assert not entry.startswith("config/"), \
+            )
+            assert not entry.startswith("config/"), (
                 f"config/ must not appear in package; found {entry!r}"
+            )
 
 
 class TestReceiverPath:
@@ -99,11 +104,7 @@ class TestReceiverPath:
 
         # Place a correct solution in the extracted directory.
         sol = extracted / "sol.py"
-        sol.write_text(
-            "import sys\n"
-            "d = sys.stdin.read().split()\n"
-            "print(sum(int(x) for x in d))\n"
-        )
+        sol.write_text("import sys\nd = sys.stdin.read().split()\nprint(sum(int(x) for x in d))\n")
 
         runner = str(extracted / "runner" / "morvix_runner.py")
         result = subprocess.run(
@@ -113,10 +114,8 @@ class TestReceiverPath:
             text=True,
         )
 
-        assert result.returncode == 0, \
-            f"runner exited {result.returncode}; stderr: {result.stderr}"
-        assert "passed" in result.stdout, \
-            f"'passed' not found in stdout: {result.stdout!r}"
+        assert result.returncode == 0, f"runner exited {result.returncode}; stderr: {result.stderr}"
+        assert "passed" in result.stdout, f"'passed' not found in stdout: {result.stdout!r}"
 
     def test_runner_fails_wrong_solution(self, py_project, tmp_path):
         ctx, proj = py_project
@@ -141,7 +140,9 @@ class TestReceiverPath:
             text=True,
         )
 
-        assert result.returncode != 0, \
+        assert result.returncode != 0, (
             "runner should exit non-zero when the solution produces wrong output"
-        assert "failed" in result.stdout or "FAIL" in result.stdout, \
+        )
+        assert "failed" in result.stdout or "FAIL" in result.stdout, (
             f"expected failure indication in stdout: {result.stdout!r}"
+        )

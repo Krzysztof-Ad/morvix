@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from morvix.cases import TestCase
 from morvix.generators import (
     clean_generated,
     gen_expected,
@@ -10,15 +11,13 @@ from morvix.generators import (
     gen_random,
     gen_stress,
 )
-from morvix.cases import TestCase
 from morvix.project import Rival
-
 from tests.conftest import SUM_ALL_PY
-
 
 # ---------------------------------------------------------------------------
 # gen_random
 # ---------------------------------------------------------------------------
+
 
 def test_gen_random_creates_cases_and_files(py_project, tmp_path):
     ctx, project = py_project
@@ -39,6 +38,7 @@ def test_gen_random_creates_cases_and_files(py_project, tmp_path):
 # ---------------------------------------------------------------------------
 # gen_expected
 # ---------------------------------------------------------------------------
+
 
 def test_gen_expected_writes_expected_files(py_project):
     ctx, project = py_project
@@ -71,12 +71,13 @@ def test_gen_expected_judge_passes(py_project):
 # clean_generated
 # ---------------------------------------------------------------------------
 
+
 def test_clean_generated_removes_generated_cases(py_project):
     ctx, project = py_project
     gen_random(ctx, project, "array", 4, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
 
     # Add a manual case that must survive.
-    manual = gen_manual(ctx, project, "hand1", group="baseline", content="3 4 5\n")
+    gen_manual(ctx, project, "hand1", group="baseline", content="3 4 5\n")
 
     assert len(project.cases) == 5
 
@@ -103,11 +104,7 @@ def test_clean_generated_deletes_input_files(py_project):
 # gen_stress
 # ---------------------------------------------------------------------------
 
-BUGGY_SUM_PY = (
-    "import sys\n"
-    "d = sys.stdin.read().split()\n"
-    "print(sum(int(x) for x in d) + 1)\n"
-)
+BUGGY_SUM_PY = "import sys\nd = sys.stdin.read().split()\nprint(sum(int(x) for x in d) + 1)\n"
 
 
 def test_gen_stress_finds_disagreement(py_project, tmp_path):

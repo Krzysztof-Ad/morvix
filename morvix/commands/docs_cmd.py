@@ -21,14 +21,18 @@ DEFAULT_GUIDE = "GUIDE.md"
 
 
 def configure(parser):
-    parser.add_argument("topic", nargs="?",
-                        help="a topic or command name to show (omit for the overview)")
-    parser.add_argument("--out", metavar="FILE",
-                        help="write the full manual as Markdown to FILE")
-    parser.add_argument("--markdown", action="store_true",
-                        help="print the full manual as Markdown to stdout")
-    parser.add_argument("--check", action="store_true",
-                        help="fail if the Markdown manual (default GUIDE.md) is out of date")
+    parser.add_argument(
+        "topic", nargs="?", help="a topic or command name to show (omit for the overview)"
+    )
+    parser.add_argument("--out", metavar="FILE", help="write the full manual as Markdown to FILE")
+    parser.add_argument(
+        "--markdown", action="store_true", help="print the full manual as Markdown to stdout"
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="fail if the Markdown manual (default GUIDE.md) is out of date",
+    )
 
 
 def run(ctx, args) -> int:
@@ -49,8 +53,7 @@ def run(ctx, args) -> int:
         section = docs.topic_md(args.topic)
         if section is None:
             known = ", ".join(sorted(docs.topic_names()))
-            raise UserError(f"No docs topic '{args.topic}'.",
-                            hint=f"Try one of: {known}")
+            raise UserError(f"No docs topic '{args.topic}'.", hint=f"Try one of: {known}")
         _render(ctx, section)
         return 0
 
@@ -61,15 +64,17 @@ def run(ctx, args) -> int:
 def _check(ctx, path):
     generated = docs.full_markdown()
     if not os.path.exists(path):
-        raise UserError(f"{path} does not exist.",
-                        hint=f"Generate it with: morvix docs --out {path}")
+        raise UserError(
+            f"{path} does not exist.", hint=f"Generate it with: morvix docs --out {path}"
+        )
     with open(path, "r", encoding="utf-8") as f:
         current = f.read()
     if current == generated:
         ctx.messenger.success(f"{path} is up to date.")
         return 0
-    ctx.messenger.error(f"{path} is out of date.",
-                        hint=f"Regenerate it with: morvix docs --out {path}")
+    ctx.messenger.error(
+        f"{path} is out of date.", hint=f"Regenerate it with: morvix docs --out {path}"
+    )
     return 1
 
 
@@ -78,6 +83,7 @@ def _render(ctx, markdown_text):
     if ctx.interactive:
         try:
             from rich.markdown import Markdown
+
             ctx.console.print(Markdown(markdown_text))
             return
         except Exception:

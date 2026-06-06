@@ -11,10 +11,10 @@ NAME = "clean"
 
 
 def configure(parser):
-    parser.add_argument("--group", "-g", metavar="G",
-                        help="only remove generated cases in this group")
-    parser.add_argument("--yes", "-y", action="store_true",
-                        help="skip confirmation prompt")
+    parser.add_argument(
+        "--group", "-g", metavar="G", help="only remove generated cases in this group"
+    )
+    parser.add_argument("--yes", "-y", action="store_true", help="skip confirmation prompt")
 
 
 def run(ctx, args) -> int:
@@ -22,10 +22,7 @@ def run(ctx, args) -> int:
 
     # Count how many generated cases would be removed
     group = args.group
-    count = sum(
-        1 for c in project.cases
-        if not c.manual and (group is None or c.group == group)
-    )
+    count = sum(1 for c in project.cases if not c.manual and (group is None or c.group == group))
 
     if count == 0:
         ctx.messenger.info("No generated cases to remove.")
@@ -33,7 +30,9 @@ def run(ctx, args) -> int:
 
     # Ask unless --yes was passed
     if not args.yes:
-        question = f"Remove {count} generated case{'s' if count != 1 else ''}? Manual cases are kept."
+        question = (
+            f"Remove {count} generated case{'s' if count != 1 else ''}? Manual cases are kept."
+        )
         if not confirm(ctx, question, default=False):
             ctx.messenger.info("Aborted.")
             return 0

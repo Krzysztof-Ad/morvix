@@ -26,34 +26,33 @@ def run(ctx, args) -> int:
 
     # --- build the two-column info table ---
     t = Table(show_header=False, box=None, padding=(0, 2))
-    t.add_column("key",   style="muted",    no_wrap=True)
+    t.add_column("key", style="muted", no_wrap=True)
     t.add_column("value", style="")
 
     def row(label, value, style=""):
         t.add_row(label, Text(str(value), style=style) if style else str(value))
 
-    row("name",     p.name,             "heading")
+    row("name", p.name, "heading")
     row("language", p.language or "—")
-    row("model",    p.model)
-    row("locale",   p.locale)
+    row("model", p.model)
+    row("locale", p.locale)
 
     # Comparison strategy - default key is usually "strategy"
     compare_str = p.compare.get("strategy", None) or str(p.compare)
-    row("compare",  compare_str)
+    row("compare", compare_str)
 
     # Default limits: show the most relevant ones compactly
     limit_parts = [f"{k}={v}" for k, v in p.limits.items() if v is not None]
-    row("limits",   "  ".join(limit_parts) if limit_parts else "—")
+    row("limits", "  ".join(limit_parts) if limit_parts else "—")
 
-    row("solution",   p.solution or "none",
-        "" if p.solution else "muted")
+    row("solution", p.solution or "none", "" if p.solution else "muted")
     # Rivals are performance-comparison solutions; one may be the stress oracle.
     if p.rivals:
         labels = [r.name + (" (stress)" if r.stress else "") for r in p.rivals]
         row("rivals", ", ".join(labels))
     else:
         row("rivals", "—")
-    row("runners",    str(len(p.runners)))
+    row("runners", str(len(p.runners)))
 
     # --- case counts per group ---
     if p.cases:
