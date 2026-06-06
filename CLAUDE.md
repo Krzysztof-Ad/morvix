@@ -98,19 +98,32 @@ multi-step logic; sparse inline comments; no heavy docstrings. Keep code simple 
 source and meant to be readable by a newcomer. Commit messages are conventional (`feat:`, `fix:`,
 `chore:`, `refactor:`, `docs:`, `test:`), lowercase, no body or trailers.
 
+`ruff` (lint + format) and `mypy` run in CI and must pass; config lives in `pyproject.toml`. Run
+`ruff format .` before committing. The runner core is shielded from modernizing lint rules (it stays
+Python 3.6-compatible) and excluded from mypy. Don't introduce unused imports/undefined names or
+break the import sort.
+
 ## Releasing
 
-The package is on PyPI (https://pypi.org/project/morvix/) and publishes automatically via PyPI
-Trusted Publishing - no API token is stored. `.github/workflows/publish.yml` builds and uploads
-when a GitHub Release is published, authenticating through OIDC against a registered publisher
-(repo `Krzysztof-Ad/morvix`, workflow `publish.yml`, environment `pypi`).
+Releases are automated with **release-please**, so you no longer hand-bump versions. The flow:
 
-To cut a release:
-1. Bump the version in BOTH `pyproject.toml` and `morvix/version.py` (they must match; PyPI refuses
-   to re-upload an existing version).
-2. Commit and push.
-3. Create a GitHub Release on the new tag: `gh release create vX.Y.Z --title vX.Y.Z --notes "..."`.
-4. The publish workflow runs on the release and uploads the sdist + wheel.
+1. Land conventional-commit PRs on `main` (squash; `feat:` -> minor, `fix:` -> patch).
+2. `.github/workflows/release-please.yml` keeps a standing "release PR" that bumps the version in
+   BOTH `pyproject.toml` and `morvix/version.py` (the latter via the `# x-release-please-version`
+   marker on its `__version__` line) and updates `CHANGELOG.md`. Config: `release-please-config.json`
+   + `.release-please-manifest.json`.
+3. Merge that release PR. release-please tags `vX.Y.Z` and creates the GitHub Release.
+4. The Release triggers `.github/workflows/publish.yml`, which builds and uploads to PyPI via
+   Trusted Publishing - no API token (OIDC against repo `Krzysztof-Ad/morvix`, workflow
+   `publish.yml`, environment `pypi`). `publish.yml` is unchanged by this automation.
+
+One operational note: the release-please workflow uses a `RELEASE_PLEASE_TOKEN` secret (a
+fine-grained PAT with contents + pull-requests write) so the Release it creates actually triggers
+`publish.yml` (a Release made with the default `GITHUB_TOKEN` would not). It falls back to
+`GITHUB_TOKEN` (opens the release PR, but won't auto-publish) if the secret is absent.
+
+Do NOT edit the version files by hand, and do NOT bump versions in feature PRs - release-please owns
+them, and the two files must stay identical (PyPI refuses to re-upload an existing version).
 
 `pyproject.toml` force-includes `morvix/runner_core/{morvix_runner.py,run.sh}` as package data - the
 shipped runner must travel in the wheel, so do not break that include.

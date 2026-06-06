@@ -3,6 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/morvix.svg)](https://pypi.org/project/morvix/)
 [![Python versions](https://img.shields.io/pypi/pyversions/morvix.svg)](https://pypi.org/project/morvix/)
 [![CI](https://github.com/Krzysztof-Ad/morvix/actions/workflows/ci.yml/badge.svg)](https://github.com/Krzysztof-Ad/morvix/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Krzysztof-Ad/morvix/actions/workflows/codeql.yml/badge.svg)](https://github.com/Krzysztof-Ad/morvix/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A test-authoring, test-running, and test-sharing CLI for university programming assignments.
@@ -106,6 +107,24 @@ section, and `morvix docs --out GUIDE.md` writes it all as Markdown. The committ
 
 The full design is in [documentation.md](documentation.md): the architecture, every command, the
 file formats, and the reasoning behind each choice.
+
+## Contributing
+
+Contributions are welcome. New capability lands on exactly one of the three axes, so adding a
+language, an execution model, or a comparison strategy is a small, self-contained change. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup, the extension recipes, and the invariants that keep
+the project honest and small. In short: work through a pull request, use conventional commit
+messages (the squash-merged PR title becomes the commit), and let CI's checks (tests, lint, format,
+type check, the docs gate, and the zero-install receiver proof) go green. Versions and releases are
+automated — please don't bump them by hand.
+
+Be respectful ([Code of Conduct](CODE_OF_CONDUCT.md)), report vulnerabilities privately
+([SECURITY.md](SECURITY.md)), and ask questions in
+[Discussions](https://github.com/Krzysztof-Ad/morvix/discussions). Release notes live in
+[CHANGELOG.md](CHANGELOG.md).
+
+Above all, keep the honesty principle intact: Morvix shows agreement between solutions, never an
+authoritative verdict on correctness.
 
 ## License
 
