@@ -1,0 +1,48 @@
+{
+  "_comment": "Documentation copy of the active 'main' branch ruleset. GitHub does NOT auto-apply this file; it is applied by the maintainer with: gh api -X POST repos/Krzysztof-Ad/morvix/rulesets --input .github/rulesets/main.json  (and updated with PUT .../rulesets/{id}). See CONTRIBUTING.md.",
+  "name": "main branch protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "quality" },
+          { "context": "docs" },
+          { "context": "build-package" },
+          { "context": "receiver-clean" },
+          { "context": "test (ubuntu-latest, 3.9)" },
+          { "context": "test (ubuntu-latest, 3.12)" },
+          { "context": "test (macos-latest, 3.9)" },
+          { "context": "test (macos-latest, 3.12)" },
+          { "context": "lint-title" }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ]
+}
