@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/Krzysztof-Ad/morvix/discussions
+    about: Ask usage questions or float ideas here, not in the issue tracker.
+  - name: Security report
+    url: https://github.com/Krzysztof-Ad/morvix/security/advisories/new
+    about: Report a vulnerability privately. Please do not open a public issue.

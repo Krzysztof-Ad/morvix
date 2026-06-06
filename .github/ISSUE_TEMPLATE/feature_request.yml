@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a capability or improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New capability should land on exactly one of Morvix's three axes (language adapter,
+        execution model, comparison strategy) so the design stays small. See CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to do that Morvix makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see. Rough is fine.
+    validations:
+      required: true
+  - type: dropdown
+    id: axis
+    attributes:
+      label: Which axis does this touch?
+      options:
+        - Language adapter (a new language)
+        - Execution model (a new way to drive a program)
+        - Comparison strategy (a new pass/fail rule)
+        - CLI / UX
+        - Packaging / sharing
+        - Docs
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: honesty
+    attributes:
+      label: Honesty principle
+      options:
+        - label: This preserves the principle that Morvix is not an authority on correctness.
+          required: true

@@ -1,0 +1,7 @@
+# Default owner for everything in the repo.
+*                          @Krzysztof-Ad
+
+# The sacred, ships-verbatim runner core and the CI/release machinery get extra
+# visibility on every change that touches them.
+/morvix/runner_core/       @Krzysztof-Ad
+/.github/                  @Krzysztof-Ad

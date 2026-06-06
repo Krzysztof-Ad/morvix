@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in Morvix behaves incorrectly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please remember Morvix is honest by design: expected answers
+        come from one solution, so "the answer is wrong" usually means a generator/expected
+        mismatch, not a Morvix bug. If unsure, ask in Discussions first.
+  - type: input
+    id: version
+    attributes:
+      label: Morvix version
+      description: "Output of `morvix --version` (or the value in morvix/version.py)."
+      placeholder: "0.7.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows (best-effort)
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Language adapter / build
+        - Execution model
+        - Comparison strategy
+        - Runner core / shared package (run.sh)
+        - Packaging
+        - Generation (gen)
+        - CLI / shell / UI
+        - Docs
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence of commands that triggers it.
+      placeholder: |
+        1. morvix init ...
+        2. morvix gen ...
+        3. morvix run ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what actually happened (include output).
+    validations:
+      required: true
+  - type: input
+    id: toolchains
+    attributes:
+      label: Relevant toolchains on PATH
+      description: "e.g. gcc 13, javac 21, rustc 1.79, valgrind 3.x - if relevant."
+      placeholder: "gcc 13.2"
+    validations:
+      required: false
