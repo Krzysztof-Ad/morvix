@@ -311,9 +311,18 @@ def comparison_block(main_run, rival_cols, show_mem=True, per_case=True):
         lines.append("")
 
     lines.append("Comparison (vs solution):")
-    main_total = performance(main_run)["wall"]["total"] or 1e-9
+    # Aggregate each column over ONLY the cases in this run (the solution may be
+    # a filtered subset while a precomputed rival covers everything).
+    main_ids = set(c.case_id for c in main_run.cases)
+
+    def _aligned(run):
+        sub = RunResult(solution=run.solution)
+        sub.cases = [c for c in run.cases if c.case_id in main_ids]
+        return sub
+
+    main_total = performance(_aligned(main_run))["wall"]["total"] or 1e-9
     for c in cols:
-        run = c["run"]
+        run = _aligned(c["run"])
         p = performance(run)
         bits = "wall total %s  avg %s" % (fmt_secs(p["wall"]["total"]), fmt_secs(p["wall"]["avg"]))
         if show_mem:

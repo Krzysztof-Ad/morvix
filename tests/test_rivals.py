@@ -49,6 +49,22 @@ def test_bruteforce_migrates_to_stress_rival(tmp_path):
     assert sr is not None and sr.path == "/x/old_brute.py"
 
 
+def test_comparison_aggregate_aligns_to_main_cases():
+    # A precomputed rival can cover more cases than the (filtered) solution run;
+    # the aggregate must only count the cases actually being compared.
+    from morvix.results import CaseResult, RunResult, comparison_block
+    main = RunResult(solution="s")
+    main.cases = [CaseResult("g/a", "g", "pass", wall_time=0.10)]
+    rival = RunResult(solution="r")
+    rival.cases = [CaseResult("g/a", "g", "pass", wall_time=0.20),
+                   CaseResult("g/b", "g", "pass", wall_time=5.0)]   # not in main
+    block = "\n".join(comparison_block(
+        main, [{"label": "rv", "run": rival, "precomputed": True, "env": "x"}], per_case=False))
+    assert "0.200s" in block       # rival counted only g/a (0.20), not g/b (5.0)
+    assert "2.00x" in block        # 0.20 / 0.10
+    assert "5.200s" not in block   # the unrelated case must not leak into totals
+
+
 def test_compare_live_renders_block(tmp_path, py_project):
     ctx, proj = py_project                    # solution = SUM_ALL
     slow = tmp_path / "slow.py"
