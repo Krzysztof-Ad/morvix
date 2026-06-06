@@ -1,0 +1,53 @@
+# Path-based PR labels, aligned to the architecture (the three axes + areas).
+# Used by .github/workflows/labeler.yml (actions/labeler v5).
+
+"area: adapters":
+  - changed-files:
+      - any-glob-to-any-file: "morvix/adapters/**"
+
+"area: exec-models":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "morvix/execmodels/**"
+          - "morvix/models.py"
+
+"area: comparison":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "morvix/compare.py"
+          - "morvix/comparators.py"
+          - "morvix/comparison.py"
+
+"area: runner-core":
+  - changed-files:
+      - any-glob-to-any-file: "morvix/runner_core/**"
+
+"area: cli-ui":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "morvix/commands/**"
+          - "morvix/components/**"
+          - "morvix/shell.py"
+          - "morvix/app.py"
+          - "morvix/registry.py"
+
+"area: packaging":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "morvix/packaging.py"
+          - "morvix/manifest.py"
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "morvix/docs.py"
+          - "morvix/help_text.py"
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
+
+"area: tests":
+  - changed-files:
+      - any-glob-to-any-file: "tests/**"
