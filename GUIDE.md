@@ -300,6 +300,13 @@ Options:
 - `--list-lib` - list the catalog of vetted generators
 - `--export-pack FILE` - bundle this project's generators/grammars into a pack
 - `--import-pack FILE` - import generators/grammars from a pack (no code is run)
+- `--metamorphic` - check a metamorphic relation between the solution's outputs (needs --relation)
+- `--property EXPR` - check a property of the solution's output, e.g. 'out_int <= n'
+- `--fuzz` - diversity-guided fuzz: keep inputs that make the solution behave a new way
+- `--mutate` - mutate existing inputs into new candidates
+- `--infer SAMPLE` - infer the input format from sample files and draft a generator you edit
+- `--import PATH` - import existing input files (dir, glob, or .zip) as cases; bundled answers are stripped
+- `--suggest KIND` - OFF BY DEFAULT, network-gated: ask your --hook to draft a generator or inputs
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
@@ -332,6 +339,21 @@ Options:
 - `--dedup` - skip byte-identical inputs; with no mode, prune existing duplicate generated cases
 - `--with-catalog` - with --export-pack: also record the catalog generator names used
 - `--force` - with --import-pack: overwrite existing files
+- `--relation RELATION` - with --metamorphic: the relation to check
+- `--ladder-spec LADDER_SPEC` - with --property: vary one size param, e.g. n=1..100000:8
+- `--budget BUDGET` - with --fuzz: how many inputs to try
+- `--seed-group SEED_GROUP` - with --fuzz: corpus seed group (default: baseline)
+- `--from MUTATE_FROM` - with --mutate: source group of inputs (default baseline)
+- `--schema SCHEMA` - with --mutate: a schema (from gen --infer) for edits
+- `--ops OPS` - with --mutate: comma-separated mutation operators
+- `--split` - with --import: split multi-test files
+- `--keep-answers` - with --import: keep bundled .out/.ans as ADVISORY only (never expected answers)
+- `--dry-run` - with --import: preview without writing anything
+- `--name NAME` - name for a drafted generator/grammar (infer/suggest)
+- `--as-grammar` - with --infer: also try writing a grammar draft
+- `--hook HOOK` - with --suggest: path to YOUR executable model hook
+- `--prompt PROMPT` - with --suggest: free-text guidance for the hook
+- `--i-understand` - with --suggest: confirm model output is unverified, INPUT-only
 
 Examples:
 

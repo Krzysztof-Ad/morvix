@@ -14,11 +14,14 @@ import glob
 import os
 
 from morvix import (
+    assist,
     boundspec,
     catalog,
     distributions,
     generators,
     hygiene,
+    importers,
+    metamorphic,
     pack,
     shapes,
     snapshots,
@@ -153,6 +156,43 @@ def configure(parser):
         metavar="FILE",
         help="import generators/grammars from a pack (no code is run)",
     )
+    mode.add_argument(
+        "--metamorphic",
+        action="store_true",
+        help="check a metamorphic relation between the solution's outputs (needs --relation)",
+    )
+    mode.add_argument(
+        "--property",
+        metavar="EXPR",
+        help="check a property of the solution's output, e.g. 'out_int <= n'",
+    )
+    mode.add_argument(
+        "--fuzz",
+        action="store_true",
+        help="diversity-guided fuzz: keep inputs that make the solution behave a new way",
+    )
+    mode.add_argument(
+        "--mutate", action="store_true", help="mutate existing inputs into new candidates"
+    )
+    mode.add_argument(
+        "--infer",
+        nargs="+",
+        metavar="SAMPLE",
+        help="infer the input format from sample files and draft a generator you edit",
+    )
+    mode.add_argument(
+        "--import",
+        dest="import_path",
+        metavar="PATH",
+        help="import existing input files (dir, glob, or .zip) as cases; bundled answers are stripped",
+    )
+    mode.add_argument(
+        "--suggest",
+        nargs="?",
+        const="scaffold",
+        metavar="KIND",
+        help="OFF BY DEFAULT, network-gated: ask your --hook to draft a generator or inputs",
+    )
 
     parser.add_argument(
         "--hash", action="store_true", help="with --expected: store output digests instead of files"
@@ -286,6 +326,43 @@ def configure(parser):
     parser.add_argument(
         "--force", action="store_true", help="with --import-pack: overwrite existing files"
     )
+    parser.add_argument("--relation", help="with --metamorphic: the relation to check")
+    parser.add_argument(
+        "--ladder-spec", help="with --property: vary one size param, e.g. n=1..100000:8"
+    )
+    parser.add_argument(
+        "--budget", type=int, default=500, help="with --fuzz: how many inputs to try"
+    )
+    parser.add_argument("--seed-group", help="with --fuzz: corpus seed group (default: baseline)")
+    parser.add_argument(
+        "--from",
+        dest="mutate_from",
+        help="with --mutate: source group of inputs (default baseline)",
+    )
+    parser.add_argument("--schema", help="with --mutate: a schema (from gen --infer) for edits")
+    parser.add_argument("--ops", help="with --mutate: comma-separated mutation operators")
+    parser.add_argument(
+        "--split", action="store_true", help="with --import: split multi-test files"
+    )
+    parser.add_argument(
+        "--keep-answers",
+        action="store_true",
+        help="with --import: keep bundled .out/.ans as ADVISORY only (never expected answers)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="with --import: preview without writing anything"
+    )
+    parser.add_argument("--name", help="name for a drafted generator/grammar (infer/suggest)")
+    parser.add_argument(
+        "--as-grammar", action="store_true", help="with --infer: also try writing a grammar draft"
+    )
+    parser.add_argument("--hook", help="with --suggest: path to YOUR executable model hook")
+    parser.add_argument("--prompt", help="with --suggest: free-text guidance for the hook")
+    parser.add_argument(
+        "--i-understand",
+        action="store_true",
+        help="with --suggest: confirm model output is unverified, INPUT-only",
+    )
 
 
 # Parse repeated KEY=VALUE strings into a dict, coercing ints/floats.
@@ -364,6 +441,20 @@ def run(ctx, args) -> int:
         return _do_export_pack(ctx, project, args)
     if args.import_pack:
         return _do_import_pack(ctx, project, args)
+    if args.metamorphic:
+        return _do_metamorphic(ctx, project, args)
+    if args.property:
+        return _do_property(ctx, project, args)
+    if args.fuzz:
+        return _do_fuzz(ctx, project, args)
+    if args.mutate:
+        return _do_mutate(ctx, project, args)
+    if args.infer:
+        return _do_infer(ctx, project, args)
+    if args.import_path:
+        return _do_import(ctx, project, args)
+    if args.suggest is not None:
+        return _do_suggest(ctx, project, args)
     if args.dedup:  # no generating mode: prune existing duplicate generated cases
         return _do_dedup(ctx, project, args)
 
@@ -708,6 +799,193 @@ def _do_import_pack(ctx, project, args):
     if report.dropped_answers:
         ctx.messenger.info(f"Ignored {len(report.dropped_answers)} bundled answer file(s).")
     return 0
+
+
+# --- oracle-free bug finding, inference, import, model-assist ---------------
+
+
+def _shape_source(args):
+    """A seed->input callable from --shape/--param (+ dials), for stress-like modes."""
+    shape, params = _apply_dials(args, args.shape, _parse_params(args.param))
+    return lambda i: shapes.generate(shape, args.seed + i, params)  # noqa: E731
+
+
+def _do_metamorphic(ctx, project, args):
+    if not args.relation:
+        raise UserError(
+            "--metamorphic needs --relation.",
+            hint="Relations: " + ", ".join(metamorphic.list_relations()),
+        )
+    group = args.group or "metamorphic"
+    cases = generators.gen_metamorphic(
+        ctx,
+        project,
+        args.relation,
+        _shape_source(args),
+        args.count,
+        args.seed,
+        group,
+        keep=args.keep,
+    )
+    ctx.save_project()
+    if cases:
+        ctx.messenger.warning(
+            f"Found {len(cases)} input(s) where '{args.relation}' is violated (group '{group}').",
+            hint="The solution depends on something it shouldn't - inspect and fix.",
+        )
+    else:
+        ctx.messenger.success(f"No '{args.relation}' violations in {args.count} trial(s).")
+    return 0
+
+
+def _do_property(ctx, project, args):
+    group = args.group or "property"
+    if args.ladder_spec:
+        var, lo, hi, steps = _parse_ladder(args.ladder_spec)
+        shape, params = _apply_dials(args, args.shape, _parse_params(args.param))
+        sizes = generators._geometric_sizes(lo, hi, steps)
+
+        def source(i):
+            p = dict(params)
+            p[var] = sizes[i % len(sizes)]
+            return shapes.generate(shape, args.seed + i, p)
+
+        count = len(sizes)
+    else:
+        source = _shape_source(args)
+        count = args.count
+    cases = generators.gen_property(
+        ctx, project, args.property, source, count, args.seed, group, keep=args.keep
+    )
+    ctx.save_project()
+    if cases:
+        ctx.messenger.warning(
+            f"Found {len(cases)} input(s) where '{args.property}' fails (group '{group}').",
+            hint="Inspect them.",
+        )
+    else:
+        ctx.messenger.success(f"Property '{args.property}' held over {count} input(s).")
+    return 0
+
+
+def _parse_ladder(spec):
+    from morvix.properties import parse_ladder
+
+    return parse_ladder(spec)
+
+
+def _do_fuzz(ctx, project, args):
+    group = args.group or "fuzz"
+    seed_group = args.seed_group or "baseline"
+    seeds = [
+        _read_file(project.abspath(c.primary_input()))
+        for c in project.cases
+        if c.group == seed_group and c.primary_input()
+    ]
+    if not seeds:  # nothing to seed from: start from a few generated inputs
+        src = _shape_source(args)
+        seeds = [src(i) for i in range(5)]
+    cases = generators.gen_fuzz(ctx, project, seeds, args.budget, args.seed, group, keep=args.keep)
+    ctx.save_project()
+    if cases:
+        ctx.messenger.warning(
+            f"Kept {len(cases)} input(s) with new observable behaviour (group '{group}').",
+            hint="Run 'gen --expected' then 'run' to see what they do.",
+        )
+    else:
+        ctx.messenger.success(f"No new behaviour found in {args.budget} trial(s).")
+    return 0
+
+
+def _do_mutate(ctx, project, args):
+    group = args.group or "baseline"
+    src = args.mutate_from or "baseline"
+    ops = [o.strip() for o in args.ops.split(",")] if args.ops else None
+    cases = generators.gen_mutate(
+        ctx, project, src, args.count, args.seed, group, schema_path=args.schema, ops=ops
+    )
+    _post_generate(ctx, project, args, group)
+    ctx.save_project()
+    ctx.messenger.success(f"Mutated {len(cases)} new case(s) into group '{group}' from '{src}'.")
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_infer(ctx, project, args):
+    for p in args.infer:
+        if not os.path.isfile(p):
+            raise UserError(f"Sample not found: {p}", hint="Pass real sample input files.")
+    rel = generators.infer_and_draft(
+        ctx, project, args.infer, name=args.name or "gen", as_grammar=args.as_grammar
+    )
+    ctx.messenger.success(f"Wrote a draft from {len(args.infer)} sample(s): {rel}")
+    ctx.messenger.info("Review and edit it (the inferred ranges may be too narrow), then:")
+    ctx.messenger.info(f"  gen --generator {rel} --count 1000")
+    return 0
+
+
+def _do_import(ctx, project, args):
+    group = args.group or "imported"
+    summary = importers.import_corpus(
+        ctx,
+        project,
+        args.import_path,
+        group=group,
+        split=args.split,
+        keep_answers=args.keep_answers,
+        dry_run=args.dry_run,
+        dedup=True,
+    )
+    if not args.dry_run:
+        ctx.save_project()
+    importers.report_import(ctx, summary)
+    return 0
+
+
+def _do_suggest(ctx, project, args):
+    if not args.hook:
+        raise UserError(
+            "--suggest needs --hook (your own executable that contacts a model).",
+            hint="Morvix makes no network calls; the hook does, with your key.",
+        )
+    if not args.i_understand and not (ctx.interactive and _confirm_suggest(ctx)):
+        raise UserError(
+            "Model output is unverified and INPUT-only; pass --i-understand to proceed.",
+            hint="Answers still come only from 'gen --expected' running your solution.",
+        )
+    kind = args.suggest or "scaffold"
+    if kind not in ("scaffold", "inputs"):
+        raise UserError("--suggest KIND must be 'scaffold' or 'inputs'.")
+    samples = [
+        _read_file(project.abspath(c.primary_input()))[:2000]
+        for c in project.cases[:3]
+        if c.primary_input()
+    ]
+    request = assist.build_request(kind, project, prompt=args.prompt, samples=samples)
+    clean = assist.sanitize_response(kind, assist.call_hook(args.hook, request))
+    if kind == "scaffold":
+        rel = assist.write_scaffold(project, args.name or "suggested", clean.get("generator", ""))
+        ctx.messenger.success(f"Wrote an UNVERIFIED suggested generator: {rel}")
+        ctx.messenger.info("Review it carefully, then: gen --generator %s --count 100" % rel)
+    else:
+        cases = generators.gen_suggested_inputs(
+            project, clean.get("inputs", []), group="suggested", seed=args.seed
+        )
+        ctx.save_project()
+        ctx.messenger.success(f"Added {len(cases)} suggested input(s) in group 'suggested'.")
+        ctx.messenger.info("These are inert until you run 'gen --expected'.")
+    return 0
+
+
+def _confirm_suggest(ctx):
+    from morvix.components.confirm import confirm
+
+    return confirm(
+        ctx,
+        "Run your model hook? Output is treated as unverified INPUT only; answers still "
+        "come from gen --expected.",
+        default=False,
+    )
 
 
 # Post-generation hooks shared by the generating modes.

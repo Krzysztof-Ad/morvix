@@ -30,11 +30,17 @@ from morvix import (
     catalog,
     combinatorial,
     enumerate_inputs,
+    fuzz,
     grammar,
+    inference,
     layout,
+    metamorphic,
     multitest,
+    mutate,
     process,
+    properties,
     provenance,
+    schema,
     shapes,
     shrink,
     suggestions,
@@ -183,7 +189,7 @@ def gen_catalog(ctx, project, name, count, seed, group, params=None):
 
 
 # Write one input-only case (no expected_*), stamping tags + provenance + hash.
-def _emit_input_case(project, group, name, text, mode, tags=None, **prov):
+def _emit_input_case(project, group, name, text, mode, tags=None, note=None, **prov):
     rel = default_input_relpath(group, name)
     _write_text(project.abspath(rel), text)
     case = TestCase(
@@ -192,6 +198,7 @@ def _emit_input_case(project, group, name, text, mode, tags=None, **prov):
         manual=False,
         inputs={"stdin": rel},
         tags=tags or [],
+        note=note,
         provenance=provenance.make_record(mode, **prov),
     )
     _finalize_case(project, case)
@@ -934,6 +941,251 @@ def _malform(text, kind):
         # pad every token with surplus spaces and blank lines
         return "\n\n".join("   " + line + "   " for line in text.split("\n")) + "\n"
     return text
+
+
+def _misbehaved(obs):
+    return obs.result.timed_out or obs.result.signaled
+
+
+def _isint(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+# --- oracle-free bug finding: metamorphic, property, fuzz -------------------
+
+
+def gen_metamorphic(ctx, project, relation_name, source, count, seed, group="metamorphic", keep=8):
+    # Apply a relation's input transform and check the solution's two outputs
+    # relate as they should. A violation (saved as an input) means the solution
+    # is sensitive to something it shouldn't be - found with NO reference answer.
+    rel = metamorphic.get_relation(relation_name)
+    solution = project.solution
+    if not solution:
+        raise UserError("No solution under test.", hint="Import one with 'import'.")
+    language = project.language or detect_language(solution)
+    env, wd = _make_solution_env(project, solution, language, prefix="morvix-meta-")
+    limits = resolve_limits(project, None, None)
+    saved = []
+    try:
+        for i in range(count):
+            if len(saved) >= keep:
+                break
+            base = source(i)
+            follow = metamorphic.follow_input(rel, seed + i, base)
+            if _normalise(base.encode("utf-8")) == _normalise(follow.encode("utf-8")):
+                continue  # the transform was a no-op for this input
+            o_base = _run_on_text(project, env, base, limits)
+            o_follow = _run_on_text(project, env, follow, limits)
+            if _misbehaved(o_base) or _misbehaved(o_follow):
+                continue  # a run crashed/hung: inconclusive, never a violation
+            verdict = metamorphic.check(o_base.output, o_follow.output)
+            if verdict.holds is False:
+                saved.append(
+                    _emit_input_case(
+                        project,
+                        group,
+                        f"meta{seed}_{i}",
+                        base,
+                        "metamorphic",
+                        tags=[f"metamorphic:{relation_name}"],
+                        note=f"{relation_name}: {verdict.detail}",
+                        seed=seed + i,
+                        relation=relation_name,
+                        detail=verdict.detail,
+                    )
+                )
+    finally:
+        shutil.rmtree(wd, ignore_errors=True)
+    return saved
+
+
+def _property_env(input_text, output_bytes):
+    out = output_bytes.decode("utf-8", "replace")
+    out_toks = out.split()
+    in_toks = input_text.split()
+    return {
+        "out": out,
+        "out_len": len(out_toks),
+        "out_lines": len(out.splitlines()),
+        "out_int": int(out_toks[0]) if out_toks and _isint(out_toks[0]) else None,
+        "n": int(in_toks[0]) if in_toks and _isint(in_toks[0]) else None,
+        "in_len": len(in_toks),
+    }
+
+
+def gen_property(ctx, project, expr, source, count, seed, group="property", keep=8):
+    # Check a bound on one of the solution's outputs (e.g. out_int <= n). A
+    # False result is a violation (saved); an unparseable output is skipped,
+    # never a violation. The property never asserts a correct answer.
+    prop = properties.compile_property(expr)
+    solution = project.solution
+    if not solution:
+        raise UserError("No solution under test.", hint="Import one with 'import'.")
+    language = project.language or detect_language(solution)
+    env, wd = _make_solution_env(project, solution, language, prefix="morvix-prop-")
+    limits = resolve_limits(project, None, None)
+    saved = []
+    try:
+        for i in range(count):
+            if len(saved) >= keep:
+                break
+            text = source(i)
+            obs = _run_on_text(project, env, text, limits)
+            if _misbehaved(obs):
+                continue
+            if prop.evaluate(_property_env(text, obs.output)) is False:
+                saved.append(
+                    _emit_input_case(
+                        project,
+                        group,
+                        f"prop{seed}_{i}",
+                        text,
+                        "property",
+                        tags=["property"],
+                        note=f"property failed: {expr}",
+                        seed=seed + i,
+                        detail=expr,
+                    )
+                )
+    finally:
+        shutil.rmtree(wd, ignore_errors=True)
+    return saved
+
+
+def gen_fuzz(ctx, project, seeds, budget, seed, group="fuzz", keep=8):
+    # Diversity-guided fuzzing: mutate a corpus and keep inputs that make the
+    # solution behave a NEW observable way (output shape, exit/signal, timing
+    # regime). Behaviour buckets only steer the search; inputs only are saved.
+    import random as _random
+
+    solution = project.solution
+    if not solution:
+        raise UserError("No solution under test.", hint="Import one with 'import'.")
+    language = project.language or detect_language(solution)
+    env, wd = _make_solution_env(project, solution, language, prefix="morvix-fuzz-")
+    limits = resolve_limits(project, None, None)
+    limit_dict = {"wall": limits.get("wall"), "mem_kb": limits.get("mem_kb")}
+    rng = _random.Random(seed)
+    corpus = list(seeds) or [shapes.generate("ints", seed, {})]
+    seen = set()
+    saved = []
+    try:
+        # Establish the baseline behaviours so only genuinely new ones are kept.
+        for base in corpus:
+            seen.add(
+                fuzz.behavior_key(_obs_dict(_run_on_text(project, env, base, limits)), limit_dict)
+            )
+        for i in range(budget):
+            if len(saved) >= keep:
+                break
+            cand = mutate.mutate_once(rng, rng.choice(corpus), mutate.DEFAULT_OPS)
+            obs = _run_on_text(project, env, cand, limits)
+            key = fuzz.behavior_key(_obs_dict(obs), limit_dict)
+            if fuzz.is_novel(key, seen):
+                seen.add(key)
+                corpus.append(cand)
+                saved.append(
+                    _emit_input_case(
+                        project,
+                        group,
+                        f"fuzz{seed}_{i}",
+                        cand,
+                        "fuzz",
+                        tags=["fuzz"],
+                        note="new observable behaviour",
+                        seed=seed + i,
+                    )
+                )
+    finally:
+        shutil.rmtree(wd, ignore_errors=True)
+    return saved
+
+
+def _obs_dict(obs):
+    r = obs.result
+    return {
+        "output": obs.output,
+        "exit": r.exit_code,
+        "signal": _signal_name(r.term_signal) if r.signaled else None,
+        "timed_out": r.timed_out,
+        "wall": r.wall_time,
+        "mem_kb": r.peak_mem_kb,
+    }
+
+
+# --- corpus mutation and format inference -----------------------------------
+
+
+def gen_mutate(ctx, project, source_group, count, seed, group, schema_path=None, ops=None):
+    corpus = [c for c in project.cases if c.group == source_group and c.primary_input()]
+    if not corpus:
+        raise UserError(
+            f"No inputs in group '{source_group}' to mutate.",
+            hint="Generate that group first, or pass --from <group>.",
+        )
+    import random as _random
+
+    sch = schema.load_schema(schema_path) if schema_path else None
+    cases = []
+    for i in range(count):
+        base = _read_text(project.abspath(corpus[i % len(corpus)].primary_input()))
+        cand = mutate.mutate_once(_random.Random(seed + i), base, ops or mutate.DEFAULT_OPS, sch)
+        cases.append(
+            _emit_input_case(
+                project, group, f"mut{seed}_{i}", cand, "mutate", tags=["mutate"], seed=seed + i
+            )
+        )
+    return cases
+
+
+def infer_and_draft(ctx, project, sample_paths, name="gen", as_grammar=False):
+    # Read sample inputs, infer their format, and write a DRAFT generator (or
+    # grammar) the user edits. Pure analysis: nothing is run, no answer computed.
+    samples = [_read_text(p) for p in sample_paths]
+    result = inference.infer_schema(samples)
+    inference.report_inference(ctx, result)
+    if as_grammar:
+        gram = inference.try_write_grammar(result, name)
+        if gram is not None:
+            return write_inferred(project, name + GRAMMAR_EXT, gram, ext_ok=True)
+        ctx.messenger.warning(
+            "The shape was too irregular for a grammar; wrote a generator instead."
+        )
+    return write_inferred(project, name, inference.render_draft(result, name))
+
+
+def gen_suggested_inputs(project, inputs, group="suggested", seed=1):
+    # Materialise model-suggested INPUTS as inert cases (no expected_*); they
+    # become real tests only once gen --expected runs the solution over them.
+    cases = []
+    for i, text in enumerate(inputs):
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"sugg{seed}_{i}",
+                str(text),
+                "suggested",
+                tags=["suggested"],
+                seed=seed + i,
+            )
+        )
+    return cases
+
+
+def write_inferred(project, name, source_text, ext_ok=False):
+    if not ext_ok and not name.endswith(".py"):
+        name += ".py"
+    rel = os.path.join(layout.GENERATORS_DIR, name)
+    path = project.abspath(rel)
+    if os.path.exists(path):
+        raise UserError(f"File already exists: {name}", hint="Pick another --name.")
+    _write_text(path, source_text)
+    return rel
 
 
 def clean_one(project, case):
