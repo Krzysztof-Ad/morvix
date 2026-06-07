@@ -157,6 +157,37 @@ def test_clean_non_interactive_without_yes_keeps_cases(py_project):
     assert any("--yes" in w for w in ctx.messenger.warnings)
 
 
+# ---------------------------------------------------------------------------
+# status warns about input files dropped under tests/ that no case references -
+# the directory is not scanned, so they would otherwise be silently ignored.
+# ---------------------------------------------------------------------------
+
+
+def test_status_warns_about_unregistered_inputs(py_project):
+    from morvix import layout
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+
+    orphan_dir = os.path.join(project.root, layout.TESTS_DIR, "baseline")
+    os.makedirs(orphan_dir, exist_ok=True)
+    with open(os.path.join(orphan_dir, "hand_dropped.in"), "w") as f:
+        f.write("1 2 3\n")
+
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["status"])
+    assert any("aren't registered" in w for w in ctx.messenger.warnings)
+
+
+def test_status_quiet_when_all_inputs_registered(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["status"])
+    assert not any("aren't registered" in w for w in ctx.messenger.warnings)
+
+
 def test_missing_input_is_an_error_not_a_failure(py_project):
     from morvix.judge import judge, select_cases
 
