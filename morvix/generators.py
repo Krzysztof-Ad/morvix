@@ -35,6 +35,7 @@ from morvix import (
     process,
     provenance,
     shapes,
+    shrink,
     suggestions,
 )
 from morvix.adapters import detect_language, get_adapter
@@ -546,59 +547,207 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
     return computed
 
 
-def gen_stress(ctx, project, count, seed, group="regression"):
-    # Stress testing pits the solution against a trusted oracle (a rival tagged
-    # --stress) on random inputs and keeps the first input where they disagree.
+# Run a program on one input text via a throwaway case; return the Observation.
+def _run_on_text(project, env, text, limits):
+    in_rel = default_input_relpath("_tmp", "t")
+    _write_text(project.abspath(in_rel), text)
+    tmp = TestCase(name="t", group="_tmp", manual=False, inputs={"stdin": in_rel})
+    try:
+        return run_case(project.model, tmp, env, limits)
+    finally:
+        _unlink(project.abspath(in_rel))
+
+
+def gen_stress(
+    ctx,
+    project,
+    count,
+    seed,
+    group="regression",
+    source=None,
+    keep=8,
+    do_shrink=True,
+    shrink_budget=2000,
+):
+    # Pit the solution against a trusted oracle (a --stress rival) on generated
+    # inputs; keep up to `keep` minimised disagreements as permanent regressions.
+    # The oracle is the authority for the answer (its honesty carve-out).
     oracle = project.stress_rival()
     if not oracle:
         suggestions.explain_missing_stress_oracle(ctx, project)
-        return None
-    oracle_path = oracle.path
+        return []
 
     solution = project.solution
     if not solution:
-        raise UserError("No solution under test to stress.", hint="Set one with 'solution'.")
+        raise UserError("No solution under test to stress.", hint="Import one with 'import'.")
 
     sol_lang = project.language or detect_language(solution)
-    bf_lang = detect_language(oracle_path) or project.language
+    bf_lang = detect_language(oracle.path) or project.language
+    if source is None:
+        source = lambda i: shapes.generate("ints", seed + i, {})  # noqa: E731
 
-    shape = "ints"  # a sensible default unless the project says otherwise
-
-    # Build both programs once before the loop (mirrors _run_over_cases).
-    sol_env, sol_workdir = _make_solution_env(
-        project, solution, sol_lang, prefix="morvix-stress-sol-"
-    )
+    sol_env, sol_wd = _make_solution_env(project, solution, sol_lang, prefix="morvix-stress-sol-")
     try:
-        bf_env, bf_workdir = _make_solution_env(
-            project, oracle_path, bf_lang, prefix="morvix-stress-bf-"
+        bf_env, bf_wd = _make_solution_env(
+            project, oracle.path, bf_lang, prefix="morvix-stress-bf-"
         )
     except MorvixError:
-        shutil.rmtree(sol_workdir, ignore_errors=True)
+        shutil.rmtree(sol_wd, ignore_errors=True)
         raise
-    try:
-        limits = resolve_limits(project, None, None)
 
+    limits = resolve_limits(project, None, None)
+
+    # Disagreement check: the oracle must give a usable answer (not crash/hang)
+    # for the comparison to be trusted; returns the oracle's output or None.
+    def disagreement(text):
+        obs_bf = _run_on_text(project, bf_env, text, limits)
+        if obs_bf.result.timed_out or obs_bf.result.signaled:
+            return None
+        obs_sol = _run_on_text(project, sol_env, text, limits)
+        if _normalise(obs_sol.output) != _normalise(obs_bf.output):
+            return obs_bf.output
+        return None
+
+    saved = []
+    try:
         for i in range(count):
-            text = shapes.generate(shape, seed + i, {})
-            # Write input to a temporary case so run_case can feed it as stdin.
-            in_rel = default_input_relpath("_stress_tmp", f"{seed}_{i}")
-            _write_text(project.abspath(in_rel), text)
-            tmp_case = TestCase(
-                name=f"{seed}_{i}", group="_stress_tmp", manual=False, inputs={"stdin": in_rel}
-            )
-            try:
-                obs_sol = run_case(project.model, tmp_case, sol_env, limits)
-                obs_bf = run_case(project.model, tmp_case, bf_env, limits)
-            finally:
-                _unlink(project.abspath(in_rel))
-            if _normalise(obs_sol.output) != _normalise(obs_bf.output):
-                # First disagreement: persist it as a permanent regression case,
-                # trusting the oracle for the expected answer.
-                return _save_regression(project, group, seed + i, text, obs_bf.output)
+            if len(saved) >= keep:
+                break
+            text = source(i)
+            ans = disagreement(text)
+            if ans is None:
+                continue
+            if do_shrink:
+                pred = lambda b: disagreement(b.decode("utf-8", "replace")) is not None  # noqa: E731
+                text = shrink.shrink_failure(
+                    pred, text.encode("utf-8"), budget=shrink_budget
+                ).decode("utf-8", "replace")
+                ans = disagreement(text)  # re-derive the oracle's answer for the shrunk input
+                if ans is None:
+                    continue
+            saved.append(_save_regression(project, group, seed + i, text, ans))
     finally:
-        shutil.rmtree(sol_workdir, ignore_errors=True)
-        shutil.rmtree(bf_workdir, ignore_errors=True)
+        shutil.rmtree(sol_wd, ignore_errors=True)
+        shutil.rmtree(bf_wd, ignore_errors=True)
+    return saved
+
+
+def gen_shrink(ctx, project, case_id, budget=2000):
+    # Minimise one already-failing case to a small reproducer. Handles a
+    # crashing/hanging/erroring solution (re-derives the observed exit/signal),
+    # and stress-style disagreements when a --stress oracle is registered.
+    case = project.get_case(case_id)
+    if case is None:
+        raise UserError(f"No such case: {case_id}", hint="See 'status' for the groups and counts.")
+    rel = case.primary_input()
+    if not rel or not os.path.exists(project.abspath(rel)):
+        raise UserError(f"Case {case_id} has no input file to shrink.")
+    text = _read_text(project.abspath(rel))
+
+    solution = project.solution
+    if not solution:
+        raise UserError("No solution under test.", hint="Import one with 'import'.")
+    sol_lang = project.language or detect_language(solution)
+    sol_env, sol_wd = _make_solution_env(project, solution, sol_lang, prefix="morvix-shrink-")
+    limits = resolve_limits(project, None, case)
+    try:
+        obs = _run_on_text(project, sol_env, text, limits)
+        kind = _crash_kind(obs)
+        if kind:
+            pred = lambda b: (
+                _crash_kind(  # noqa: E731
+                    _run_on_text(project, sol_env, b.decode("utf-8", "replace"), limits)
+                )
+                == kind
+            )
+            small = shrink.shrink_failure(pred, text.encode("utf-8"), budget=budget)
+            _write_text(project.abspath(rel), small.decode("utf-8", "replace"))
+            final = _run_on_text(project, sol_env, small.decode("utf-8", "replace"), limits)
+            _set_observed_expectation(case, final)
+            case.note = f"shrunk reproducer ({kind})"
+            provenance.ensure_input_hash(project, case)
+            return case
+    finally:
+        shutil.rmtree(sol_wd, ignore_errors=True)
+
+    # Not a crash: fall back to the stress oracle for a disagreement reproducer.
+    if project.stress_rival():
+        return _shrink_against_oracle(ctx, project, case, text, budget)
+    raise UserError(
+        f"Case {case_id} doesn't currently crash the solution, so there's nothing to shrink here.",
+        hint="Shrinking a wrong-answer case needs a trusted oracle: register one with "
+        "'rival add <path> --stress'.",
+    )
+
+
+def _shrink_against_oracle(ctx, project, case, text, budget):
+    oracle = project.stress_rival()
+    sol_lang = project.language or detect_language(project.solution)
+    bf_lang = detect_language(oracle.path) or project.language
+    sol_env, sol_wd = _make_solution_env(
+        project, project.solution, sol_lang, prefix="morvix-shr-s-"
+    )
+    try:
+        bf_env, bf_wd = _make_solution_env(project, oracle.path, bf_lang, prefix="morvix-shr-o-")
+    except MorvixError:
+        shutil.rmtree(sol_wd, ignore_errors=True)
+        raise
+    limits = resolve_limits(project, None, case)
+
+    def disagreement(t):
+        obs_bf = _run_on_text(project, bf_env, t, limits)
+        if obs_bf.result.timed_out or obs_bf.result.signaled:
+            return None
+        obs_sol = _run_on_text(project, sol_env, t, limits)
+        return obs_bf.output if _normalise(obs_sol.output) != _normalise(obs_bf.output) else None
+
+    try:
+        if disagreement(text) is None:
+            raise UserError(
+                f"Case {case.id} no longer disagrees with the oracle - nothing to shrink."
+            )
+        pred = lambda b: disagreement(b.decode("utf-8", "replace")) is not None  # noqa: E731
+        small = shrink.shrink_failure(pred, text.encode("utf-8"), budget=budget).decode(
+            "utf-8", "replace"
+        )
+        ans = disagreement(small)
+        rel = case.primary_input()
+        _write_text(project.abspath(rel), small)
+        exp_rel = default_expected_relpath(case.group, case.name)
+        os.makedirs(os.path.dirname(project.abspath(exp_rel)), exist_ok=True)
+        with open(project.abspath(exp_rel), "wb") as f:
+            f.write(ans)
+        case.expected_output = exp_rel
+        case.expected_hash = case.expected_exit = case.expected_signal = None
+        case.note = "shrunk reproducer (disagreement)"
+        provenance.ensure_input_hash(project, case)
+        return case
+    finally:
+        shutil.rmtree(sol_wd, ignore_errors=True)
+        shutil.rmtree(bf_wd, ignore_errors=True)
+
+
+def _crash_kind(obs):
+    """Classify a misbehaving run: 'crash' (signal), 'hang' (timeout), 'error'
+    (nonzero clean exit), or None if it ran cleanly."""
+    res = obs.result
+    if res.timed_out:
+        return shrink.FailureKind.HANG
+    if res.signaled:
+        return shrink.FailureKind.CRASH
+    if res.exit_code not in (0, None):
+        return shrink.FailureKind.ERROR
     return None
+
+
+def _set_observed_expectation(case, obs):
+    """Record the solution's own observed misbehaviour as the expectation."""
+    case.expected_output = case.expected_hash = case.expected_exit = case.expected_signal = None
+    res = obs.result
+    if res.signaled:
+        case.expected_signal = _signal_name(res.term_signal)
+    elif res.exit_code not in (0, None):
+        case.expected_exit = res.exit_code
 
 
 def _normalise(data):
@@ -629,41 +778,84 @@ def _save_regression(project, group, seed, text, expected_bytes):
     return case
 
 
-def gen_crash(ctx, project, count, seed, group="bad-input"):
-    # Take existing baseline inputs (or generate some) and mangle them into
-    # malformed variants that probe input handling. No expected answers here.
+def gen_crash(
+    ctx,
+    project,
+    count,
+    seed,
+    group="bad-input",
+    keep_clean=False,
+    do_shrink=True,
+    shrink_budget=2000,
+):
+    # Mangle baseline inputs into malformed variants, RUN them through the
+    # solution, and keep only those that actually crash/hang/error (unless
+    # --keep-clean). Inputs only - no expected_* is set. Returns (kept, buckets).
     sources = [c for c in project.cases if c.group == "baseline" and c.primary_input()]
     seeds = []
-    if sources:
-        for c in sources[:count]:
-            p = c.input_abspath(project.root)
-            if p and os.path.exists(p):
-                with open(p, "r", encoding="utf-8", errors="replace") as f:
-                    seeds.append(f.read())
+    for c in sources[:count]:
+        p = c.input_abspath(project.root)
+        if p and os.path.exists(p):
+            seeds.append(_read_text(p))
     while len(seeds) < count:
         seeds.append(shapes.generate("ints", seed + len(seeds), {}))
 
-    # - one malformation per variant, cycling through the kinds
     kinds = ["truncated", "oversized", "wrong_type", "extra_whitespace"]
-    cases = []
-    for i in range(count):
-        base = seeds[i]
-        kind = kinds[i % len(kinds)]
-        bad = _malform(base, kind)
-        name = f"crash_{seed}_{i}_{kind}"
-        rel = default_input_relpath(group, name)
-        _write_text(project.abspath(rel), bad)
-        case = TestCase(
-            name=name,
-            group=group,
-            manual=False,
-            inputs={"stdin": rel},
-            tags=[f"crash:{kind}"],
-            provenance=provenance.make_record("crash", seed=seed + i),
+    variants = [
+        (i, kinds[i % len(kinds)], _malform(seeds[i], kinds[i % len(kinds)])) for i in range(count)
+    ]
+
+    buckets = {}
+    kept = []
+
+    def emit(i, kind, text, ck):
+        if ck:
+            buckets[ck] = buckets.get(ck, 0) + 1
+        tags = [f"crash:{kind}"] + ([f"crash-kind:{ck}"] if ck else [])
+        return _emit_input_case(
+            project,
+            group,
+            f"crash_{seed}_{i}_{kind}",
+            text,
+            "crash",
+            tags=tags,
+            seed=seed + i,
+            detail=ck or None,
         )
-        _finalize_case(project, case)
-        cases.append(case)
-    return cases
+
+    if not project.solution:
+        # No solution to triage against: keep all malformed inputs (legacy behaviour).
+        for i, kind, bad in variants:
+            kept.append(emit(i, kind, bad, None))
+        return kept, buckets
+
+    sol_lang = project.language or detect_language(project.solution)
+    sol_env, sol_wd = _make_solution_env(
+        project, project.solution, sol_lang, prefix="morvix-crash-"
+    )
+    limits = resolve_limits(project, None, None)
+    try:
+        for i, kind, bad in variants:
+            obs = _run_on_text(project, sol_env, bad, limits)
+            ck = _crash_kind(obs)
+            if ck is None and not keep_clean:
+                continue
+            text = bad
+            if ck and do_shrink:
+                pred = lambda b, k=ck: (  # noqa: E731
+                    _crash_kind(
+                        _run_on_text(project, sol_env, b.decode("utf-8", "replace"), limits)
+                    )
+                    == k
+                )
+                text = shrink.shrink_failure(
+                    pred, bad.encode("utf-8"), budget=shrink_budget
+                ).decode("utf-8", "replace")
+                ck = _crash_kind(_run_on_text(project, sol_env, text, limits))
+            kept.append(emit(i, kind, text, ck))
+    finally:
+        shutil.rmtree(sol_wd, ignore_errors=True)
+    return kept, buckets
 
 
 def _malform(text, kind):

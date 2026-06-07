@@ -119,9 +119,10 @@ def test_gen_stress_finds_disagreement(py_project, tmp_path):
     project.solution = str(buggy)
     project.add_rival(Rival(name="bf", path=str(bf), stress=True))
 
-    result = gen_stress(ctx, project, 30, 7)
+    cases = gen_stress(ctx, project, 30, 7)
 
-    assert result is not None
+    assert cases  # at least one disagreement found and saved
+    result = cases[0]
     assert isinstance(result, TestCase)
     assert result.manual is True
 

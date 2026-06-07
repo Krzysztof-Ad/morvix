@@ -290,6 +290,7 @@ Options:
 - `--pairwise` - t-wise covering array over discrete --axis factors (every pair covered)
 - `--multi T` - wrap T generated inputs into one multi-test file with a T header
 - `--ladder` - emit one case per geometric size rung for empirical complexity profiling
+- `--shrink CASE` - minimise a failing case to a small reproducer (input shrinks, answer re-derived)
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
@@ -310,6 +311,10 @@ Options:
 - `--layout-multi LAYOUT_MULTI` - with --multi: how to lay out sub-inputs  (one of: t-first, per-line)
 - `--from-group FROM_GROUP` - with --multi: draw sub-inputs from an existing group instead of generating
 - `--auto-t` - with --multi: also emit T=1, small-T and max-T variants
+- `--keep KEEP` - with --stress: how many disagreements to keep
+- `--no-shrink` - skip automatic minimisation of a found failure
+- `--shrink-budget SHRINK_BUDGET` - max solution runs spent shrinking
+- `--keep-clean` - with --crash: keep even inputs the solution handled cleanly
 
 Examples:
 

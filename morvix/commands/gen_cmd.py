@@ -90,6 +90,11 @@ def configure(parser):
         action="store_true",
         help="emit one case per geometric size rung for empirical complexity profiling",
     )
+    mode.add_argument(
+        "--shrink",
+        metavar="CASE",
+        help="minimise a failing case to a small reproducer (input shrinks, answer re-derived)",
+    )
 
     parser.add_argument(
         "--hash", action="store_true", help="with --expected: store output digests instead of files"
@@ -175,6 +180,20 @@ def configure(parser):
         action="store_true",
         help="with --multi: also emit T=1, small-T and max-T variants",
     )
+    parser.add_argument(
+        "--keep", type=int, default=8, help="with --stress: how many disagreements to keep"
+    )
+    parser.add_argument(
+        "--no-shrink", action="store_true", help="skip automatic minimisation of a found failure"
+    )
+    parser.add_argument(
+        "--shrink-budget", type=int, default=2000, help="max solution runs spent shrinking"
+    )
+    parser.add_argument(
+        "--keep-clean",
+        action="store_true",
+        help="with --crash: keep even inputs the solution handled cleanly",
+    )
 
 
 # Parse repeated KEY=VALUE strings into a dict, coercing ints/floats.
@@ -233,6 +252,8 @@ def run(ctx, args) -> int:
         return _do_multi(ctx, project, args)
     if args.ladder:
         return _do_ladder(ctx, project, args)
+    if args.shrink:
+        return _do_shrink(ctx, project, args)
 
     raise UserError(
         "No generation mode given.",
@@ -450,24 +471,72 @@ def _do_expected(ctx, project, args):
 
 def _do_stress(ctx, project, args):
     group = args.group or "regression"
-    case = generators.gen_stress(ctx, project, args.count, args.seed, group=group)
+    shape, params = _apply_dials(args, args.shape, _parse_params(args.param))
+    source = lambda i: shapes.generate(shape, args.seed + i, params)  # noqa: E731
+    cases = generators.gen_stress(
+        ctx,
+        project,
+        args.count,
+        args.seed,
+        group=group,
+        source=source,
+        keep=args.keep,
+        do_shrink=not args.no_shrink,
+        shrink_budget=args.shrink_budget,
+    )
     ctx.save_project()
-    if case is None:
-        ctx.messenger.success(f"No failing case found in {args.count} random trial(s).")
+    if not cases:
+        ctx.messenger.success(f"No disagreement found in {args.count} trial(s).")
     else:
         ctx.messenger.warning(
-            f"Found a failing case: saved as {case.id}.",
-            hint="Inspect it and fix the solution, then rerun.",
+            f"Found and saved {len(cases)} minimised disagreement(s) in group '{group}'.",
+            hint="Inspect them, fix the solution, then rerun.",
         )
     return 0
 
 
 def _do_crash(ctx, project, args):
     group = args.group or "bad-input"
-    cases = generators.gen_crash(ctx, project, args.count, args.seed, group=group)
+    kept, buckets = generators.gen_crash(
+        ctx,
+        project,
+        args.count,
+        args.seed,
+        group=group,
+        keep_clean=args.keep_clean,
+        do_shrink=not args.no_shrink,
+        shrink_budget=args.shrink_budget,
+    )
     ctx.save_project()
-    ctx.messenger.success(f"Generated {len(cases)} malformed case(s) in group '{group}'.")
+    if buckets:
+        summary = ", ".join(f"{k}:{v}" for k, v in sorted(buckets.items()))
+        ctx.messenger.warning(
+            f"Kept {len(kept)} input(s) that misbehave ({summary}).",
+            hint="These crash/hang/error the solution - check its input handling.",
+        )
+    elif kept:
+        ctx.messenger.success(f"Generated {len(kept)} malformed input(s) in group '{group}'.")
+    else:
+        ctx.messenger.success(
+            f"All {args.count} malformed inputs were handled cleanly - none kept."
+        )
     return 0
+
+
+def _do_shrink(ctx, project, args):
+    case = generators.gen_shrink(ctx, project, args.shrink, budget=args.shrink_budget)
+    ctx.save_project()
+    if case is None:
+        ctx.messenger.info("Nothing to shrink.")
+        return 0
+    size = len(_read_file(project.abspath(case.primary_input())))
+    ctx.messenger.success(f"Shrunk {case.id} to a {size}-byte reproducer.")
+    return 0
+
+
+def _read_file(path):
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def _do_grammar(ctx, project, args):

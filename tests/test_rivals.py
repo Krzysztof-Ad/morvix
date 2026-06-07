@@ -177,6 +177,6 @@ def test_stress_uses_stress_rival(tmp_path, py_project, make_ctx):
     proj.solution = str(buggy)  # the solution under test is wrong
     proj.add_rival(Rival(name="ref", path=correct, stress=True))  # trusted oracle
     proj.save()
-    case = gen_stress(ctx, proj, count=30, seed=3)
-    assert case is not None  # a disagreement was found and saved
-    assert case.manual is True
+    cases = gen_stress(ctx, proj, count=30, seed=3)
+    assert cases  # a disagreement was found and saved
+    assert cases[0].manual is True
