@@ -126,6 +126,24 @@ def _signal_name(num):
         return "SIG" + str(num)
 
 
+def _stderr_tail(stderr, limit=200):
+    # The last non-empty line of stderr - usually the real diagnosis when a run
+    # exits badly (a traceback's exception line, "can't open file", an assertion).
+    # Mirrors judge._stderr_tail.
+    if not stderr:
+        return ""
+    for line in reversed(stderr.decode("utf-8", "replace").splitlines()):
+        line = line.strip()
+        if line:
+            return line[:limit]
+    return ""
+
+
+def _with_stderr(detail, stderr):
+    tail = _stderr_tail(stderr)
+    return ("%s: %s" % (detail, tail)) if tail else detail
+
+
 def find_tool(name):
     return shutil.which(name)
 
@@ -1215,14 +1233,15 @@ def judge_case(manifest, build, case, workdir, runner, opts):
             ok = ok and res.exit_code == expected_exit
         if not ok:
             want = expected_signal or ("exit " + str(expected_exit))
-            fail("expected %s, got %s" % (want, res.describe_exit()))
+            fail(_with_stderr("expected %s, got %s" % (want, res.describe_exit()), res.stderr))
             return result
         # A crash that was expected is a pass; record it plainly.
         result.verdict = "expected " + (expected_signal or ("exit " + str(expected_exit)))
     elif res.signaled or (res.exit_code is not None and res.exit_code != 0):
         # No expectation was set, so a clean exit 0 is required. A crash OR any
-        # non-zero exit is a failure - even if the output happens to match.
-        fail(res.describe_exit())
+        # non-zero exit is a failure - even if the output happens to match. Fold in
+        # the first stderr line, which is usually the actual diagnosis.
+        fail(_with_stderr(res.describe_exit(), res.stderr))
         return result
 
     # --- output dimension ---

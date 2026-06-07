@@ -188,6 +188,35 @@ def test_status_quiet_when_all_inputs_registered(py_project):
     assert not any("aren't registered" in w for w in ctx.messenger.warnings)
 
 
+# ---------------------------------------------------------------------------
+# A run that exits badly folds the last stderr line into the verdict, so the
+# actual diagnosis (a traceback line, "can't open file") is visible at a glance.
+# ---------------------------------------------------------------------------
+
+
+def test_stderr_tail_takes_last_nonempty_line():
+    from morvix.judge import _stderr_tail
+
+    assert _stderr_tail(b"") == ""
+    assert _stderr_tail(b"Traceback...\nValueError: boom\n") == "ValueError: boom"
+    assert _stderr_tail(b"only line") == "only line"
+
+
+def test_failed_run_surfaces_stderr_in_verdict(py_project, tmp_path):
+    from morvix.judge import judge, select_cases
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+    gen_expected(ctx, project)  # answers from the good solution
+
+    project.solution = write(
+        tmp_path / "crash.py", "import sys\nsys.stderr.write('kaboom\\n')\nsys.exit(1)\n"
+    )
+    run = judge(project, project.solution, project.language, select_cases(project))
+    assert all(c.status == "fail" for c in run.cases)
+    assert all("kaboom" in c.verdict for c in run.cases)
+
+
 def test_missing_input_is_an_error_not_a_failure(py_project):
     from morvix.judge import judge, select_cases
 
