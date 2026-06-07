@@ -21,12 +21,13 @@
 
 import hashlib
 import os
+import shutil
 import tempfile
 
-from morvix import layout, process, shapes, suggestions
+from morvix import layout, process, provenance, shapes, suggestions
 from morvix.adapters import detect_language, get_adapter
 from morvix.cases import TestCase, default_expected_relpath, default_input_relpath
-from morvix.errors import UserError
+from morvix.errors import MorvixError, UserError
 from morvix.judge import _runspec, _signal_name, build_solution, select_cases
 from morvix.models import ExecEnv, run_case
 from morvix.project import resolve_limits
@@ -86,34 +87,94 @@ def new_generator(ctx, project, name="gen"):
     return rel
 
 
+# Build a program (the solution, an oracle, ...) once and return a ready ExecEnv
+# plus the temp workdir to clean up. Mirrors judge(): mkdtemp, build, runspec,
+# ExecEnv. Stress/metamorphic/property/fuzz all reuse this to build once.
+def _make_solution_env(project, solution, language, prefix="morvix-env-"):
+    workdir = tempfile.mkdtemp(prefix=prefix)
+    build = build_solution(project, solution, language, workdir)
+    if not build.ok:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise MorvixError(build.error or "build failed", hint=build.diagnostics)
+    runspec = _runspec(project, build, language)
+    env = ExecEnv(project=project, build=build, runspec=runspec, workdir=workdir)
+    return env, workdir
+
+
 # Build the solution once, then run every case through it.
-# Mirrors judge(): mkdtemp workdir, build, runspec, ExecEnv, run_case per case.
 def _run_over_cases(project, solution, language, cases):
-    workdir = tempfile.mkdtemp(prefix="morvix-ref-")
+    env, workdir = _make_solution_env(project, solution, language, prefix="morvix-ref-")
     observations = {}
     try:
-        build = build_solution(project, solution, language, workdir)
-        if not build.ok:
-            from morvix.errors import MorvixError
-
-            raise MorvixError(build.error or "build failed", hint=build.diagnostics)
-        runspec = _runspec(project, build, language)
-        env = ExecEnv(project=project, build=build, runspec=runspec, workdir=workdir)
         for case in cases:
             limits = resolve_limits(project, None, case)
             observations[case.id] = run_case(project.model, case, env, limits)
     finally:
-        import shutil
-
         shutil.rmtree(workdir, ignore_errors=True)
     return observations
+
+
+# Compile a generator program once and return (produce, cleanup). produce(seed,
+# modes) runs it and returns the printed input text, so a generator can drive
+# many inputs (stress, etc.) without rebuilding per call.
+def generator_source(project, generator_path):
+    language = detect_language(generator_path)
+    if not language:
+        raise UserError(
+            f"Could not detect the language of '{generator_path}'.",
+            hint="Use a recognised extension (.py, .c, .cpp, .rs, ...).",
+        )
+    workdir = tempfile.mkdtemp(prefix="morvix-gen-")
+    build = get_adapter(language).build(generator_path, project.lang_config(language), workdir)
+    if not build.ok:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise MorvixError(build.error or "generator build failed", hint=build.diagnostics)
+    spec = get_adapter(language).run_spec(build, project.lang_config(language))
+
+    def produce(seed, modes=None):
+        argv = spec.argv + [str(seed)] + list(modes or [])
+        res = process.run(argv, cwd=workdir, env=process.base_env(project.locale, spec.env))
+        return res.stdout.decode("utf-8", "replace")
+
+    def cleanup():
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    return produce, cleanup
+
+
+def _read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def _generator_relpath(project, path):
+    """A generator's path relative to the project root if it lives inside it."""
+    ap = os.path.abspath(path)
+    root = os.path.abspath(project.root)
+    if ap.startswith(root + os.sep):
+        return os.path.relpath(ap, root)
+    return os.path.basename(ap)
+
+
+# Stamp the input hash on a freshly written case and register it. Generators set
+# inputs only - never an expected_* field (the honesty boundary lives here).
+def _finalize_case(project, case):
+    provenance.ensure_input_hash(project, case)
+    project.add_case(case)
+    return case
 
 
 def gen_manual(ctx, project, name, group="baseline", content=None):
     rel = default_input_relpath(group, name)
     _write_text(project.abspath(rel), content or "")
-    case = TestCase(name=name, group=group, manual=True, inputs={"stdin": rel})
-    project.add_case(case)
+    case = TestCase(
+        name=name,
+        group=group,
+        manual=True,
+        inputs={"stdin": rel},
+        provenance=provenance.make_record("manual"),
+    )
+    _finalize_case(project, case)
     # When created empty in an interactive session, point the user at the file.
     if ctx.interactive and content is None:
         ctx.messenger.info(f"Edit the input at {rel}")
@@ -127,43 +188,53 @@ def gen_random(ctx, project, shape, count, seed, group, params):
         name = f"r{seed}_{i}"
         rel = default_input_relpath(group, name)
         _write_text(project.abspath(rel), text)
-        case = TestCase(name=name, group=group, manual=False, inputs={"stdin": rel})
-        project.add_case(case)
+        case = TestCase(
+            name=name,
+            group=group,
+            manual=False,
+            inputs={"stdin": rel},
+            tags=[f"random:{shape}"],
+            provenance=provenance.make_record(
+                "random", seed=seed + i, shape=shape, params=params or None
+            ),
+        )
+        _finalize_case(project, case)
         cases.append(case)
     return cases
 
 
 def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=None):
-    # - build the generator with its own adapter
-    # - run it count times, each with argv [seed+i] + modes, capturing stdout
-    language = detect_language(generator_path)
-    if not language:
-        raise UserError(
-            f"Could not detect the language of '{generator_path}'.",
-            hint="Use a recognised extension (.py, .c, .cpp, .rs, ...).",
-        )
-    workdir = tempfile.mkdtemp(prefix="morvix-gen-")
+    # Build the generator once, then run it count times (argv [seed+i] + modes),
+    # capturing stdout as one input per case.
+    rel_gen = _generator_relpath(project, generator_path)
+    ghash = provenance.hash_bytes(_read_bytes(generator_path))
+    base = os.path.basename(generator_path)
+    produce, cleanup = generator_source(project, generator_path)
     cases = []
     try:
-        build = get_adapter(language).build(generator_path, project.lang_config(language), workdir)
-        if not build.ok:
-            from morvix.errors import MorvixError
-
-            raise MorvixError(build.error or "generator build failed", hint=build.diagnostics)
-        spec = get_adapter(language).run_spec(build, project.lang_config(language))
         for i in range(count):
-            argv = spec.argv + [str(seed + i)] + list(modes or [])
-            res = process.run(argv, cwd=workdir, env=process.base_env(project.locale, spec.env))
+            text = produce(seed + i, modes)
             name = f"g{seed}_{i}"
             rel = default_input_relpath(group, name)
-            _write_text(project.abspath(rel), res.stdout.decode("utf-8", "replace"))
-            case = TestCase(name=name, group=group, manual=False, inputs={"stdin": rel})
-            project.add_case(case)
+            _write_text(project.abspath(rel), text)
+            case = TestCase(
+                name=name,
+                group=group,
+                manual=False,
+                inputs={"stdin": rel},
+                tags=[f"gen:{base}"],
+                provenance=provenance.make_record(
+                    "generator",
+                    seed=seed + i,
+                    generator=rel_gen,
+                    generator_hash=ghash,
+                    modes=list(modes) if modes else None,
+                ),
+            )
+            _finalize_case(project, case)
             cases.append(case)
     finally:
-        import shutil
-
-        shutil.rmtree(workdir, ignore_errors=True)
+        cleanup()
     return cases
 
 
@@ -241,29 +312,17 @@ def gen_stress(ctx, project, count, seed, group="regression"):
     shape = "ints"  # a sensible default unless the project says otherwise
 
     # Build both programs once before the loop (mirrors _run_over_cases).
-    import shutil
-
-    sol_workdir = tempfile.mkdtemp(prefix="morvix-stress-sol-")
-    bf_workdir = tempfile.mkdtemp(prefix="morvix-stress-bf-")
+    sol_env, sol_workdir = _make_solution_env(
+        project, solution, sol_lang, prefix="morvix-stress-sol-"
+    )
     try:
-        sol_build = build_solution(project, solution, sol_lang, sol_workdir)
-        if not sol_build.ok:
-            from morvix.errors import MorvixError
-
-            raise MorvixError(sol_build.error or "build failed", hint=sol_build.diagnostics)
-        sol_runspec = _runspec(project, sol_build, sol_lang)
-        sol_env = ExecEnv(
-            project=project, build=sol_build, runspec=sol_runspec, workdir=sol_workdir
+        bf_env, bf_workdir = _make_solution_env(
+            project, oracle_path, bf_lang, prefix="morvix-stress-bf-"
         )
-
-        bf_build = build_solution(project, oracle_path, bf_lang, bf_workdir)
-        if not bf_build.ok:
-            from morvix.errors import MorvixError
-
-            raise MorvixError(bf_build.error or "build failed", hint=bf_build.diagnostics)
-        bf_runspec = _runspec(project, bf_build, bf_lang)
-        bf_env = ExecEnv(project=project, build=bf_build, runspec=bf_runspec, workdir=bf_workdir)
-
+    except MorvixError:
+        shutil.rmtree(sol_workdir, ignore_errors=True)
+        raise
+    try:
         limits = resolve_limits(project, None, None)
 
         for i in range(count):
@@ -303,8 +362,16 @@ def _save_regression(project, group, seed, text, expected_bytes):
     with open(project.abspath(exp_rel), "wb") as f:
         f.write(expected_bytes)
     case = TestCase(
-        name=name, group=group, manual=True, inputs={"stdin": in_rel}, expected_output=exp_rel
+        name=name,
+        group=group,
+        manual=True,
+        inputs={"stdin": in_rel},
+        expected_output=exp_rel,
+        tags=["stress"],
+        note="disagreement between the solution and the stress oracle",
+        provenance=provenance.make_record("stress", seed=seed),
     )
+    provenance.ensure_input_hash(project, case)
     project.add_case(case)
     return case
 
@@ -333,8 +400,15 @@ def gen_crash(ctx, project, count, seed, group="bad-input"):
         name = f"crash_{seed}_{i}_{kind}"
         rel = default_input_relpath(group, name)
         _write_text(project.abspath(rel), bad)
-        case = TestCase(name=name, group=group, manual=False, inputs={"stdin": rel})
-        project.add_case(case)
+        case = TestCase(
+            name=name,
+            group=group,
+            manual=False,
+            inputs={"stdin": rel},
+            tags=[f"crash:{kind}"],
+            provenance=provenance.make_record("crash", seed=seed + i),
+        )
+        _finalize_case(project, case)
         cases.append(case)
     return cases
 
