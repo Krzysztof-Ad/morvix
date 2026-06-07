@@ -14,13 +14,17 @@ def configure(parser):
     parser.add_argument(
         "--group", "-g", metavar="G", help="only remove generated cases in this group"
     )
+    parser.add_argument(
+        "--all", action="store_true", help="remove generated cases in every group (the default)"
+    )
     parser.add_argument("--yes", "-y", action="store_true", help="skip confirmation prompt")
 
 
 def run(ctx, args) -> int:
     project = ctx.require_project()
 
-    # Count how many generated cases would be removed
+    # Count how many generated cases would be removed (--all is the default scope,
+    # accepted for clarity; --group narrows it).
     group = args.group
     count = sum(1 for c in project.cases if not c.manual and (group is None or c.group == group))
 
@@ -30,6 +34,14 @@ def run(ctx, args) -> int:
 
     # Ask unless --yes was passed
     if not args.yes:
+        if not ctx.interactive:
+            # Nobody to prompt: don't delete silently, and say how to proceed.
+            ctx.messenger.warning(
+                f"Refusing to remove {count} generated case{'s' if count != 1 else ''} "
+                "without confirmation.",
+                hint="Re-run with --yes to remove them non-interactively.",
+            )
+            return 0
         question = (
             f"Remove {count} generated case{'s' if count != 1 else ''}? Manual cases are kept."
         )

@@ -67,7 +67,7 @@ class _RecordingMessenger:
         self.warnings = []
 
     def warning(self, message, hint=None):
-        self.warnings.append(message)
+        self.warnings.append(message + (" " + hint if hint else ""))
 
     def info(self, message):
         pass
@@ -132,6 +132,29 @@ def test_gen_command_content_flag(py_project):
 # A case whose input file is gone is a broken setup, not a wrong answer: judge
 # reports it as an "error", distinct from the solution exiting nonzero.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# clean: --all is accepted, and a non-interactive run without --yes refuses with
+# a hint instead of silently aborting.
+# ---------------------------------------------------------------------------
+
+
+def test_clean_all_with_yes_removes_generated(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    registry.safe_dispatch(ctx, ["clean", "--all", "--yes"])
+    assert all(c.manual for c in ctx.project.cases)
+
+
+def test_clean_non_interactive_without_yes_keeps_cases(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    before = len(project.cases)
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["clean"])
+    assert len(ctx.project.cases) == before  # nothing deleted without confirmation
+    assert any("--yes" in w for w in ctx.messenger.warnings)
 
 
 def test_missing_input_is_an_error_not_a_failure(py_project):
