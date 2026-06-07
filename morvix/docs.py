@@ -96,7 +96,47 @@ file and `--ladder` sweeps sizes so you can read complexity off the timings.
 A grammar asserts the input's *shape*, never an answer - expected answers still
 come only from `gen --expected` running your own solution. If you have real inputs
 already, `gen --import` ingests them (bundled answers are stripped), `gen --infer`
-drafts a generator from samples, and `gen --mutate` derives more from a corpus.""",
+drafts a generator from samples, and `gen --mutate` derives more from a corpus.
+
+See `docs grammar` for the grammar mini-language and the per-shape `--param` keys.""",
+    ),
+    (
+        "grammar",
+        "Grammar and shape reference",
+        """\
+A grammar is one rule per line; `start` is the entry rule and `#` starts a
+comment. Write a sequence of whitespace-separated items:
+
+    start: int(1..100) as n "\\n" repeat(n) { int(0..1000000) } sep " " "\\n"
+    start: int(1..50) as r " " int(1..50) as c "\\n" repeat(r) { repeat(c) { char(".#") } "\\n" }
+
+Items:
+
+- `int(LO..HI) [as NAME]` - a random integer in [LO, HI]; `as NAME` binds it for
+  reuse (and prints it). There is no silent bind yet - a bound value is emitted.
+- `float(LO..HI, NDIGITS)` - a random float fixed to NDIGITS decimals.
+- `char("ALPHABET")` - one random character; `str(LEN, "ALPHABET")` - LEN of them.
+- `"text"` - a literal (escapes: `\\n` `\\t` `\\\\` `\\"`); `nl` / `sp` - newline / space.
+- `repeat(COUNT) { BODY } [sep "S"]` - BODY COUNT times, joined by S.
+- `oneof { A | B | ... }` - pick one alternative; `NAME` - call another rule.
+
+COUNT, LO, HI, LEN and NDIGITS are numeric expressions over literals, bound names
+and `+ - * / ( )`, so a later size can depend on an earlier value. To make a count
+drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`) - `repeat()`
+takes an expression, not a fresh draw. Start from a scaffold with
+`gen --new-grammar NAME`, then `gen --grammar <path> --count 1000`.
+
+Random shapes (`gen --random --shape S --param k=v`) cover simpler stdin formats.
+The common shapes and their `--param` keys:
+
+- `ints` / `array` - `count`, `lo`, `hi` (array prints a leading count line).
+- `string` - `length`, `alphabet`.
+- `permutation` - `n`.
+- `tree` - `n`, `shape` (random/path/star/caterpillar/balanced).
+- `graph` - `n`, `m`, `directed`, `weighted`, `connected`, `dag`, `w_lo`, `w_hi`.
+- `grid` - `rows`, `cols`, `alphabet`.
+
+Shape and param choices are recorded in each case's provenance, never an answer.""",
     ),
     (
         "oracles",

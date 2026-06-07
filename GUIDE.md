@@ -71,6 +71,44 @@ come only from `gen --expected` running your own solution. If you have real inpu
 already, `gen --import` ingests them (bundled answers are stripped), `gen --infer`
 drafts a generator from samples, and `gen --mutate` derives more from a corpus.
 
+See `docs grammar` for the grammar mini-language and the per-shape `--param` keys.
+
+## Grammar and shape reference
+
+A grammar is one rule per line; `start` is the entry rule and `#` starts a
+comment. Write a sequence of whitespace-separated items:
+
+    start: int(1..100) as n "\n" repeat(n) { int(0..1000000) } sep " " "\n"
+    start: int(1..50) as r " " int(1..50) as c "\n" repeat(r) { repeat(c) { char(".#") } "\n" }
+
+Items:
+
+- `int(LO..HI) [as NAME]` - a random integer in [LO, HI]; `as NAME` binds it for
+  reuse (and prints it). There is no silent bind yet - a bound value is emitted.
+- `float(LO..HI, NDIGITS)` - a random float fixed to NDIGITS decimals.
+- `char("ALPHABET")` - one random character; `str(LEN, "ALPHABET")` - LEN of them.
+- `"text"` - a literal (escapes: `\n` `\t` `\\` `\"`); `nl` / `sp` - newline / space.
+- `repeat(COUNT) { BODY } [sep "S"]` - BODY COUNT times, joined by S.
+- `oneof { A | B | ... }` - pick one alternative; `NAME` - call another rule.
+
+COUNT, LO, HI, LEN and NDIGITS are numeric expressions over literals, bound names
+and `+ - * / ( )`, so a later size can depend on an earlier value. To make a count
+drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`) - `repeat()`
+takes an expression, not a fresh draw. Start from a scaffold with
+`gen --new-grammar NAME`, then `gen --grammar <path> --count 1000`.
+
+Random shapes (`gen --random --shape S --param k=v`) cover simpler stdin formats.
+The common shapes and their `--param` keys:
+
+- `ints` / `array` - `count`, `lo`, `hi` (array prints a leading count line).
+- `string` - `length`, `alphabet`.
+- `permutation` - `n`.
+- `tree` - `n`, `shape` (random/path/star/caterpillar/balanced).
+- `graph` - `n`, `m`, `directed`, `weighted`, `connected`, `dag`, `w_lo`, `w_hi`.
+- `grid` - `rows`, `cols`, `alphabet`.
+
+Shape and param choices are recorded in each case's provenance, never an answer.
+
 ## Finding bugs without a reference answer
 
 Some checks find bugs with no "correct answer" at all - they only need your own
@@ -331,7 +369,7 @@ model library
 
 #### `gen`
 
-Make test cases and compute their answers. Inputs come from many sources - by hand (--manual), built-in random shapes (--random, tuned with --dist/--difficulty), a custom generator (--generator), a declarative grammar (--grammar, correct-by-construction for structured input), or the vetted catalog (--lib, browse with --list-lib). Cover the input space deliberately with --boundary/--exhaustive/--pairwise (declare ranges with --axis), wrap many sub-inputs with --multi, or sweep sizes with --ladder. Find bugs with --stress (vs a --stress rival, auto-minimised), --crash (keeps only real crashers), --fuzz, --metamorphic (a relation between your solution's own outputs), or --property (a bound on one output); reduce any failure with --shrink. Bring in real inputs with --import (bundled answers are stripped), learn their shape with --infer, and derive more with --mutate. Keep answers honest and reproducible with --expected (--check-stable, --changed), gate inputs with --validate, and track drift with --pin/--diff-pin. Every mode produces INPUTS only; expected answers always come from 'gen --expected' running your own solution.
+Make test cases and compute their answers. Inputs come from many sources - by hand (--manual), built-in random shapes (--random, tuned with --dist/--difficulty), a custom generator (--generator), a declarative grammar (--grammar, correct-by-construction for structured input), or the vetted catalog (--lib, browse with --list-lib). Cover the input space deliberately with --boundary/--exhaustive/--pairwise (declare ranges with --axis), wrap many sub-inputs with --multi, or sweep sizes with --ladder. Find bugs with --stress (vs a --stress rival, auto-minimised), --crash (keeps only real crashers), --fuzz, --metamorphic (a relation between your solution's own outputs), or --property (a bound on one output); reduce any failure with --shrink. Bring in real inputs with --import (bundled answers are stripped), learn their shape with --infer, and derive more with --mutate. Keep answers honest and reproducible with --expected (--check-stable, --changed), gate inputs with --validate, and track drift with --pin/--diff-pin. Every mode produces INPUTS only; expected answers always come from 'gen --expected' running your own solution. See 'docs grammar' for the grammar mini-language and the per-shape --param keys.
 
 Options:
 

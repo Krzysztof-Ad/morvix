@@ -121,7 +121,8 @@ COMMANDS = {
         "with --mutate. Keep answers honest and reproducible with --expected (--check-stable, "
         "--changed), gate inputs with --validate, and track drift with --pin/--diff-pin. Every "
         "mode produces INPUTS only; expected answers always come from 'gen --expected' running "
-        "your own solution.",
+        "your own solution. See 'docs grammar' for the grammar mini-language and the per-shape "
+        "--param keys.",
         "examples": [
             "gen --random --count 100 --shape ints --dist zipf",
             "gen --new-grammar mygram",
