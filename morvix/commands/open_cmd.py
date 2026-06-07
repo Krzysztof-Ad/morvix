@@ -63,4 +63,11 @@ def run(ctx, args) -> int:
     total = len(p.cases)
     ctx.messenger.plain(f"  language={lang}  model={p.model}  solution={solution}  cases={total}")
 
+    # A freshly adopted package has tests but no solution yet - point the receiver
+    # at the two steps to check their own code.
+    if adopted and not p.solution:
+        ctx.messenger.info("Next: import your solution, then run the tests:")
+        ctx.messenger.plain("  import <your-solution>")
+        ctx.messenger.plain("  run --all")
+
     return 0

@@ -51,19 +51,38 @@ def generate_readme(project) -> str:
 
     # --- How to run WITHOUT Morvix ---
     parts.append("## How to run (without Morvix)\n")
+    lang = project.language or "python"
+    examples = {
+        "python": "./run.sh solution.py",
+        "c": "./run.sh solution.c",
+        "cpp": "./run.sh solution.cpp",
+        "java": "./run.sh Main.java",
+        "rust": "./run.sh solution.rs",
+        "nasm": "./run.sh solution.asm",
+    }
+    example = examples.get(lang, "./run.sh solution.py")
     parts.append(
-        "Only Python 3 is required. Run your solution against the tests with:\n"
+        "Only Python 3 is required. Pass the path to your **source file** (not a compiled "
+        f"binary or a command). These tests were authored in **{lang}**, so run:\n"
         "\n"
         "```bash\n"
-        "./run.sh <your-solution>\n"
+        f"{example}\n"
+        "```\n"
+        "\n"
+        "If your solution is in another language, name your source file with the right "
+        "extension (`.py`, `.c`, `.cpp`, `.java`, `.rs`, `.asm`) or pass `--language <lang>`:\n"
+        "\n"
+        "```bash\n"
+        "./run.sh mysolution.cpp            # language inferred from .cpp\n"
+        "./run.sh mysolution --language c   # or state it explicitly\n"
         "```\n"
         "\n"
         "Useful flags:\n"
         "\n"
         "- `--group <name>` — run only cases from a specific group\n"
         "- `--case <id>` — run a single case by id\n"
-        "- `--no-valgrind` — skip the memory checker even if it is installed\n"
         "- `--diff` — show a side-by-side diff on failure\n"
+        "- `--no-valgrind` — skip the memory checker even if it is installed\n"
     )
 
     # --- How to run WITH Morvix ---
