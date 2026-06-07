@@ -38,7 +38,9 @@ def test_gen_boundary_then_expected(py_project):
 
 def test_gen_exhaustive_then_expected(py_project):
     ctx, proj = py_project
-    cases = generators.gen_exhaustive(ctx, proj, "array", 1, "exhaustive", max_n=2, values=[0, 1], cap=50)
+    cases = generators.gen_exhaustive(
+        ctx, proj, "array", 1, "exhaustive", max_n=2, values=[0, 1], cap=50
+    )
     assert cases and _no_expected(cases)
     generators.gen_expected(ctx, proj)
     assert judge(proj, proj.solution, proj.language, select_cases(proj)).all_passed

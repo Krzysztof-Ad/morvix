@@ -110,7 +110,11 @@ def test_assist_sanitize_strips_injected_answer():
         "inputs": ["1 2 3"],
     }
     clean = assist.sanitize_response("scaffold", raw)
-    assert clean == {"morvix_assist": assist.ASSIST_VERSION, "kind": "scaffold", "generator": "print('hi')"}
+    assert clean == {
+        "morvix_assist": assist.ASSIST_VERSION,
+        "kind": "scaffold",
+        "generator": "print('hi')",
+    }
     assert "expected" not in clean and "answer" not in clean and "output" not in clean
 
     clean_in = assist.sanitize_response("inputs", raw)
