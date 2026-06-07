@@ -22,6 +22,15 @@ from morvix.results import CaseResult, RunResult
 
 def build_solution(project: Project, source: str, language: str, workdir: str) -> BuildResult:
     """Compile/assemble the solution, honouring a raw build command if set."""
+    # Resolve a project-relative source (e.g. a copied-in .morvix/solutions/x.py)
+    # to an absolute path. Cases run with cwd set to a temp build dir, so a
+    # relative interpreter argument would otherwise fail to find the file - which
+    # used to silently freeze "file not found" as the expected answer.
+    if source and not os.path.isabs(source):
+        candidate = os.path.join(project.root, source)
+        if os.path.exists(candidate):
+            source = os.path.abspath(candidate)
+
     if project.raw_build:
         res = process.run(["/bin/sh", "-c", project.raw_build], cwd=project.root, wall_limit=180)
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")

@@ -547,6 +547,7 @@ def gen_expected(
     reused = 0
     unstable = []
     clean_outputs = []
+    error_exits = []  # nonzero exit codes seen, to catch a "nothing ran" suite
     try:
         for case in cases:
             limits = resolve_limits(project, None, case)
@@ -576,6 +577,7 @@ def gen_expected(
                 case.expected_signal = _signal_name(res.term_signal)
             elif res.exit_code not in (0, None):
                 case.expected_exit = res.exit_code
+                error_exits.append(res.exit_code)
             else:
                 clean_outputs.append(obs.output)
                 if use_hash:
@@ -598,6 +600,11 @@ def gen_expected(
     suggestions.warn_degenerate_expected(ctx, clean_outputs)
     if unstable:
         suggestions.warn_unstable_answers(ctx, unstable)
+    # Trust guard: if EVERY computed case errored with the same exit code and not
+    # one produced output, the solution probably never really ran (wrong run
+    # command, missing file, ...). Don't let that freeze as a green suite.
+    if computed >= 2 and not clean_outputs and len(set(error_exits)) == 1:
+        suggestions.warn_solution_not_running(ctx, computed, error_exits[0])
     return {"computed": computed, "reused": reused, "unstable": unstable}
 
 

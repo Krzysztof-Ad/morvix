@@ -152,6 +152,19 @@ def warn_unstable_answers(ctx, case_ids):
     )
 
 
+def warn_solution_not_running(ctx, count, exit_code):
+    # Every case ended with the same nonzero exit and produced no output: the
+    # solution almost certainly never really ran. Freezing that would yield a
+    # suite that "passes" while testing nothing - the worst failure for a test
+    # tool - so say so loudly.
+    ctx.messenger.warning(
+        f"All {count} cases exited with code {exit_code} and produced no output - "
+        "your solution may not be running.",
+        hint="Check the run command (try 'run --case <id>' on one case). The frozen "
+        "expectations are an exit code, not real answers.",
+    )
+
+
 def suggest_invalid_inputs(ctx, invalid_ids):
     # --require-valid dropped inputs the validator rejected; surface it so a
     # broken generator isn't silently producing malformed cases.
