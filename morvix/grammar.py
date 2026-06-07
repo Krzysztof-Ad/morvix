@@ -22,6 +22,8 @@
 #   nl / sp                    shorthand literals for newline / space
 #   repeat(COUNT) { BODY } [sep "S"]   BODY COUNT times, joined by S
 #   oneof { A | B | ... }      pick one alternative at random
+#   let NAME = int(LO..HI)     SILENTLY sample NAME (prints nothing) for later use
+#   let NAME = EXPR            SILENTLY bind NAME to a computed value
 #   NAME                       call another rule
 # LO/HI/COUNT/LEN/NDIGITS are numeric expressions over literals, bound NAMEs and
 # + - * / and parentheses, so bounds can depend on earlier-read values.
@@ -134,7 +136,18 @@ class OneOf:
     choices: List[List["Item"]]
 
 
-Item = Union[IntTerm, FloatTerm, CharTerm, StrTerm, Literal, Call, Repeat, OneOf]
+@dataclass
+class LetBind:
+    # A SILENT bind: sample (or compute) a value and store it, emitting nothing.
+    # 'lo'/'hi' set for the int-range form; 'value' set for the expression form.
+    name: str
+    lo: Optional[Num]
+    hi: Optional[Num]
+    value: Optional[Num]
+    line: int
+
+
+Item = Union[IntTerm, FloatTerm, CharTerm, StrTerm, Literal, Call, Repeat, OneOf, LetBind]
 
 
 @dataclass
@@ -153,7 +166,7 @@ _TOKEN_RE = re.compile(
   | (?P<num>\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)
   | (?P<range>\.\.)
   | (?P<str>"(?:\\.|[^"\\])*")
-  | (?P<op>[(){}|,+\-*/])
+  | (?P<op>[(){}|,+\-*/=])
   | (?P<ident>[A-Za-z_]\w*)
     """,
     re.VERBOSE,
@@ -260,6 +273,8 @@ class _Parser:
                 return self._repeat()
             if t == "oneof":
                 return self._oneof()
+            if t == "let":
+                return self._let()
             if t == "nl":
                 self._next()
                 return Literal("\n")
@@ -321,6 +336,23 @@ class _Parser:
             self._next()
             sep = self._expect("str")
         return Repeat(count, body, sep, self.line)
+
+    def _let(self) -> Item:
+        # let NAME = int(LO..HI)   (sample silently)
+        # let NAME = EXPR          (compute from existing binds, silently)
+        self._next()  # 'let'
+        name = self._expect("ident")
+        self._expect("op", "=")
+        k, t = self._peek()
+        if k == "ident" and t == "int":
+            self._next()  # 'int'
+            self._expect("op", "(")
+            lo = self.expr()
+            self._expect("range")
+            hi = self.expr()
+            self._expect("op", ")")
+            return LetBind(name, lo, hi, None, self.line)
+        return LetBind(name, None, None, self.expr(), self.line)
 
     def _oneof(self) -> Item:
         self._next()  # 'oneof'
@@ -482,6 +514,19 @@ class _Sampler:
         elif isinstance(item, OneOf):
             for sub in self.rng.choice(item.choices):
                 self._emit_item(sub, depth)
+        elif isinstance(item, LetBind):
+            # Silent: bind a value for later use, emit nothing. A pinned --param
+            # of the same name wins, mirroring 'int(...) as NAME'.
+            if item.name in self.env:
+                pass
+            elif item.value is not None:
+                self.env[item.name] = self._eval(item.value)
+            elif item.lo is not None and item.hi is not None:
+                lo = self._eval_int(item.lo, item.line)
+                hi = self._eval_int(item.hi, item.line)
+                if lo > hi:
+                    raise GrammarError(f"empty range {lo}..{hi}", item.line)
+                self.env[item.name] = self.rng.randint(lo, hi)
 
 
 def sample(grammar: Grammar, seed: int, params: Optional[dict] = None) -> str:

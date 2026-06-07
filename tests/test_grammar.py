@@ -46,6 +46,27 @@ def test_deterministic_same_seed():
     assert grammar.sample_source(src, seed=42) == grammar.sample_source(src, seed=42)
 
 
+def test_let_binds_silently_and_drives_repeat():
+    # A leading count never appears in the output, but still drives the body.
+    src = 'start: let k = int(3..3) repeat(k) { char("a") } "\\n"'
+    out = grammar.sample_source(src, seed=1)
+    assert out == "aaa\n"  # exactly k chars, no count printed
+
+
+def test_let_expression_form_computes_from_binds():
+    src = 'start: int(2..2) as n "\\n" let m = n * 3 repeat(m) { char("x") } "\\n"'
+    out = grammar.sample_source(src, seed=1)
+    lines = out.splitlines()
+    assert lines[0] == "2"
+    assert len(lines[1]) == 6  # m = n * 3
+
+
+def test_let_is_overridden_by_param():
+    src = 'start: let k = int(1..9) repeat(k) { char("a") }'
+    out = grammar.sample_source(src, seed=1, params={"k": 2})
+    assert out == "aa"
+
+
 def test_different_seed_differs():
     src = 'start: repeat(20) { int(0..1000000) } sep " "'
     assert grammar.sample_source(src, seed=1) != grammar.sample_source(src, seed=2)

@@ -84,7 +84,9 @@ comment. Write a sequence of whitespace-separated items:
 Items:
 
 - `int(LO..HI) [as NAME]` - a random integer in [LO, HI]; `as NAME` binds it for
-  reuse (and prints it). There is no silent bind yet - a bound value is emitted.
+  reuse and also prints it.
+- `let NAME = int(LO..HI)` - a *silent* bind: sample NAME for later use without
+  printing it. `let NAME = EXPR` binds a value computed from earlier binds.
 - `float(LO..HI, NDIGITS)` - a random float fixed to NDIGITS decimals.
 - `char("ALPHABET")` - one random character; `str(LEN, "ALPHABET")` - LEN of them.
 - `"text"` - a literal (escapes: `\n` `\t` `\\` `\"`); `nl` / `sp` - newline / space.
@@ -93,9 +95,10 @@ Items:
 
 COUNT, LO, HI, LEN and NDIGITS are numeric expressions over literals, bound names
 and `+ - * / ( )`, so a later size can depend on an earlier value. To make a count
-drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`) - `repeat()`
-takes an expression, not a fresh draw. Start from a scaffold with
-`gen --new-grammar NAME`, then `gen --grammar <path> --count 1000`.
+drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`, or `let k =
+int(1..9)` when the count must not appear in the input) - `repeat()` takes an
+expression, not a fresh draw. Start from a scaffold with `gen --new-grammar NAME`,
+then `gen --grammar <path> --count 1000`.
 
 Random shapes (`gen --random --shape S --param k=v`) cover simpler stdin formats.
 The common shapes and their `--param` keys:
