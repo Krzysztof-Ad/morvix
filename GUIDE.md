@@ -370,6 +370,7 @@ Options:
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
 - `--group GROUP` - target group (default depends on mode)
+- `--content CONTENT` - with --manual: the case's input text (or pipe it on stdin)
 - `--shape SHAPE` - with --random: input shape (default ints)  (one of: anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree)
 - `--param KEY=VALUE` - shape parameter, repeatable (e.g. --param lo=0)
 - `--dist DIST` - value distribution: uniform, loguniform, zipf, gaussian, bimodal, clustered

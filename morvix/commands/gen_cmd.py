@@ -203,6 +203,9 @@ def configure(parser):
     parser.add_argument("--seed", type=int, default=1, help="base random seed (default 1)")
     parser.add_argument("--group", help="target group (default depends on mode)")
     parser.add_argument(
+        "--content", help="with --manual: the case's input text (or pipe it on stdin)"
+    )
+    parser.add_argument(
         "--shape",
         default="ints",
         choices=shapes.list_shapes(),
@@ -468,9 +471,27 @@ def run(ctx, args) -> int:
 
 def _do_manual(ctx, project, args):
     group = args.group or "baseline"
-    case = generators.gen_manual(ctx, project, args.manual, group=group)
+    content = args.content
+    # In one-shot use, accept input piped on stdin so `printf ... | gen --manual x`
+    # works instead of silently creating an empty case. Reading stdin can fail when
+    # it is a terminal or captured (e.g. under a test runner); fall back to empty.
+    if content is None and not ctx.interactive:
+        import sys
+
+        try:
+            if not sys.stdin.isatty():
+                piped = sys.stdin.read()
+                content = piped if piped else None
+        except (OSError, ValueError):
+            content = None
+    case = generators.gen_manual(ctx, project, args.manual, group=group, content=content)
     ctx.save_project()
     ctx.messenger.success(f"Created manual case {case.id}.")
+    if content is None and not ctx.interactive:
+        ctx.messenger.warning(
+            "The case input is empty.",
+            hint="Pass --content, pipe it in (printf ... | gen --manual NAME), or edit the file.",
+        )
     return 0
 
 
