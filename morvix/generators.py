@@ -27,6 +27,7 @@ import tempfile
 from morvix import (
     boundary,
     boundspec,
+    catalog,
     combinatorial,
     enumerate_inputs,
     grammar,
@@ -153,6 +154,31 @@ def gen_from_grammar(ctx, project, grammar_path, count, seed, group, params=None
         )
         _finalize_case(project, case)
         cases.append(case)
+    return cases
+
+
+def gen_catalog(ctx, project, name, count, seed, group, params=None):
+    # Generate inputs from a vetted catalog generator (built on genlib). Inputs
+    # only - answers still come from gen --expected.
+    if name not in catalog.CATALOG:
+        known = ", ".join(sorted(catalog.CATALOG))
+        raise UserError(f"Unknown catalog generator '{name}'.", hint=f"Try one of: {known}")
+    cases = []
+    for i in range(count):
+        text = catalog.generate(name, seed + i, params or {})
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"lib{seed}_{i}",
+                text,
+                "lib",
+                tags=[f"lib:{name}"],
+                seed=seed + i,
+                lib=name,
+                params=params or None,
+            )
+        )
     return cases
 
 

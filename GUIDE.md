@@ -296,6 +296,10 @@ Options:
 - `--pin NAME` - save a named snapshot of current inputs+expected so later drift can be detected
 - `--diff-pin NAME` - show which inputs or expected answers changed since NAME
 - `--list-snapshots` - list saved snapshots (see gen --pin)
+- `--lib NAME` - generate inputs from a vetted catalog generator (see --list-lib)
+- `--list-lib` - list the catalog of vetted generators
+- `--export-pack FILE` - bundle this project's generators/grammars into a pack
+- `--import-pack FILE` - import generators/grammars from a pack (no code is run)
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
@@ -326,6 +330,8 @@ Options:
 - `--all` - with --expected --changed: force a full recompute
 - `--require-valid` - with --random/--generator/--grammar: drop inputs the validator rejects
 - `--dedup` - skip byte-identical inputs; with no mode, prune existing duplicate generated cases
+- `--with-catalog` - with --export-pack: also record the catalog generator names used
+- `--force` - with --import-pack: overwrite existing files
 
 Examples:
 

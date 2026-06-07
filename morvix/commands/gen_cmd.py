@@ -15,9 +15,11 @@ import os
 
 from morvix import (
     boundspec,
+    catalog,
     distributions,
     generators,
     hygiene,
+    pack,
     shapes,
     snapshots,
     suggestions,
@@ -132,6 +134,24 @@ def configure(parser):
     )
     mode.add_argument(
         "--list-snapshots", action="store_true", help="list saved snapshots (see gen --pin)"
+    )
+    mode.add_argument(
+        "--lib",
+        metavar="NAME",
+        help="generate inputs from a vetted catalog generator (see --list-lib)",
+    )
+    mode.add_argument(
+        "--list-lib", action="store_true", help="list the catalog of vetted generators"
+    )
+    mode.add_argument(
+        "--export-pack",
+        metavar="FILE",
+        help="bundle this project's generators/grammars into a pack",
+    )
+    mode.add_argument(
+        "--import-pack",
+        metavar="FILE",
+        help="import generators/grammars from a pack (no code is run)",
     )
 
     parser.add_argument(
@@ -258,6 +278,14 @@ def configure(parser):
         action="store_true",
         help="skip byte-identical inputs; with no mode, prune existing duplicate generated cases",
     )
+    parser.add_argument(
+        "--with-catalog",
+        action="store_true",
+        help="with --export-pack: also record the catalog generator names used",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="with --import-pack: overwrite existing files"
+    )
 
 
 # Parse repeated KEY=VALUE strings into a dict, coercing ints/floats.
@@ -328,6 +356,14 @@ def run(ctx, args) -> int:
         return _do_diff_pin(ctx, project, args)
     if args.list_snapshots:
         return _do_list_snapshots(ctx, project, args)
+    if args.lib:
+        return _do_lib(ctx, project, args)
+    if args.list_lib:
+        return _do_list_lib(ctx, project, args)
+    if args.export_pack:
+        return _do_export_pack(ctx, project, args)
+    if args.import_pack:
+        return _do_import_pack(ctx, project, args)
     if args.dedup:  # no generating mode: prune existing duplicate generated cases
         return _do_dedup(ctx, project, args)
 
@@ -629,6 +665,48 @@ def _do_dedup(ctx, project, args):
     removed = hygiene.dedup_pool(project)
     ctx.save_project()
     ctx.messenger.success(f"Removed {removed} duplicate generated case(s).")
+    return 0
+
+
+# --- catalog & packs -------------------------------------------------------
+
+
+def _do_lib(ctx, project, args):
+    group = args.group or "baseline"
+    params = _parse_params(args.param)
+    cases = generators.gen_catalog(ctx, project, args.lib, args.count, args.seed, group, params)
+    _post_generate(ctx, project, args, group)
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} case(s) from catalog '{args.lib}'.")
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_list_lib(ctx, project, args):
+    entries = catalog.list_entries()
+    if not entries:
+        ctx.messenger.info("The catalog is empty.")
+        return 0
+    for entry in entries:
+        ctx.messenger.info(catalog.describe(entry.name))
+    return 0
+
+
+def _do_export_pack(ctx, project, args):
+    out = pack.export_pack(project, args.export_pack, with_catalog=args.with_catalog)
+    ctx.messenger.success(f"Exported generator pack to {os.path.basename(out)}.")
+    return 0
+
+
+def _do_import_pack(ctx, project, args):
+    report = pack.import_pack(project, args.import_pack, force=args.force)
+    ctx.messenger.success(f"Imported {len(report.imported)} generator file(s).")
+    if report.skipped:
+        ctx.messenger.info(
+            f"Skipped {len(report.skipped)} existing file(s) (use --force to overwrite)."
+        )
+    if report.dropped_answers:
+        ctx.messenger.info(f"Ignored {len(report.dropped_answers)} bundled answer file(s).")
     return 0
 
 

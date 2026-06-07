@@ -63,6 +63,16 @@ def test_gen_multi_then_expected(py_project):
     assert judge(proj, proj.solution, proj.language, select_cases(proj)).all_passed
 
 
+def test_gen_catalog_then_expected(py_project):
+    ctx, proj = py_project
+    cases = generators.gen_catalog(ctx, proj, "tree.binary", 4, 1, "baseline", {"n": 12})
+    assert cases and _no_expected(cases)
+    assert cases[0].provenance["mode"] == "lib"
+    assert cases[0].provenance["lib"] == "tree.binary"
+    generators.gen_expected(ctx, proj)
+    assert judge(proj, proj.solution, proj.language, select_cases(proj)).all_passed
+
+
 def test_gen_random_dist_and_adversary(py_project):
     ctx, proj = py_project
     # A non-uniform distribution still produces valid ints the solution can sum.
