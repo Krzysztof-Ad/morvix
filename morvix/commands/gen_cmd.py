@@ -353,6 +353,11 @@ def configure(parser):
         help="with --import: keep bundled .out/.ans as ADVISORY only (never expected answers)",
     )
     parser.add_argument(
+        "--keep-names",
+        action="store_true",
+        help="with --import: name cases after the source files instead of imp1, imp2, ...",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="with --import: preview without writing anything"
     )
     parser.add_argument("--name", help="name for a drafted generator/grammar (infer/suggest)")
@@ -954,6 +959,7 @@ def _do_import(ctx, project, args):
         group=group,
         split=args.split,
         keep_answers=args.keep_answers,
+        keep_names=args.keep_names,
         dry_run=args.dry_run,
         dedup=True,
     )

@@ -49,6 +49,40 @@ def test_import_ingests_in_files_as_cases(py_project, tmp_path):
         assert case.input_hash
 
 
+def test_import_default_names_are_generic(py_project, tmp_path):
+    ctx, project = py_project
+    d = _corpus(tmp_path)
+    summary = import_corpus(ctx, project, str(d), group="imported")
+    assert all(c.name.startswith("imp") for c in summary.created)
+
+
+def test_import_keep_names_uses_source_basenames(py_project, tmp_path):
+    ctx, project = py_project
+    d = tmp_path / "corpus"
+    d.mkdir()
+    (d / "edge_greedy_trap.in").write_text("1\n2\n3\n")
+    (d / "big-case.txt").write_text("4\n5\n6\n")
+
+    summary = import_corpus(ctx, project, str(d), group="imported", keep_names=True)
+    names = {c.name for c in summary.created}
+    assert names == {"edge_greedy_trap", "big-case"}
+
+
+def test_import_keep_names_disambiguates_collisions(py_project, tmp_path):
+    ctx, project = py_project
+    # Same basename from two directories, distinct contents -> unique case names.
+    (tmp_path / "x").mkdir()
+    (tmp_path / "y").mkdir()
+    (tmp_path / "x" / "case.in").write_text("1\n")
+    (tmp_path / "y" / "case.in").write_text("2\n")
+
+    summary = import_corpus(
+        ctx, project, str(tmp_path / "*/case.in"), group="imported", keep_names=True
+    )
+    names = sorted(c.name for c in summary.created)
+    assert names == ["case", "case_2"]
+
+
 def test_import_strips_bundled_answers(py_project, tmp_path):
     ctx, project = py_project
     d = _corpus(tmp_path)

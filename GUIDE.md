@@ -446,6 +446,7 @@ Options:
 - `--ops OPS` - with --mutate: comma-separated mutation operators
 - `--split` - with --import: split multi-test files
 - `--keep-answers` - with --import: keep bundled .out/.ans as ADVISORY only (never expected answers)
+- `--keep-names` - with --import: name cases after the source files instead of imp1, imp2, ...
 - `--dry-run` - with --import: preview without writing anything
 - `--name NAME` - name for a drafted generator/grammar (infer/suggest)
 - `--as-grammar` - with --infer: also try writing a grammar draft

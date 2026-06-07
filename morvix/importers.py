@@ -62,6 +62,7 @@ def import_corpus(
     group="imported",
     split=False,
     keep_answers=False,
+    keep_names=False,
     dry_run=False,
     dedup=True,
 ):
@@ -91,6 +92,9 @@ def import_corpus(
 
     # Track the next free case index so generated names never collide on disk.
     counter = [_next_index(project, group)]
+    # With keep_names we derive names from the source files; remember which we've
+    # already used (plus existing case names) so suffixes keep them unique.
+    used_names = {c.name for c in project.cases if c.group == group}
 
     for relname, data in members:
         ext = _ext(relname)
@@ -105,22 +109,56 @@ def import_corpus(
             # Not an input we recognise and not an answer - ignore quietly.
             continue
 
+        base = _sanitize_name(relname) if keep_names else None
         text = _decode(data)
         if split:
             subinputs = _split_multitest(text)
             if len(subinputs) > 1:
                 summary.split_files += 1
-                for sub in subinputs:
-                    _ingest_one(project, group, sub, summary, seen, dedup, dry_run, counter)
+                for i, sub in enumerate(subinputs):
+                    hint = f"{base}_{i}" if base else None
+                    _ingest_one(
+                        project,
+                        group,
+                        sub,
+                        summary,
+                        seen,
+                        dedup,
+                        dry_run,
+                        counter,
+                        used_names,
+                        hint,
+                    )
                     summary.sub_cases += 1
                 continue
-        _ingest_one(project, group, text, summary, seen, dedup, dry_run, counter)
+        _ingest_one(project, group, text, summary, seen, dedup, dry_run, counter, used_names, base)
 
     return summary
 
 
+# Turn a source path into a safe, bare case name (basename, no extension).
+def _sanitize_name(relname):
+    stem = os.path.splitext(os.path.basename(relname))[0]
+    cleaned = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in stem).strip("_")
+    return cleaned or "case"
+
+
+def _unique_name(name, used_names):
+    if name not in used_names:
+        used_names.add(name)
+        return name
+    i = 2
+    while f"{name}_{i}" in used_names:
+        i += 1
+    final = f"{name}_{i}"
+    used_names.add(final)
+    return final
+
+
 # Take one input text and (unless it is empty or a duplicate) write it as a case.
-def _ingest_one(project, group, text, summary, seen, dedup, dry_run, counter):
+def _ingest_one(
+    project, group, text, summary, seen, dedup, dry_run, counter, used_names=None, name_hint=None
+):
     if not text.strip():
         summary.skipped_empty += 1
         return None
@@ -130,8 +168,11 @@ def _ingest_one(project, group, text, summary, seen, dedup, dry_run, counter):
         return None
     seen.add(h)
 
-    name = f"imp{counter[0]}"
-    counter[0] += 1
+    if name_hint and used_names is not None:
+        name = _unique_name(name_hint, used_names)
+    else:
+        name = f"imp{counter[0]}"
+        counter[0] += 1
     rel = default_input_relpath(group, name)
     case = TestCase(
         name=name,
