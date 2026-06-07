@@ -291,6 +291,11 @@ Options:
 - `--multi T` - wrap T generated inputs into one multi-test file with a T header
 - `--ladder` - emit one case per geometric size rung for empirical complexity profiling
 - `--shrink CASE` - minimise a failing case to a small reproducer (input shrinks, answer re-derived)
+- `--validate PROG` - check generated inputs are well-formed with a validator (default: saved validator)
+- `--new-validator NAME` - write a starter input validator you can edit (default name: validate)
+- `--pin NAME` - save a named snapshot of current inputs+expected so later drift can be detected
+- `--diff-pin NAME` - show which inputs or expected answers changed since NAME
+- `--list-snapshots` - list saved snapshots (see gen --pin)
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
@@ -315,6 +320,12 @@ Options:
 - `--no-shrink` - skip automatic minimisation of a found failure
 - `--shrink-budget SHRINK_BUDGET` - max solution runs spent shrinking
 - `--keep-clean` - with --crash: keep even inputs the solution handled cleanly
+- `--check-stable` - with --expected: run each case several times and refuse to freeze a varying answer
+- `--repeat REPEAT` - with --check-stable: how many runs per case
+- `--changed` - with --expected: only recompute cases whose input or the solution changed
+- `--all` - with --expected --changed: force a full recompute
+- `--require-valid` - with --random/--generator/--grammar: drop inputs the validator rejects
+- `--dedup` - skip byte-identical inputs; with no mode, prune existing duplicate generated cases
 
 Examples:
 

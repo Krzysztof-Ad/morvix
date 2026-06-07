@@ -355,17 +355,11 @@ def _make_solution_env(project, solution, language, prefix="morvix-env-"):
     return env, workdir
 
 
-# Build the solution once, then run every case through it.
-def _run_over_cases(project, solution, language, cases):
-    env, workdir = _make_solution_env(project, solution, language, prefix="morvix-ref-")
-    observations = {}
-    try:
-        for case in cases:
-            limits = resolve_limits(project, None, case)
-            observations[case.id] = run_case(project.model, case, env, limits)
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-    return observations
+def _has_expectation(case):
+    return any(
+        getattr(case, k) is not None
+        for k in ("expected_output", "expected_hash", "expected_exit", "expected_signal")
+    )
 
 
 # Compile a generator program once and return (produce, cleanup). produce(seed,
@@ -492,9 +486,19 @@ def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=N
     return cases
 
 
-def gen_expected(ctx, project, use_hash=False, groups=None):
-    # Answers always come from the solution under test: we run it over every
-    # case and freeze its outputs as the expected answers.
+def gen_expected(
+    ctx,
+    project,
+    use_hash=False,
+    groups=None,
+    check_stable=False,
+    repeat=3,
+    changed_only=False,
+    force_all=False,
+):
+    # Answers always come from the solution under test: build it once, run it
+    # over each case, and freeze its observed behaviour as the expected answer.
+    # Returns {"computed", "reused", "unstable"}.
     solution = project.solution
     if not solution:
         raise UserError(
@@ -502,49 +506,79 @@ def gen_expected(ctx, project, use_hash=False, groups=None):
             hint="Import one first with 'import <file>'.",
         )
     language = project.language or detect_language(solution)
-
     cases = select_cases(project, groups=groups) if groups else list(project.cases)
-    observations = _run_over_cases(project, solution, language, cases)
+    fingerprint = provenance.solution_fingerprint(project)
 
+    env, workdir = _make_solution_env(project, solution, language, prefix="morvix-ref-")
     computed = 0
-    clean_outputs = []  # captured answers from clean runs, to sanity-check below
-    for case in cases:
-        # Clear any stale expectation so re-running never leaves an impossible
-        # combination (e.g. expected_output + expected_signal from two separate runs).
-        case.expected_output = None
-        case.expected_hash = None
-        case.expected_exit = None
-        case.expected_signal = None
+    reused = 0
+    unstable = []
+    clean_outputs = []
+    try:
+        for case in cases:
+            limits = resolve_limits(project, None, case)
+            # Incremental: skip a case whose input and the solution are unchanged.
+            if changed_only and not force_all and _has_expectation(case):
+                cur = provenance.compute_input_hash(case, project.root)
+                if (
+                    cur == case.input_hash
+                    and case.provenance.get("solution_fingerprint") == fingerprint
+                ):
+                    reused += 1
+                    continue
 
-        obs = observations.get(case.id)
-        if obs is None:
-            continue
-        res = obs.result
-        if res.timed_out:
-            continue
-        if res.signaled:
-            # Solution crashed: record the signal as the expectation, not an answer.
-            case.expected_signal = _signal_name(res.term_signal)
-        elif res.exit_code not in (0, None):
-            # Nonzero clean exit: that exit code becomes the expectation.
-            case.expected_exit = res.exit_code
-        else:
-            # Clean run: the captured stdout is the answer.
-            clean_outputs.append(obs.output)
-            if use_hash:
-                # Store only the digest, never the full output.
-                case.expected_hash = hashlib.sha256(obs.output).hexdigest()
+            obs = run_case(project.model, case, env, limits)
+            if check_stable and _varies(project, case, env, limits, obs, repeat):
+                unstable.append(case.id)
+                continue  # refuse to freeze a nondeterministic answer
+
+            # Clear any stale expectation so re-running never leaves an impossible
+            # combination (expected_output + expected_signal from two runs).
+            case.expected_output = case.expected_hash = None
+            case.expected_exit = case.expected_signal = None
+            res = obs.result
+            if res.timed_out:
+                continue
+            if res.signaled:
+                case.expected_signal = _signal_name(res.term_signal)
+            elif res.exit_code not in (0, None):
+                case.expected_exit = res.exit_code
             else:
-                rel = default_expected_relpath(case.group, case.name)
-                os.makedirs(os.path.dirname(project.abspath(rel)), exist_ok=True)
-                with open(project.abspath(rel), "wb") as f:
-                    f.write(obs.output)
-                case.expected_output = rel
-        computed += 1
-    # If almost every answer is empty or they are all identical, the inputs
-    # probably don't match the program's format - tell the user (Section 22).
+                clean_outputs.append(obs.output)
+                if use_hash:
+                    case.expected_hash = hashlib.sha256(obs.output).hexdigest()
+                else:
+                    rel = default_expected_relpath(case.group, case.name)
+                    os.makedirs(os.path.dirname(project.abspath(rel)), exist_ok=True)
+                    with open(project.abspath(rel), "wb") as f:
+                        f.write(obs.output)
+                    case.expected_output = rel
+            # Record which solution froze this answer, so drift is detectable.
+            case.provenance["solution_fingerprint"] = fingerprint
+            provenance.ensure_input_hash(project, case)
+            computed += 1
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    # If almost every answer is empty or identical, the inputs likely don't match
+    # the program's format - tell the user (Section 22).
     suggestions.warn_degenerate_expected(ctx, clean_outputs)
-    return computed
+    if unstable:
+        suggestions.warn_unstable_answers(ctx, unstable)
+    return {"computed": computed, "reused": reused, "unstable": unstable}
+
+
+def _varies(project, case, env, limits, first_obs, repeat):
+    """Run the case a few more times; True if its observable behaviour changes."""
+    for _ in range(max(repeat - 1, 0)):
+        obs = run_case(project.model, case, env, limits)
+        if (
+            _normalise(obs.output) != _normalise(first_obs.output)
+            or obs.result.exit_code != first_obs.result.exit_code
+            or obs.result.signaled != first_obs.result.signaled
+        ):
+            return True
+    return False
 
 
 # Run a program on one input text via a throwaway case; return the Observation.
@@ -874,6 +908,15 @@ def _malform(text, kind):
         # pad every token with surplus spaces and blank lines
         return "\n\n".join("   " + line + "   " for line in text.split("\n")) + "\n"
     return text
+
+
+def clean_one(project, case):
+    """Delete one case's files and drop it from the project."""
+    for rel in case.inputs.values():
+        _unlink(project.abspath(rel))
+    if case.expected_output:
+        _unlink(project.abspath(case.expected_output))
+    project.remove_case(case.id)
 
 
 def clean_generated(project, group=None):

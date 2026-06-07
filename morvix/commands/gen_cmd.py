@@ -13,7 +13,16 @@
 import glob
 import os
 
-from morvix import boundspec, distributions, generators, shapes, suggestions
+from morvix import (
+    boundspec,
+    distributions,
+    generators,
+    hygiene,
+    shapes,
+    snapshots,
+    suggestions,
+    validators,
+)
 from morvix.components.progress import progress_bar
 from morvix.errors import UserError
 
@@ -94,6 +103,35 @@ def configure(parser):
         "--shrink",
         metavar="CASE",
         help="minimise a failing case to a small reproducer (input shrinks, answer re-derived)",
+    )
+    mode.add_argument(
+        "--validate",
+        nargs="?",
+        const="",
+        metavar="PROG",
+        help="check generated inputs are well-formed with a validator (default: saved validator)",
+    )
+    mode.add_argument(
+        "--new-validator",
+        nargs="?",
+        const="validate",
+        metavar="NAME",
+        help="write a starter input validator you can edit (default name: validate)",
+    )
+    mode.add_argument(
+        "--pin",
+        nargs="?",
+        const="snapshot",
+        metavar="NAME",
+        help="save a named snapshot of current inputs+expected so later drift can be detected",
+    )
+    mode.add_argument(
+        "--diff-pin",
+        metavar="NAME",
+        help="show which inputs or expected answers changed since NAME",
+    )
+    mode.add_argument(
+        "--list-snapshots", action="store_true", help="list saved snapshots (see gen --pin)"
     )
 
     parser.add_argument(
@@ -194,6 +232,32 @@ def configure(parser):
         action="store_true",
         help="with --crash: keep even inputs the solution handled cleanly",
     )
+    parser.add_argument(
+        "--check-stable",
+        action="store_true",
+        help="with --expected: run each case several times and refuse to freeze a varying answer",
+    )
+    parser.add_argument(
+        "--repeat", type=int, default=3, help="with --check-stable: how many runs per case"
+    )
+    parser.add_argument(
+        "--changed",
+        action="store_true",
+        help="with --expected: only recompute cases whose input or the solution changed",
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="with --expected --changed: force a full recompute"
+    )
+    parser.add_argument(
+        "--require-valid",
+        action="store_true",
+        help="with --random/--generator/--grammar: drop inputs the validator rejects",
+    )
+    parser.add_argument(
+        "--dedup",
+        action="store_true",
+        help="skip byte-identical inputs; with no mode, prune existing duplicate generated cases",
+    )
 
 
 # Parse repeated KEY=VALUE strings into a dict, coercing ints/floats.
@@ -254,12 +318,24 @@ def run(ctx, args) -> int:
         return _do_ladder(ctx, project, args)
     if args.shrink:
         return _do_shrink(ctx, project, args)
+    if args.validate is not None:
+        return _do_validate(ctx, project, args)
+    if args.new_validator is not None:
+        return _do_new_validator(ctx, project, args)
+    if args.pin is not None:
+        return _do_pin(ctx, project, args)
+    if args.diff_pin:
+        return _do_diff_pin(ctx, project, args)
+    if args.list_snapshots:
+        return _do_list_snapshots(ctx, project, args)
+    if args.dedup:  # no generating mode: prune existing duplicate generated cases
+        return _do_dedup(ctx, project, args)
 
     raise UserError(
         "No generation mode given.",
         hint="Pick one of --manual, --random, --generator, --grammar, --boundary, "
         "--exhaustive, --pairwise, --multi, --ladder, --expected, --stress, --crash, "
-        "--new-generator, --new-grammar.",
+        "--shrink, --validate, --pin, --new-generator, --new-grammar.",
     )
 
 
@@ -301,6 +377,7 @@ def _do_random(ctx, project, args):
     else:
         cases = generators.gen_random(ctx, project, shape, count, args.seed, group, params)
 
+    _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} '{shape}' case(s) in group '{group}'.")
     ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
@@ -437,6 +514,7 @@ def _do_generator(ctx, project, args):
             f"Generator not found: {args.generator}", hint="Check the path and try again."
         )
     cases = generators.gen_from_generator(ctx, project, path, args.count, args.seed, group)
+    _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(
         f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."
@@ -452,11 +530,22 @@ def _do_expected(ctx, project, args):
         c.id for c in project.cases if c.expected_exit is not None or c.expected_signal is not None
     }
 
-    computed = generators.gen_expected(ctx, project, use_hash=args.hash)
+    result = generators.gen_expected(
+        ctx,
+        project,
+        use_hash=args.hash,
+        check_stable=args.check_stable,
+        repeat=args.repeat,
+        changed_only=args.changed,
+        force_all=args.all,
+    )
     ctx.save_project()
 
     how = "hashes" if args.hash else "output files"
-    ctx.messenger.success(f"Computed {computed} expected answer(s) ({how}).")
+    msg = f"Computed {result['computed']} expected answer(s) ({how})."
+    if result["reused"]:
+        msg += f" Reused {result['reused']} unchanged."
+    ctx.messenger.success(msg)
 
     # Cases that crashed under the solution now carry an exit/signal expectation.
     crashing = [
@@ -467,6 +556,96 @@ def _do_expected(ctx, project, args):
     if crashing:
         suggestions.suggest_exit_status(ctx, project, crashing)
     return 0
+
+
+# --- integrity: validator, snapshots, dedup --------------------------------
+
+
+def _do_validate(ctx, project, args):
+    explicit = args.validate or None
+    path = validators.resolve_validator(project, explicit)
+    cases = [c for c in project.cases if c.primary_input()]
+    results = validators.validate_cases(project, cases, path)
+    bad = [r for r in results if not r.valid and not r.degraded]
+    degraded = [r for r in results if r.degraded]
+    if degraded and len(degraded) == len(results):
+        ctx.messenger.warning(
+            "Could not run the validator.", hint=degraded[0].message or "Check the toolchain."
+        )
+        return 0
+    if bad:
+        ids = ", ".join(r.case_id for r in bad[:8])
+        ctx.messenger.warning(f"{len(bad)} input(s) failed validation: {ids}", hint="Inspect them.")
+    else:
+        ctx.messenger.success(f"All {len(results)} input(s) are well-formed.")
+    return 0
+
+
+def _do_new_validator(ctx, project, args):
+    rel = validators.new_validator(ctx, project, args.new_validator)
+    project.validator = rel
+    ctx.save_project()
+    ctx.messenger.success(f"Wrote a starter validator: {rel}")
+    ctx.messenger.info("Edit it to check your input format, then: gen --validate")
+    return 0
+
+
+def _do_pin(ctx, project, args):
+    path = snapshots.pin(project, args.pin)
+    ctx.messenger.success(f"Pinned snapshot '{args.pin}' ({os.path.basename(path)}).")
+    ctx.messenger.info("Later: gen --diff-pin %s to see what drifted." % args.pin)
+    return 0
+
+
+def _do_diff_pin(ctx, project, args):
+    d = snapshots.diff(project, args.diff_pin)
+    if not d.drifted:
+        ctx.messenger.success(f"Nothing changed since snapshot '{args.diff_pin}'.")
+        return 0
+    if d.solution_changed:
+        ctx.messenger.warning("The solution changed - frozen answers may be stale.")
+    for label, ids in (
+        ("inputs changed", d.inputs_changed),
+        ("expected answers changed", d.expected_changed),
+        ("added", d.added),
+        ("removed", d.removed),
+    ):
+        if ids:
+            ctx.messenger.info(f"{label}: {', '.join(ids[:10])}")
+    return 0
+
+
+def _do_list_snapshots(ctx, project, args):
+    names = snapshots.list_snapshots(project)
+    if not names:
+        ctx.messenger.info("No snapshots yet. Create one with: gen --pin <name>")
+    else:
+        for n in names:
+            ctx.messenger.info(n)
+    return 0
+
+
+def _do_dedup(ctx, project, args):
+    removed = hygiene.dedup_pool(project)
+    ctx.save_project()
+    ctx.messenger.success(f"Removed {removed} duplicate generated case(s).")
+    return 0
+
+
+# Post-generation hooks shared by the generating modes.
+def _post_generate(ctx, project, args, group):
+    if args.require_valid:
+        path = validators.resolve_validator(project, None)
+        cases = [c for c in project.cases if c.group == group and c.primary_input()]
+        results = validators.validate_cases(project, cases, path)
+        invalid = {r.case_id for r in results if not r.valid and not r.degraded}
+        if invalid:
+            for c in list(project.cases):
+                if c.id in invalid:
+                    generators.clean_one(project, c)
+            suggestions.suggest_invalid_inputs(ctx, list(invalid))
+    if args.dedup:
+        hygiene.dedup_pool(project, group=group)
 
 
 def _do_stress(ctx, project, args):
@@ -546,6 +725,7 @@ def _do_grammar(ctx, project, args):
         raise UserError(f"Grammar not found: {args.grammar}", hint="Check the path and try again.")
     params = _parse_params(args.param)
     cases = generators.gen_from_grammar(ctx, project, path, args.count, args.seed, group, params)
+    _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(
         f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."

@@ -27,6 +27,7 @@ GENERATORS_DIR = os.path.join(STATE_DIR, "generators")
 RUNNER_DIR = os.path.join(STATE_DIR, "runner")  # the shippable runner (core + run.sh)
 RESULTS_DIR = os.path.join(STATE_DIR, "results")
 WORKFLOWS_DIR = os.path.join(STATE_DIR, "workflows")
+SNAPSHOTS_DIR = os.path.join(STATE_DIR, "snapshots")  # named input/answer snapshots
 
 # Files under config/
 PROJECT_FILE = os.path.join(CONFIG_DIR, "project.json")  # editable config
@@ -46,6 +47,7 @@ PROJECT_DIRS = [
     RUNNER_DIR,
     RESULTS_DIR,
     WORKFLOWS_DIR,
+    SNAPSHOTS_DIR,
 ]
 
 # The flat (pre-0.2) layout, kept only so old projects can be detected and

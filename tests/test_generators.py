@@ -44,9 +44,9 @@ def test_gen_expected_writes_expected_files(py_project):
     ctx, project = py_project
     gen_random(ctx, project, "array", 4, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
 
-    count = gen_expected(ctx, project)
+    result = gen_expected(ctx, project)
 
-    assert count == 4
+    assert result["computed"] == 4
 
     for case in project.cases:
         assert case.expected_output is not None
