@@ -389,6 +389,37 @@ def detect_language(path):
     return _EXTENSIONS.get(os.path.splitext(path)[1].lower())
 
 
+def looks_like_binary(path):
+    """Heuristic: True when path is a compiled artifact rather than source.
+
+    Receivers in C/Java often pass a.out or Main.class by mistake; feeding that
+    to a compiler (or py_compile) yields a baffling error like "source code
+    string cannot contain null bytes". A NUL byte in the first chunk is the
+    classic text/binary test; we also match a few executable magic numbers.
+    """
+    try:
+        with open(path, "rb") as f:
+            chunk = f.read(8192)
+    except (OSError, IOError):
+        return False
+    if not chunk:
+        return False
+    if b"\x00" in chunk:
+        return True
+    magics = (
+        b"\x7fELF",  # Linux ELF
+        b"\xca\xfe\xba\xbe",  # Java .class / Mach-O fat
+        b"\xcf\xfa\xed\xfe",  # Mach-O 64-bit
+        b"\xfe\xed\xfa\xce",  # Mach-O 32-bit
+        b"\xfe\xed\xfa\xcf",  # Mach-O 64-bit (BE)
+        b"MZ",  # Windows PE
+    )
+    for m in magics:
+        if chunk.startswith(m):
+            return True
+    return False
+
+
 def build_solution(manifest, source, language, workdir):
     """Build the solution, honouring a raw build command if the manifest sets one."""
     raw_build = manifest.get("raw_build")
@@ -1053,6 +1084,15 @@ def _primary_input(case):
     return None
 
 
+def _missing_input(manifest, case):
+    # A declared primary input whose file is absent on disk - a broken package,
+    # not a wrong answer. Returns the relpath when missing, else None.
+    rel = _primary_input(case)
+    if rel and not os.path.exists(os.path.join(manifest["_root"], rel)):
+        return rel
+    return None
+
+
 def resolve_limits(manifest, runner, case):
     # Effective limits, applying case > runner > project precedence.
     limits = dict(manifest.get("limits", {}))
@@ -1131,6 +1171,16 @@ def judge_case(manifest, build, case, workdir, runner, opts):
     exit/signal, then output, then optional memcheck - and ALL enabled ones
     must pass (Section 14.7).
     """
+    # Setup check (mirrors judge.py): a declared input file that isn't on disk is
+    # a broken package, not a wrong answer - report it distinctly so a missing
+    # input is never mistaken for the solution crashing.
+    missing = _missing_input(manifest, case)
+    if missing:
+        result = CaseResult(_case_id(case), case.get("group", "baseline"))
+        result.status = "error"
+        result.verdict = "input file missing: " + missing
+        return result
+
     res = run_case_program(manifest, build, case, workdir)
 
     result = CaseResult(_case_id(case), case.get("group", "baseline"))
@@ -1573,17 +1623,44 @@ def main(argv=None):
     solution = os.path.abspath(args.solution)
     if not os.path.exists(solution):
         sys.stderr.write("error: solution not found: %s\n" % solution)
+        # A whole command ("java -cp . Main") looks like a path that doesn't exist;
+        # point the receiver at what we actually want.
+        if " " in args.solution.strip():
+            sys.stderr.write(
+                "       This looks like a command. Pass the path to a single source\n"
+                "       file instead, e.g. ./run.sh WordFreq.java\n"
+            )
         return 2
 
-    # Pick the language: explicit override, then the manifest's default, then
-    # detect from the file extension. raw_build needs no language.
-    language = args.language or manifest.get("language") or detect_language(solution)
+    # A compiled binary is never valid source. Catch it early with a clear hint
+    # rather than letting the compiler choke (raw_build packages run anything).
+    if not manifest.get("raw_build") and looks_like_binary(solution):
+        sys.stderr.write(
+            "error: %s looks like a compiled binary, not source code.\n"
+            "       Pass the path to your source file instead, e.g. ./run.sh solution.c\n"
+            % os.path.basename(solution)
+        )
+        return 2
+
+    # Pick the language: explicit override wins, then the receiver's own file
+    # extension (they may solve in a different language than the author), then
+    # the manifest default. raw_build needs no language.
+    detected = detect_language(solution)
+    language = args.language or detected or manifest.get("language")
     if not language and not manifest.get("raw_build"):
         sys.stderr.write(
             "error: could not detect a language for %s; pass --language.\n"
             % os.path.basename(solution)
         )
         return 2
+    # When the receiver's language differs from the author's, say so - it's the
+    # common cross-language case and the note saves a confused debugging session.
+    authored = manifest.get("language")
+    if not args.language and detected and authored and detected != authored:
+        sys.stderr.write(
+            "note: building as %s (from %s); this package was authored in %s.\n"
+            % (detected, os.path.basename(solution), authored)
+        )
 
     try:
         runner = resolve_runner(manifest, args.runner)

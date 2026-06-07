@@ -126,3 +126,26 @@ def test_gen_command_content_flag(py_project):
     registry.safe_dispatch(ctx, ["gen", "--manual", "edge2", "--content", "1 2 3\n"])
     case = next(c for c in project.cases if c.name == "edge2")
     assert open(project.abspath(case.inputs["stdin"])).read() == "1 2 3\n"
+
+
+# ---------------------------------------------------------------------------
+# A case whose input file is gone is a broken setup, not a wrong answer: judge
+# reports it as an "error", distinct from the solution exiting nonzero.
+# ---------------------------------------------------------------------------
+
+
+def test_missing_input_is_an_error_not_a_failure(py_project):
+    from morvix.judge import judge, select_cases
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    gen_expected(ctx, project)
+
+    victim = project.cases[0]
+    os.remove(project.abspath(victim.inputs["stdin"]))
+
+    run = judge(project, project.solution, project.language, select_cases(project))
+    by_id = {c.case_id: c for c in run.cases}
+    assert by_id[victim.id].status == "error"
+    assert "input file missing" in by_id[victim.id].verdict
+    assert not run.all_passed

@@ -77,10 +77,31 @@ def _has_output_expectation(project: Project, case: TestCase, strategy: str) -> 
     return bool(path and os.path.exists(path))
 
 
+def _missing_input(project: Project, case: TestCase) -> Optional[str]:
+    """A declared primary input whose file is absent on disk - a broken package,
+    not a wrong answer. Returns the relpath when missing, else None."""
+    rel = case.primary_input()
+    if rel and not os.path.exists(os.path.join(project.root, rel)):
+        return rel
+    return None
+
+
 def judge_case(
     project: Project, build: BuildResult, case: TestCase, env: ExecEnv, runner: Optional[Runner]
 ) -> CaseResult:
     """Run one case and combine every enabled dimension into a verdict."""
+    # Setup check: a case that declares an input file no longer on disk is a
+    # broken setup, not a wrong answer - report it distinctly so a missing input
+    # is never mistaken for the solution crashing.
+    missing = _missing_input(project, case)
+    if missing:
+        return CaseResult(
+            case_id=case.id,
+            group=case.group,
+            status="error",
+            verdict=f"input file missing: {missing}",
+        )
+
     limits = resolve_limits(project, runner, case)
     obs = run_case(project.model, case, env, limits)
     res = obs.result
