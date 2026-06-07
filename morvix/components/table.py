@@ -44,6 +44,28 @@ def _add_case_row(table, cr, show_time, show_mem):
     table.add_row(*cells)
 
 
+def _print_diffs(console, run):
+    """Print a unified diff under each failed case that carries one (--diff)."""
+    shown = [c for c in run.cases if c.diff and c.status in ("fail", "error")]
+    if not shown:
+        return
+    console.print("")
+    for cr in shown:
+        console.print(f"  [fail]{cr.case_id}[/fail]")
+        for line in cr.diff.splitlines():
+            style = "muted"
+            if line.startswith("+"):
+                style = "pass"
+            elif line.startswith("-"):
+                style = "fail"
+            console.print(f"    [{style}]{_escape(line)}[/{style}]")
+
+
+def _escape(text):
+    # Diff lines are data, not markup - keep rich from interpreting [..] in them.
+    return text.replace("[", "\\[")
+
+
 def _print_summary(console, run, show_perf, show_time, show_mem, slowest_n):
     r = run
     console.print("")
@@ -72,13 +94,21 @@ def _print_summary(console, run, show_perf, show_time, show_mem, slowest_n):
 
 class RunTable:
     def __init__(
-        self, console, live=True, show_time=True, show_mem=True, show_perf=True, slowest_n=5
+        self,
+        console,
+        live=True,
+        show_time=True,
+        show_mem=True,
+        show_perf=True,
+        slowest_n=5,
+        show_diff=False,
     ):
         self._console = console
         self._show_time = show_time
         self._show_mem = show_mem
         self._show_perf = show_perf
         self._slowest_n = slowest_n
+        self._show_diff = show_diff
         self._table = _make_table(show_time, show_mem)
         use_live = live and getattr(console.file, "isatty", lambda: False)()
         if use_live:
@@ -97,6 +127,8 @@ class RunTable:
             self._live.stop()
         else:
             self._console.print(self._table)
+        if self._show_diff:
+            _print_diffs(self._console, run_result)
         _print_summary(
             self._console,
             run_result,
@@ -107,10 +139,14 @@ class RunTable:
         )
 
 
-def render_run(console, run_result, show_time=True, show_mem=True, show_perf=True, slowest_n=5):
+def render_run(
+    console, run_result, show_time=True, show_mem=True, show_perf=True, slowest_n=5, show_diff=False
+):
     """Build the full static table and summary from a finished RunResult."""
     table = _make_table(show_time, show_mem)
     for cr in run_result.cases:
         _add_case_row(table, cr, show_time, show_mem)
     console.print(table)
+    if show_diff:
+        _print_diffs(console, run_result)
     _print_summary(console, run_result, show_perf, show_time, show_mem, slowest_n)

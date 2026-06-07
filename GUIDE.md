@@ -482,6 +482,7 @@ Deletes disposable generated cases so they can be regenerated from a seed, while
 Options:
 
 - `--group G` (or `-g`) - only remove generated cases in this group
+- `--all` - remove generated cases in every group (the default)
 - `--yes` (or `-y`) - skip confirmation prompt
 
 Examples:
@@ -505,6 +506,7 @@ Options:
 - `--time` - show wall/cpu time per case (on by default for run)
 - `--mem` - show peak memory per case (on by default for run)
 - `--no-perf` - hide the performance summary at the end
+- `--diff` - show a unified diff under each case whose output differs
 - `--slowest N` - list the N slowest cases in the performance summary (default 5)
 - `--no-rivals` - skip the rival performance comparison
 - `--parallel` - run rivals in parallel (faster, but perf numbers become approximate)

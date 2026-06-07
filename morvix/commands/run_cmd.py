@@ -40,6 +40,11 @@ def configure(parser):
         "--no-perf", action="store_true", help="hide the performance summary at the end"
     )
     parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="show a unified diff under each case whose output differs",
+    )
+    parser.add_argument(
         "--slowest",
         type=int,
         default=5,
@@ -106,6 +111,7 @@ def run(ctx, args) -> int:
         show_mem=runner.measure_mem,
         show_perf=runner.report,
         slowest_n=runner.slowest,
+        show_diff=args.diff,
     )
     run_result = judge(
         project, project.solution, language, cases, runner=runner, on_case=table.update
