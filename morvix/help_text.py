@@ -109,14 +109,19 @@ COMMANDS = {
         "stage": "generate",
         "summary": "Generate or register test cases.",
         "long": "Make test cases: by hand (--manual), from the built-in random shapes "
-        "(--random), from a custom generator (--generator), or recompute expected "
-        "answers (--expected). Also stress testing (--stress) and crash candidates "
-        "(--crash). For structured input, 'gen --new-generator' writes a starter "
-        "generator you edit - usually the right tool when random shapes don't fit.",
+        "(--random), from a custom generator (--generator), from a declarative grammar "
+        "(--grammar), or recompute expected answers (--expected). Also stress testing "
+        "(--stress) and crash candidates (--crash). For structured input, a grammar "
+        "('gen --new-grammar') is correct-by-construction; a custom generator "
+        "('gen --new-generator') is the imperative alternative - both beat random shapes "
+        "when those don't fit. Every mode produces INPUTS only; answers always come from "
+        "'gen --expected' running your own solution.",
         "examples": [
             "gen --random --count 100 --seed 1 --shape ints",
             "gen --new-generator mygen",
             "gen --generator generators/mygen.py --count 1000",
+            "gen --new-grammar mygram",
+            "gen --grammar .morvix/generators/mygram.gram --count 1000",
             "gen --manual edge1",
             "gen --expected",
             "gen --expected --hash",

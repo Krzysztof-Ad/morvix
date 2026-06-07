@@ -272,7 +272,7 @@ model library
 
 #### `gen`
 
-Make test cases: by hand (--manual), from the built-in random shapes (--random), from a custom generator (--generator), or recompute expected answers (--expected). Also stress testing (--stress) and crash candidates (--crash). For structured input, 'gen --new-generator' writes a starter generator you edit - usually the right tool when random shapes don't fit.
+Make test cases: by hand (--manual), from the built-in random shapes (--random), from a custom generator (--generator), from a declarative grammar (--grammar), or recompute expected answers (--expected). Also stress testing (--stress) and crash candidates (--crash). For structured input, a grammar ('gen --new-grammar') is correct-by-construction; a custom generator ('gen --new-generator') is the imperative alternative - both beat random shapes when those don't fit. Every mode produces INPUTS only; answers always come from 'gen --expected' running your own solution.
 
 Options:
 
@@ -283,6 +283,8 @@ Options:
 - `--stress` - stress the solution against a --stress rival oracle
 - `--crash` - generate malformed inputs to probe error handling
 - `--new-generator NAME` - write a starter generator you can edit (default name: gen)
+- `--grammar FILE` - sample inputs from a declarative grammar file (correct-by-construction structure)
+- `--new-grammar NAME` - write a starter grammar you can edit (default name: gram)
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
@@ -296,6 +298,8 @@ Examples:
 gen --random --count 100 --seed 1 --shape ints
 gen --new-generator mygen
 gen --generator generators/mygen.py --count 1000
+gen --new-grammar mygram
+gen --grammar .morvix/generators/mygram.gram --count 1000
 gen --manual edge1
 gen --expected
 gen --expected --hash

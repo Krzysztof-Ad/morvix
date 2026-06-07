@@ -24,7 +24,7 @@ import os
 import shutil
 import tempfile
 
-from morvix import layout, process, provenance, shapes, suggestions
+from morvix import grammar, layout, process, provenance, shapes, suggestions
 from morvix.adapters import detect_language, get_adapter
 from morvix.cases import TestCase, default_expected_relpath, default_input_relpath
 from morvix.errors import MorvixError, UserError
@@ -85,6 +85,62 @@ def new_generator(ctx, project, name="gen"):
         )
     _write_text(path, GENERATOR_TEMPLATE.format(name=name[:-3]))
     return rel
+
+
+GRAMMAR_EXT = ".gram"
+
+
+def new_grammar(ctx, project, name="gram"):
+    """Write a starter grammar into generators/ and return its relative path."""
+    if not name.endswith(GRAMMAR_EXT):
+        name += GRAMMAR_EXT
+    rel = os.path.join(layout.GENERATORS_DIR, name)
+    path = project.abspath(rel)
+    if os.path.exists(path):
+        raise UserError(
+            f"Grammar already exists: {name}", hint="Pick another name, or edit the existing one."
+        )
+    _write_text(path, grammar.STARTER_GRAMMAR.format(path=rel))
+    return rel
+
+
+def gen_from_grammar(ctx, project, grammar_path, count, seed, group, params=None):
+    # Parse the grammar once, then sample one valid input per case. A grammar
+    # asserts input shape only - answers still come from gen --expected.
+    try:
+        source = _read_bytes(grammar_path).decode("utf-8")
+    except OSError as e:
+        raise UserError(f"Grammar not found: {grammar_path}", hint="Check the path.") from e
+    try:
+        g = grammar.parse(source, grammar_path)
+    except grammar.GrammarError as e:
+        raise UserError(f"Grammar error in {os.path.basename(grammar_path)}", hint=str(e)) from e
+
+    rel_gram = _generator_relpath(project, grammar_path)
+    shash = provenance.hash_bytes(source.encode("utf-8"))
+    base = os.path.basename(grammar_path)
+    cases = []
+    for i in range(count):
+        try:
+            text = grammar.sample(g, seed + i, params or {})
+        except grammar.GrammarError as e:
+            raise UserError("Grammar sampling failed", hint=str(e)) from e
+        name = f"gram{seed}_{i}"
+        rel = default_input_relpath(group, name)
+        _write_text(project.abspath(rel), text)
+        case = TestCase(
+            name=name,
+            group=group,
+            manual=False,
+            inputs={"stdin": rel},
+            tags=[f"grammar:{base}"],
+            provenance=provenance.make_record(
+                "grammar", seed=seed + i, grammar=rel_gram, source_hash=shash, params=params or None
+            ),
+        )
+        _finalize_case(project, case)
+        cases.append(case)
+    return cases
 
 
 # Build a program (the solution, an oracle, ...) once and return a ready ExecEnv

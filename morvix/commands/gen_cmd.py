@@ -52,6 +52,18 @@ def configure(parser):
         metavar="NAME",
         help="write a starter generator you can edit (default name: gen)",
     )
+    mode.add_argument(
+        "--grammar",
+        metavar="FILE",
+        help="sample inputs from a declarative grammar file (correct-by-construction structure)",
+    )
+    mode.add_argument(
+        "--new-grammar",
+        nargs="?",
+        const="gram",
+        metavar="NAME",
+        help="write a starter grammar you can edit (default name: gram)",
+    )
 
     parser.add_argument(
         "--hash", action="store_true", help="with --expected: store output digests instead of files"
@@ -118,11 +130,15 @@ def run(ctx, args) -> int:
         return _do_crash(ctx, project, args)
     if args.new_generator is not None:
         return _do_new_generator(ctx, project, args)
+    if args.grammar:
+        return _do_grammar(ctx, project, args)
+    if args.new_grammar is not None:
+        return _do_new_grammar(ctx, project, args)
 
     raise UserError(
         "No generation mode given.",
-        hint="Pick one of --manual, --random, --generator, "
-        "--expected, --stress, --crash, --new-generator.",
+        hint="Pick one of --manual, --random, --generator, --grammar, "
+        "--expected, --stress, --crash, --new-generator, --new-grammar.",
     )
 
 
@@ -215,6 +231,30 @@ def _do_crash(ctx, project, args):
     return 0
 
 
+def _do_grammar(ctx, project, args):
+    group = args.group or "baseline"
+    path = os.path.abspath(args.grammar)
+    if not os.path.isfile(path):
+        raise UserError(f"Grammar not found: {args.grammar}", hint="Check the path and try again.")
+    params = _parse_params(args.param)
+    cases = generators.gen_from_grammar(ctx, project, path, args.count, args.seed, group, params)
+    ctx.save_project()
+    ctx.messenger.success(
+        f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."
+    )
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_new_grammar(ctx, project, args):
+    rel = generators.new_grammar(ctx, project, args.new_grammar)
+    ctx.messenger.success(f"Wrote a starter grammar: {rel}")
+    ctx.messenger.info("Edit the rules to match your program's input, then run:")
+    ctx.messenger.info(f"  gen --grammar {rel} --count 1000")
+    ctx.messenger.info("  gen --expected")
+    return 0
+
+
 def _do_new_generator(ctx, project, args):
     rel = generators.new_generator(ctx, project, args.new_generator)
     ctx.messenger.success(f"Wrote a starter generator: {rel}")
@@ -231,8 +271,8 @@ def complete(ctx, prev_words, word):
     if prev == "--shape":
         return [(s, "shape") for s in shapes.list_shapes() if s.startswith(word or "")]
 
-    # --generator: suggest filesystem paths.
-    if prev == "--generator":
+    # --generator / --grammar: suggest filesystem paths.
+    if prev in ("--generator", "--grammar"):
         return _path_completions(word)
 
     # --manual takes a free-form name; nothing useful to suggest.
