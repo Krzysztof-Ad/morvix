@@ -80,7 +80,7 @@ ask rather than changing behavior silently.
 - **Languages:** c, cpp, java, nasm, python, rust
 - **Execution models:** args, file, interactive, library, stdio
 - **Comparison strategies:** checker, exact, float, hash, whitespace
-- **Random shapes:** array, edge, graph, grid, int, ints, permutation, string, tree
+- **Random shapes:** anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree
 
 ## Command reference
 
@@ -285,12 +285,31 @@ Options:
 - `--new-generator NAME` - write a starter generator you can edit (default name: gen)
 - `--grammar FILE` - sample inputs from a declarative grammar file (correct-by-construction structure)
 - `--new-grammar NAME` - write a starter grammar you can edit (default name: gram)
+- `--boundary` - enumerate boundary cases (min/max/zero/...) from declared --axis ranges
+- `--exhaustive` - enumerate the WHOLE small-input space for tiny bounds (guarded by a cap)
+- `--pairwise` - t-wise covering array over discrete --axis factors (every pair covered)
+- `--multi T` - wrap T generated inputs into one multi-test file with a T header
+- `--ladder` - emit one case per geometric size rung for empirical complexity profiling
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
 - `--group GROUP` - target group (default depends on mode)
-- `--shape SHAPE` - with --random: input shape (default ints)  (one of: array, edge, graph, grid, int, ints, permutation, string, tree)
+- `--shape SHAPE` - with --random: input shape (default ints)  (one of: anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree)
 - `--param KEY=VALUE` - shape parameter, repeatable (e.g. --param lo=0)
+- `--dist DIST` - value distribution: uniform, loguniform, zipf, gaussian, bimodal, clustered
+- `--difficulty DIFFICULTY` - difficulty dial easy|medium|hard|adversarial or 0..1; scales size and adversariality
+- `--axis NAME=SPEC` - declare a bounded axis (e.g. --axis count=1..1e5 --axis hi=-1e9..1e9)
+- `--matrix MATRIX` - with --boundary: how to combine multiple axes  (one of: one-at-a-time, corners, full)
+- `--max-cases MAX_CASES` - cap on generated cases (boundary/exhaustive/pairwise)
+- `--max-n MAX_N` - with --exhaustive: largest structure size to enumerate
+- `--values VALUES` - with --exhaustive: the value set each element draws from (e.g. 0,1,2)
+- `--strength STRENGTH` - with --pairwise: combination strength t (2=pairwise)
+- `--steps STEPS` - with --ladder: number of geometric size rungs
+- `--lo-n LO_N` - with --ladder: smallest n rung
+- `--hi-n HI_N` - with --ladder: largest n rung
+- `--layout-multi LAYOUT_MULTI` - with --multi: how to lay out sub-inputs  (one of: t-first, per-line)
+- `--from-group FROM_GROUP` - with --multi: draw sub-inputs from an existing group instead of generating
+- `--auto-t` - with --multi: also emit T=1, small-T and max-T variants
 
 Examples:
 

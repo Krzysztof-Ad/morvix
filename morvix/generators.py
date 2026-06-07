@@ -24,7 +24,19 @@ import os
 import shutil
 import tempfile
 
-from morvix import grammar, layout, process, provenance, shapes, suggestions
+from morvix import (
+    boundary,
+    boundspec,
+    combinatorial,
+    enumerate_inputs,
+    grammar,
+    layout,
+    multitest,
+    process,
+    provenance,
+    shapes,
+    suggestions,
+)
 from morvix.adapters import detect_language, get_adapter
 from morvix.cases import TestCase, default_expected_relpath, default_input_relpath
 from morvix.errors import MorvixError, UserError
@@ -140,6 +152,191 @@ def gen_from_grammar(ctx, project, grammar_path, count, seed, group, params=None
         )
         _finalize_case(project, case)
         cases.append(case)
+    return cases
+
+
+# Write one input-only case (no expected_*), stamping tags + provenance + hash.
+def _emit_input_case(project, group, name, text, mode, tags=None, **prov):
+    rel = default_input_relpath(group, name)
+    _write_text(project.abspath(rel), text)
+    case = TestCase(
+        name=name,
+        group=group,
+        manual=False,
+        inputs={"stdin": rel},
+        tags=tags or [],
+        provenance=provenance.make_record(mode, **prov),
+    )
+    _finalize_case(project, case)
+    return case
+
+
+def _read_text(path):
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _geometric_sizes(lo, hi, steps):
+    """`steps` distinct sizes from lo to hi spaced geometrically."""
+    lo = max(1, int(lo))
+    hi = max(lo, int(hi))
+    if steps <= 1:
+        return [hi]
+    out, seen = [], set()
+    for i in range(steps):
+        t = i / (steps - 1)
+        v = max(lo, min(hi, int(round(lo * (hi / lo) ** t))))
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+def gen_ladder(ctx, project, shape, seed, group, params, steps=8, lo_n=1, hi_n=100000):
+    # One case per geometric size rung - read complexity off the timing column.
+    sp = shapes.size_param(shape)
+    cases = []
+    for i, size in enumerate(_geometric_sizes(lo_n, hi_n, steps)):
+        p = dict(params)
+        if sp:
+            p[sp] = size
+        text = shapes.generate(shape, seed + i, p)
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"ladder{seed}_{size}",
+                text,
+                "ladder",
+                tags=["ladder", f"random:{shape}"],
+                seed=seed + i,
+                shape=shape,
+                params={sp: size} if sp else None,
+            )
+        )
+    return cases
+
+
+def gen_boundary(
+    ctx, project, shape, seed, group, axes, strategy="one-at-a-time", cap=500, base=None
+):
+    # Enumerate boundary param-sets from declared axes (axis names are the
+    # shape's own param names, e.g. count/lo/hi/rows), then generate one each.
+    psets = boundary.boundary_param_sets(axes, strategy, shape, cap=cap)
+    psets += boundary.structural_extremes(shape, axes)
+    cases = []
+    for i, pset in enumerate(psets[:cap]):
+        p = dict(base or {})
+        p.update(pset)
+        text = shapes.generate(shape, seed + i, p)
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"bnd{seed}_{i}",
+                text,
+                "boundary",
+                tags=["boundary", f"random:{shape}"],
+                seed=seed + i,
+                shape=shape,
+                params=pset or None,
+            )
+        )
+    return cases
+
+
+def gen_exhaustive(ctx, project, shape, seed, group, max_n, values, cap=500):
+    # Enumerate the whole small-input space for tiny bounds (guarded by cap).
+    texts = enumerate_inputs.enumerate_for(shape, max_n, values, cap)
+    cases = []
+    for i, text in enumerate(texts):
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"ex{i}",
+                text,
+                "exhaustive",
+                tags=["exhaustive", f"random:{shape}"],
+                shape=shape,
+            )
+        )
+    return cases
+
+
+def gen_pairwise(ctx, project, shape, seed, group, axes, strength=2, cap=500, base=None):
+    # A t-wise covering array over discrete axis levels: every pair (or t-tuple)
+    # of levels appears in at least one generated case.
+    import random as _random
+
+    factors = {name: boundspec.factor_levels(dom) for name, dom in axes.items()}
+    rows = combinatorial.covering_array(factors, strength, _random.Random(seed))
+    cases = []
+    for i, row in enumerate(rows[:cap]):
+        p = dict(base or {})
+        p.update(row)
+        text = shapes.generate(shape, seed + i, p)
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"pw{seed}_{i}",
+                text,
+                "pairwise",
+                tags=["pairwise", f"random:{shape}"],
+                seed=seed + i,
+                shape=shape,
+                params=row or None,
+            )
+        )
+    return cases
+
+
+def gen_multi(
+    ctx,
+    project,
+    shape,
+    t,
+    seed,
+    group,
+    params,
+    layout_kind="t-first",
+    from_group=None,
+    auto_t=False,
+):
+    # Wrap T generated (or borrowed) sub-inputs into one multi-test file.
+    pool = None
+    if from_group:
+        pool = [c for c in project.cases if c.group == from_group and c.primary_input()]
+        if not pool:
+            raise UserError(
+                f"No inputs in group '{from_group}' to draw from.",
+                hint="Generate that group first, or drop --from-group.",
+            )
+
+    def sub(idx):
+        if pool:
+            src = pool[idx % len(pool)]
+            return _read_text(project.abspath(src.primary_input())).rstrip("\n")
+        return shapes.generate(shape, seed + idx, params)
+
+    sizes = multitest.auto_t_sizes(t) if auto_t else [t]
+    cases = []
+    for j, count in enumerate(sizes):
+        subs = [sub(j * 100000 + k) for k in range(count)]
+        text = multitest.wrap(subs, layout_kind)
+        cases.append(
+            _emit_input_case(
+                project,
+                group,
+                f"multi{seed}_{count}",
+                text,
+                "multi",
+                tags=["multi"],
+                seed=seed,
+                shape=shape,
+            )
+        )
     return cases
 
 

@@ -13,7 +13,7 @@
 import glob
 import os
 
-from morvix import generators, shapes, suggestions
+from morvix import boundspec, distributions, generators, shapes, suggestions
 from morvix.components.progress import progress_bar
 from morvix.errors import UserError
 
@@ -64,6 +64,32 @@ def configure(parser):
         metavar="NAME",
         help="write a starter grammar you can edit (default name: gram)",
     )
+    mode.add_argument(
+        "--boundary",
+        action="store_true",
+        help="enumerate boundary cases (min/max/zero/...) from declared --axis ranges",
+    )
+    mode.add_argument(
+        "--exhaustive",
+        action="store_true",
+        help="enumerate the WHOLE small-input space for tiny bounds (guarded by a cap)",
+    )
+    mode.add_argument(
+        "--pairwise",
+        action="store_true",
+        help="t-wise covering array over discrete --axis factors (every pair covered)",
+    )
+    mode.add_argument(
+        "--multi",
+        type=int,
+        metavar="T",
+        help="wrap T generated inputs into one multi-test file with a T header",
+    )
+    mode.add_argument(
+        "--ladder",
+        action="store_true",
+        help="emit one case per geometric size rung for empirical complexity profiling",
+    )
 
     parser.add_argument(
         "--hash", action="store_true", help="with --expected: store output digests instead of files"
@@ -85,6 +111,69 @@ def configure(parser):
         default=[],
         metavar="KEY=VALUE",
         help="shape parameter, repeatable (e.g. --param lo=0)",
+    )
+    parser.add_argument(
+        "--dist",
+        default="uniform",
+        help="value distribution: uniform, loguniform, zipf, gaussian, bimodal, clustered",
+    )
+    parser.add_argument(
+        "--difficulty",
+        help="difficulty dial easy|medium|hard|adversarial or 0..1; scales size and adversariality",
+    )
+    parser.add_argument(
+        "--axis",
+        action="append",
+        default=[],
+        metavar="NAME=SPEC",
+        help="declare a bounded axis (e.g. --axis count=1..1e5 --axis hi=-1e9..1e9)",
+    )
+    parser.add_argument(
+        "--matrix",
+        default="one-at-a-time",
+        choices=["one-at-a-time", "corners", "full"],
+        help="with --boundary: how to combine multiple axes",
+    )
+    parser.add_argument(
+        "--max-cases",
+        type=int,
+        default=500,
+        help="cap on generated cases (boundary/exhaustive/pairwise)",
+    )
+    parser.add_argument(
+        "--max-n",
+        type=int,
+        default=4,
+        help="with --exhaustive: largest structure size to enumerate",
+    )
+    parser.add_argument(
+        "--values", help="with --exhaustive: the value set each element draws from (e.g. 0,1,2)"
+    )
+    parser.add_argument(
+        "--strength",
+        type=int,
+        default=2,
+        help="with --pairwise: combination strength t (2=pairwise)",
+    )
+    parser.add_argument(
+        "--steps", type=int, default=8, help="with --ladder: number of geometric size rungs"
+    )
+    parser.add_argument("--lo-n", type=int, default=1, help="with --ladder: smallest n rung")
+    parser.add_argument("--hi-n", type=int, default=100000, help="with --ladder: largest n rung")
+    parser.add_argument(
+        "--layout-multi",
+        default="t-first",
+        choices=["t-first", "per-line"],
+        help="with --multi: how to lay out sub-inputs",
+    )
+    parser.add_argument(
+        "--from-group",
+        help="with --multi: draw sub-inputs from an existing group instead of generating",
+    )
+    parser.add_argument(
+        "--auto-t",
+        action="store_true",
+        help="with --multi: also emit T=1, small-T and max-T variants",
     )
 
 
@@ -134,11 +223,22 @@ def run(ctx, args) -> int:
         return _do_grammar(ctx, project, args)
     if args.new_grammar is not None:
         return _do_new_grammar(ctx, project, args)
+    if args.boundary:
+        return _do_boundary(ctx, project, args)
+    if args.exhaustive:
+        return _do_exhaustive(ctx, project, args)
+    if args.pairwise:
+        return _do_pairwise(ctx, project, args)
+    if args.multi is not None:
+        return _do_multi(ctx, project, args)
+    if args.ladder:
+        return _do_ladder(ctx, project, args)
 
     raise UserError(
         "No generation mode given.",
-        hint="Pick one of --manual, --random, --generator, --grammar, "
-        "--expected, --stress, --crash, --new-generator, --new-grammar.",
+        hint="Pick one of --manual, --random, --generator, --grammar, --boundary, "
+        "--exhaustive, --pairwise, --multi, --ladder, --expected, --stress, --crash, "
+        "--new-generator, --new-grammar.",
     )
 
 
@@ -150,21 +250,160 @@ def _do_manual(ctx, project, args):
     return 0
 
 
+# Fold --dist / --difficulty into the shape params, and return the (possibly
+# retargeted) shape. Difficulty may crank a plain shape to its adversarial twin.
+def _apply_dials(args, shape, params):
+    if args.difficulty is not None:
+        d = distributions.parse_difficulty(args.difficulty)
+        dp = distributions.difficulty_params(shape, d)
+        retarget = dp.pop("shape", None)
+        for key, value in dp.items():
+            params.setdefault(key, value)
+        if retarget and retarget in shapes.list_shapes():
+            shape = retarget
+    if args.dist and args.dist != "uniform":
+        params["dist"] = args.dist
+    return shape, params
+
+
 def _do_random(ctx, project, args):
     group = args.group or "baseline"
     params = _parse_params(args.param)
+    shape, params = _apply_dials(args, args.shape, params)
     count = args.count
 
     # Show a progress bar only when there's enough work to be worth it.
     if count >= LARGE_COUNT:
         with progress_bar(ctx, count, "generating") as step:
-            cases = generators.gen_random(ctx, project, args.shape, count, args.seed, group, params)
+            cases = generators.gen_random(ctx, project, shape, count, args.seed, group, params)
             step(count)
     else:
-        cases = generators.gen_random(ctx, project, args.shape, count, args.seed, group, params)
+        cases = generators.gen_random(ctx, project, shape, count, args.seed, group, params)
 
     ctx.save_project()
-    ctx.messenger.success(f"Generated {len(cases)} '{args.shape}' case(s) in group '{group}'.")
+    ctx.messenger.success(f"Generated {len(cases)} '{shape}' case(s) in group '{group}'.")
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _parse_values(spec):
+    if not spec:
+        return [0, 1]
+    return [_coerce(t.strip()) for t in spec.split(",")]
+
+
+def _do_ladder(ctx, project, args):
+    group = args.group or "ladder"
+    _, params = _apply_dials(args, args.shape, _parse_params(args.param))
+    cases = generators.gen_ladder(
+        ctx,
+        project,
+        args.shape,
+        args.seed,
+        group,
+        params,
+        steps=args.steps,
+        lo_n=args.lo_n,
+        hi_n=args.hi_n,
+    )
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} ladder rung(s) in group '{group}'.")
+    ctx.messenger.info(
+        "Next: 'gen --expected', then 'run --group %s --time' to read complexity." % group
+    )
+    return 0
+
+
+def _do_boundary(ctx, project, args):
+    if not args.axis:
+        raise UserError(
+            "--boundary needs at least one --axis.",
+            hint="e.g. gen --boundary --axis count=1..1000 --axis hi=-1000..1000 --shape ints",
+        )
+    group = args.group or "boundary"
+    axes = boundspec.parse_specs(args.axis)
+    cases = generators.gen_boundary(
+        ctx,
+        project,
+        args.shape,
+        args.seed,
+        group,
+        axes,
+        strategy=args.matrix,
+        cap=args.max_cases,
+        base=_parse_params(args.param),
+    )
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} boundary case(s) in group '{group}'.")
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_exhaustive(ctx, project, args):
+    group = args.group or "exhaustive"
+    cases = generators.gen_exhaustive(
+        ctx,
+        project,
+        args.shape,
+        args.seed,
+        group,
+        args.max_n,
+        _parse_values(args.values),
+        cap=args.max_cases,
+    )
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} exhaustive case(s) in group '{group}'.")
+    if len(cases) >= args.max_cases:
+        ctx.messenger.warning(
+            f"Hit the cap of {args.max_cases}; not every input was enumerated.",
+            hint="Raise --max-cases or lower --max-n.",
+        )
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_pairwise(ctx, project, args):
+    if not args.axis:
+        raise UserError(
+            "--pairwise needs at least one --axis.",
+            hint="e.g. gen --pairwise --axis layout=sorted,reverse --axis count=1,100,1000",
+        )
+    group = args.group or "pairwise"
+    axes = boundspec.parse_specs(args.axis)
+    cases = generators.gen_pairwise(
+        ctx,
+        project,
+        args.shape,
+        args.seed,
+        group,
+        axes,
+        strength=args.strength,
+        cap=args.max_cases,
+        base=_parse_params(args.param),
+    )
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} pairwise case(s) in group '{group}'.")
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    return 0
+
+
+def _do_multi(ctx, project, args):
+    group = args.group or "baseline"
+    _, params = _apply_dials(args, args.shape, _parse_params(args.param))
+    cases = generators.gen_multi(
+        ctx,
+        project,
+        args.shape,
+        args.multi,
+        args.seed,
+        group,
+        params,
+        layout_kind=args.layout_multi,
+        from_group=args.from_group,
+        auto_t=args.auto_t,
+    )
+    ctx.save_project()
+    ctx.messenger.success(f"Generated {len(cases)} multi-test file(s) in group '{group}'.")
     ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
     return 0
 

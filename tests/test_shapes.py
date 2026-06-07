@@ -33,6 +33,10 @@ _DETERMINISTIC_SHAPES = {
     # "edge" with default params always returns "1\n0" (kind="single", lo=0) regardless of
     # seed — the rng is never consulted, so identical output for all seeds is correct.
     "edge",
+    # Adversarial worst-case shapes are deterministic constructions for a given size:
+    # the worst case is the worst case, so it does not (and should not) vary with seed.
+    "anti_quicksort",
+    "kmp_worst",
 }
 
 

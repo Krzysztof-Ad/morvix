@@ -12,6 +12,8 @@
 import random
 import string
 
+from morvix import adversaries, distributions
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -19,6 +21,15 @@ import string
 
 def _lo_hi(params):
     return params.get("lo", 0), params.get("hi", 1_000_000)
+
+
+def _sample(rng, lo, hi, params):
+    """One value in [lo, hi]. Honors a non-uniform --dist; otherwise plain
+    randint, so existing uniform generation stays byte-for-byte unchanged."""
+    dist = params.get("dist", "uniform")
+    if dist == "uniform":
+        return rng.randint(int(lo), int(hi))
+    return distributions.sample(rng, lo, hi, dist, params)
 
 
 def _apply_layout(nums, layout, rng):
@@ -49,7 +60,7 @@ def _apply_layout(nums, layout, rng):
 
 def _shape_int(rng, params):
     lo, hi = _lo_hi(params)
-    return str(rng.randint(lo, hi))
+    return str(_sample(rng, lo, hi, params))
 
 
 def _shape_ints(rng, params):
@@ -61,7 +72,7 @@ def _shape_ints(rng, params):
         max_n = params.get("max_n", 100)
         n = rng.randint(int(min_n), int(max_n))
     layout = params.get("layout", "random")
-    nums = [rng.randint(lo, hi) for _ in range(n)]
+    nums = [_sample(rng, lo, hi, params) for _ in range(n)]
     nums = _apply_layout(nums, layout, rng)
     lines = [str(n)] + [str(x) for x in nums]
     return "\n".join(lines)
@@ -70,7 +81,7 @@ def _shape_ints(rng, params):
 def _shape_array(rng, params):
     lo, hi = _lo_hi(params)
     count = int(params.get("count", rng.randint(1, 100)))
-    nums = [rng.randint(lo, hi) for _ in range(count)]
+    nums = [_sample(rng, lo, hi, params) for _ in range(count)]
     return " ".join(str(x) for x in nums)
 
 
@@ -235,6 +246,25 @@ SHAPES = {
     "grid": _shape_grid,
     "edge": _shape_edge,
 }
+
+# Worst-case "adversary" shapes register here too (anti_quicksort, anti_hash, ...).
+SHAPES.update(adversaries.SHAPES)
+
+_SIZE_PARAM = {
+    "ints": "count",
+    "array": "count",
+    "permutation": "n",
+    "tree": "n",
+    "graph": "n",
+    "grid": "rows",
+    "string": "length",
+    "edge": "n",
+}
+
+
+def size_param(shape):
+    """The param name that controls a shape's size (used by ladders/boundaries)."""
+    return _SIZE_PARAM.get(shape, "n")
 
 
 def list_shapes():
