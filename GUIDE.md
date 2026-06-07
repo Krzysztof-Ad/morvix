@@ -108,7 +108,8 @@ The common shapes and their `--param` keys:
 - `permutation` - `n`.
 - `tree` - `n`, `shape` (random/path/star/caterpillar/balanced).
 - `graph` - `n`, `m`, `directed`, `weighted`, `connected`, `dag`, `w_lo`, `w_hi`.
-- `grid` - `rows`, `cols`, `alphabet`.
+- `grid` - `rows`, `cols`, `alphabet`, `wall_density` (fraction of walls),
+  `open_corners` (force the four corners open, for pathfinding inputs).
 
 Shape and param choices are recorded in each case's provenance, never an answer.
 
