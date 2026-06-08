@@ -12,8 +12,8 @@
 # Honesty: this module only reads INPUT bytes and graph structure. It never
 # reads, writes, or reasons about an expected answer.
 
-import hashlib
 import os
+from collections import Counter
 from typing import List, Set
 
 from morvix import provenance
@@ -23,7 +23,7 @@ def content_hash(data) -> str:
     """The sha256 hex digest of some bytes (str is encoded utf-8 first)."""
     if isinstance(data, str):
         data = data.encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
+    return provenance.hash_bytes(data)
 
 
 def existing_input_hashes(project) -> Set[str]:
@@ -118,7 +118,7 @@ def canonical_graph_key(text: str, is_tree: bool) -> str:
         colours = [ranking[sig] for sig in new]
 
     edges = sum(len(a) for a in adj) // 2
-    histogram = sorted(_counts(colours).items())
+    histogram = sorted(Counter(colours).items())
     return f"wl:n={n}:m={edges}:{histogram}"
 
 
@@ -150,11 +150,3 @@ def _parse_graph(text: str):
         adj[u - 1].add(v - 1)
         adj[v - 1].add(u - 1)
     return n, [sorted(a) for a in adj]
-
-
-def _counts(values) -> dict:
-    """A {value: occurrences} histogram (a tiny stand-in for Counter)."""
-    out: dict = {}
-    for v in values:
-        out[v] = out.get(v, 0) + 1
-    return out

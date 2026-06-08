@@ -4,14 +4,6 @@
 # behavior silently. Each suggestion is detect -> explain -> suggest -> let the
 # user decide, delivered as a warning paired with a confirmation. They are
 # advisory; the user always decides.
-#
-# API (implement in Workflow B):
-#   suggest_hashing(ctx, project, group, output_bytes) -> bool   # did we switch
-#   suggest_compression(ctx, project, size_bytes) -> str | None  # suggested format
-#   warn_backend_metrics(ctx, runner) -> None
-#   suggest_exit_status(ctx, project, crashing_case_ids) -> None
-#   confirm_locale(ctx, project) -> None
-#   explain_missing_stress_oracle(ctx, project) -> None
 
 from morvix.components.confirm import confirm
 

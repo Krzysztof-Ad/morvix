@@ -4,11 +4,6 @@
 # runner new, init). The user moves freely: Left/Right between fields, Up/Down
 # to change a choice, free text or numbers otherwise, Enter to submit, Esc to
 # cancel. One implementation; every configuration screen reuses it.
-#
-# API (implement in Workflow B):
-#   run_form(ctx, title: str, fields: list[Field]) -> dict | None
-#       Returns {field.name: value}, or None if cancelled.
-#       Non-interactive: returns {f.name: f.default for f in fields} with no prompt.
 
 from dataclasses import dataclass
 from typing import Any, List, Optional

@@ -465,9 +465,8 @@ class _Sampler:
             return a * b
         return a / b if b else 0
 
-    def _eval_int(self, node: Num, line: int) -> int:
-        v = self._eval(node)
-        return int(v)
+    def _eval_int(self, node: Num) -> int:
+        return int(self._eval(node))
 
     def run_rule(self, name: str, depth: int):
         if depth > MAX_DEPTH:
@@ -484,7 +483,7 @@ class _Sampler:
             if item.bind and item.bind in self.env:
                 v = int(self.env[item.bind])  # pinned (--param) wins over sampling
             else:
-                lo, hi = self._eval_int(item.lo, item.line), self._eval_int(item.hi, item.line)
+                lo, hi = self._eval_int(item.lo), self._eval_int(item.hi)
                 if lo > hi:
                     raise GrammarError(f"empty range {lo}..{hi}", item.line)
                 v = self.rng.randint(lo, hi)
@@ -495,17 +494,17 @@ class _Sampler:
             lo, hi = self._eval(item.lo), self._eval(item.hi)
             if lo > hi:
                 raise GrammarError(f"empty range {lo}..{hi}", item.line)
-            nd = self._eval_int(item.ndigits, item.line)
+            nd = self._eval_int(item.ndigits)
             self._emit(f"{self.rng.uniform(lo, hi):.{max(nd, 0)}f}")
         elif isinstance(item, CharTerm):
             self._emit(self.rng.choice(item.alphabet))
         elif isinstance(item, StrTerm):
-            n = self._eval_int(item.length, item.line)
+            n = self._eval_int(item.length)
             self._emit("".join(self.rng.choice(item.alphabet) for _ in range(max(n, 0))))
         elif isinstance(item, Call):
             self.run_rule(item.name, depth + 1)
         elif isinstance(item, Repeat):
-            count = self._eval_int(item.count, item.line)
+            count = self._eval_int(item.count)
             for k in range(max(count, 0)):
                 if k and item.sep:
                     self._emit(item.sep)
@@ -522,8 +521,8 @@ class _Sampler:
             elif item.value is not None:
                 self.env[item.name] = self._eval(item.value)
             elif item.lo is not None and item.hi is not None:
-                lo = self._eval_int(item.lo, item.line)
-                hi = self._eval_int(item.hi, item.line)
+                lo = self._eval_int(item.lo)
+                hi = self._eval_int(item.hi)
                 if lo > hi:
                     raise GrammarError(f"empty range {lo}..{hi}", item.line)
                 self.env[item.name] = self.rng.randint(lo, hi)
@@ -532,9 +531,7 @@ class _Sampler:
 def sample(grammar: Grammar, seed: int, params: Optional[dict] = None) -> str:
     """Sample one input from a parsed grammar with the given seed and pinned params."""
     rng = random.Random(seed)
-    env: dict = {}
-    for key, value in (params or {}).items():
-        env[key] = value
+    env: dict = dict(params or {})
     sampler = _Sampler(grammar, rng, env)
     sampler.run_rule(grammar.start, 0)
     return "".join(sampler.out)

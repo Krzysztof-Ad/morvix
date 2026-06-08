@@ -5,12 +5,6 @@
 # the overall pass line (with a percentage), and a performance summary. Built on
 # rich, and it reuses morvix.results for figures and formatting so the terminal
 # view matches the exported report exactly.
-#
-# API:
-#   class RunTable(console, live=True, show_time=True, show_mem=True,
-#                  show_perf=True, slowest_n=5): update(case_result); finish(run_result)
-#   render_run(console, run_result, show_time=True, show_mem=True,
-#              show_perf=True, slowest_n=5)   # static full render
 
 from rich.live import Live
 from rich.table import Table

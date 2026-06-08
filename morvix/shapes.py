@@ -102,7 +102,6 @@ def _shape_permutation(rng, params):
 
 def _shape_tree(rng, params):
     """n on first line, then n-1 edges. shape in {random,path,star,by_degree}."""
-    lo, hi = _lo_hi(params)
     n = int(params.get("n", rng.randint(2, 100)))
     tree_shape = params.get("shape", "random")
     edges = []
@@ -145,7 +144,6 @@ def _shape_tree(rng, params):
 
 def _shape_graph(rng, params):
     """n m on first line then m edges. Supports directed, weighted, connected, dag."""
-    lo, hi = _lo_hi(params)
     n = int(params.get("n", rng.randint(2, 20)))
     directed = bool(params.get("directed", False))
     weighted = bool(params.get("weighted", False))

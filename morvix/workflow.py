@@ -4,13 +4,6 @@
 # stored as JSON. Because it is recorded commands, anything Morvix can do is
 # automatically workflow-able with no per-feature work. Replaying re-runs the
 # commands in order, optionally against a freshly imported solution.
-#
-# API (implement in Workflow B):
-#   class WorkflowRecorder: __init__(self, name); add(self, command_line); commands -> list[str]
-#   save_workflow(project, name, commands) -> str
-#   load_workflow(project, name) -> list[str]
-#   list_workflows(project) -> list[str]
-#   run_workflow(ctx, name, on_solution=None) -> int   # replays via registry.safe_dispatch_line
 
 import json
 import os

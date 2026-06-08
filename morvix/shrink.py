@@ -10,21 +10,11 @@
 # the actual program runs. Shrinking touches inputs only; the expectation is
 # re-derived afterwards from the same authority (the oracle/solution).
 
-from dataclasses import dataclass
-
 
 class FailureKind:
-    DISAGREE = "disagree"  # solution vs oracle differ
     CRASH = "crash"  # terminating signal
     HANG = "hang"  # timed out
     ERROR = "error"  # nonzero clean exit
-    WRONG = "wrong"  # output != expected
-
-
-@dataclass
-class Failure:
-    kind: str
-    detail: str = ""
 
 
 def shrink_failure(predicate, data: bytes, budget: int = 2000, on_progress=None) -> bytes:
@@ -60,7 +50,7 @@ def shrink_failure(predicate, data: bytes, budget: int = 2000, on_progress=None)
 # --- delta-debugging passes ---------------------------------------------------
 
 
-def _ddmin(units, join, fails, best_join):
+def _ddmin(units, join, fails):
     """Classic ddmin over a list of units: find a minimal subset that still fails."""
     n = 2
     units = list(units)
@@ -87,7 +77,7 @@ def _drop_lines(text, fails):
     lines = text.split("\n")
     if len(lines) < 2:
         return None
-    return _ddmin(lines, lambda u: "\n".join(u), fails, text)
+    return _ddmin(lines, lambda u: "\n".join(u), fails)
 
 
 def _drop_tokens(text, fails):
@@ -98,7 +88,7 @@ def _drop_tokens(text, fails):
     for line in lines:
         toks = line.split()
         if len(toks) >= 2:
-            shrunk = _ddmin(toks, lambda u: " ".join(u), fails, line)
+            shrunk = _ddmin(toks, lambda u: " ".join(u), fails)
             if shrunk != line:
                 changed = True
             out.append(shrunk)

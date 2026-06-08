@@ -126,12 +126,7 @@ def run(ctx, args) -> int:
     if args.runner:
         _emit_configured_report(ctx, project, runner, run_result)
 
-    summary = f"{run_result.passed}/{run_result.total} passed"
-    if run_result.all_passed:
-        ctx.messenger.success(summary)
-    else:
-        ctx.messenger.error(f"{summary}, {run_result.failed} failed")
-    return 0 if run_result.all_passed else 1
+    return _summarize(ctx, run_result)
 
 
 def _run_with_comparison(ctx, project, runner, solution, language, cases, rivals, args):
@@ -150,14 +145,20 @@ def _run_with_comparison(ctx, project, runner, solution, language, cases, rivals
     if args.runner:
         _emit_configured_report(ctx, project, runner, main)
 
-    summary = f"{main.passed}/{main.total} passed"
-    if main.all_passed:
-        ctx.messenger.success(summary)
-    else:
-        ctx.messenger.error(f"{summary}, {main.failed} failed")
+    rc = _summarize(ctx, main)
     if args.parallel:
         ctx.messenger.warning("Rivals ran in parallel - time/memory figures are approximate.")
-    return 0 if main.all_passed else 1
+    return rc
+
+
+# Print the pass/fail line for a finished run and return the process exit code.
+def _summarize(ctx, result) -> int:
+    summary = f"{result.passed}/{result.total} passed"
+    if result.all_passed:
+        ctx.messenger.success(summary)
+    else:
+        ctx.messenger.error(f"{summary}, {result.failed} failed")
+    return 0 if result.all_passed else 1
 
 
 # Use a saved runner if named, else assemble a transient one from the flags.

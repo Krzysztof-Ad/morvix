@@ -23,6 +23,7 @@ from morvix import (
     importers,
     metamorphic,
     pack,
+    properties,
     shapes,
     snapshots,
     suggestions,
@@ -474,6 +475,12 @@ def run(ctx, args) -> int:
     )
 
 
+def _suggest_expected(ctx):
+    """Most input-making modes end the same way: point at the one command that
+    turns the fresh inputs into a real suite by running the solution."""
+    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+
+
 def _do_manual(ctx, project, args):
     group = args.group or "baseline"
     content = args.content
@@ -533,7 +540,7 @@ def _do_random(ctx, project, args):
     _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} '{shape}' case(s) in group '{group}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -586,7 +593,7 @@ def _do_boundary(ctx, project, args):
     )
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} boundary case(s) in group '{group}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -609,7 +616,7 @@ def _do_exhaustive(ctx, project, args):
             f"Hit the cap of {args.max_cases}; not every input was enumerated.",
             hint="Raise --max-cases or lower --max-n.",
         )
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -634,7 +641,7 @@ def _do_pairwise(ctx, project, args):
     )
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} pairwise case(s) in group '{group}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -655,7 +662,7 @@ def _do_multi(ctx, project, args):
     )
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} multi-test file(s) in group '{group}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -672,7 +679,7 @@ def _do_generator(ctx, project, args):
     ctx.messenger.success(
         f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."
     )
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -795,7 +802,7 @@ def _do_lib(ctx, project, args):
     _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(f"Generated {len(cases)} case(s) from catalog '{args.lib}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -867,7 +874,7 @@ def _do_metamorphic(ctx, project, args):
 def _do_property(ctx, project, args):
     group = args.group or "property"
     if args.ladder_spec:
-        var, lo, hi, steps = _parse_ladder(args.ladder_spec)
+        var, lo, hi, steps = properties.parse_ladder(args.ladder_spec)
         shape, params = _apply_dials(args, args.shape, _parse_params(args.param))
         sizes = generators._geometric_sizes(lo, hi, steps)
 
@@ -892,12 +899,6 @@ def _do_property(ctx, project, args):
     else:
         ctx.messenger.success(f"Property '{args.property}' held over {count} input(s).")
     return 0
-
-
-def _parse_ladder(spec):
-    from morvix.properties import parse_ladder
-
-    return parse_ladder(spec)
 
 
 def _do_fuzz(ctx, project, args):
@@ -933,7 +934,7 @@ def _do_mutate(ctx, project, args):
     _post_generate(ctx, project, args, group)
     ctx.save_project()
     ctx.messenger.success(f"Mutated {len(cases)} new case(s) into group '{group}' from '{src}'.")
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 
@@ -1113,7 +1114,7 @@ def _do_grammar(ctx, project, args):
     ctx.messenger.success(
         f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."
     )
-    ctx.messenger.info("Next: run 'gen --expected' to compute their answers.")
+    _suggest_expected(ctx)
     return 0
 
 

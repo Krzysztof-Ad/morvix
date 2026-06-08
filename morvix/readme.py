@@ -4,9 +4,6 @@
 # option, comparison strategy and execution model contributes one or more
 # pre-written sentences. It is deliberately not a content system - one fragment
 # per feature, assembled in order. It always ends with the honesty clause.
-#
-# API (implement in Workflow B):
-#   generate_readme(project) -> str   # Markdown
 
 from morvix.cases import list_groups
 

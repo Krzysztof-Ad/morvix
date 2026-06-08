@@ -1342,7 +1342,7 @@ def select_cases(manifest, runner, groups, case_ids):
 def judge(manifest, solution, language, cases, runner, opts):
     """Build the solution, run each selected case, return the full RunResult.
 
-    With a printer (default) it shows the live table; on_case=None runs quietly,
+    By default it shows the live table; when opts._quiet is set it runs silently,
     which is how rivals are run before the comparison is printed.
     """
     show_live = not getattr(opts, "_quiet", False)
