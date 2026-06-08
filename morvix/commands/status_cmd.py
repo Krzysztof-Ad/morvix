@@ -3,11 +3,15 @@
 # Shows a compact snapshot of the current project so a user can confirm
 # what morvix knows about their setup before running tests.
 
+import os
+
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from morvix import layout
 from morvix.cases import list_groups
+from morvix.importers import INPUT_EXTS
 
 NAME = "status"
 
@@ -75,4 +79,36 @@ def run(ctx, args) -> int:
         padding=(0, 1),
     )
     ctx.console.print(panel)
+
+    # The directory isn't scanned for cases - morvix tracks them in its config.
+    # Loose input files dropped under tests/ would otherwise be silently ignored,
+    # which contradicts the "directory is the state" mental model, so flag them.
+    orphans = _unregistered_inputs(p)
+    if orphans:
+        shown = ", ".join(orphans[:5]) + (" ..." if len(orphans) > 5 else "")
+        ctx.messenger.warning(
+            f"{len(orphans)} input file(s) under tests/ aren't registered as cases: {shown}",
+            hint="Morvix tracks cases in its config, not by scanning folders. Bring loose "
+            "inputs in with 'gen --import <dir> --keep-names' (inputs are .in/.txt; answers "
+            "like .out/.ans are stripped).",
+        )
     return 0
+
+
+def _unregistered_inputs(project):
+    """Input files sitting under the tests tree that no case references."""
+    tests_dir = os.path.join(project.root, layout.TESTS_DIR)
+    if not os.path.isdir(tests_dir):
+        return []
+    registered = set()
+    for case in project.cases:
+        for rel in case.inputs.values():
+            registered.add(os.path.normpath(os.path.join(project.root, rel)))
+    orphans = []
+    for dirpath, _dirs, files in os.walk(tests_dir):
+        for fn in files:
+            if os.path.splitext(fn)[1].lower() in INPUT_EXTS:
+                ap = os.path.normpath(os.path.join(dirpath, fn))
+                if ap not in registered:
+                    orphans.append(os.path.relpath(ap, project.root))
+    return sorted(orphans)

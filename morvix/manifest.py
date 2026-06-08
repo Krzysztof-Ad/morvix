@@ -11,7 +11,7 @@ import json
 import os
 from typing import Optional
 
-from morvix import layout
+from morvix import layout, provenance
 from morvix.cases import list_groups
 from morvix.project import Project, Runner
 from morvix.version import __version__
@@ -37,6 +37,9 @@ def build_manifest(project: Project) -> dict:
         "groups": list_groups(project.cases),
         "cases": [c.to_dict() for c in project.cases],
         "runners": {name: r.to_dict() for name, r in project.runners.items()},
+        # A read-only rollup of how each group was generated (each case also
+        # carries its own provenance); omitted when there's nothing to describe.
+        "recipes": provenance.group_recipes(project.cases),
         "author_results": _load_author_results(project.root),
     }
 

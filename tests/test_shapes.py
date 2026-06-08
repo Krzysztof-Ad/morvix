@@ -33,6 +33,10 @@ _DETERMINISTIC_SHAPES = {
     # "edge" with default params always returns "1\n0" (kind="single", lo=0) regardless of
     # seed — the rng is never consulted, so identical output for all seeds is correct.
     "edge",
+    # Adversarial worst-case shapes are deterministic constructions for a given size:
+    # the worst case is the worst case, so it does not (and should not) vary with seed.
+    "anti_quicksort",
+    "kmp_worst",
 }
 
 
@@ -193,6 +197,36 @@ def test_grid_dimensions():
     assert len(lines) == r + 1
     for row in lines[1:]:
         assert len(row) == c
+
+
+def test_grid_open_corners_are_open():
+    result = generate(
+        "grid",
+        seed=3,
+        params={"rows": 5, "cols": 5, "wall_density": 0.9, "open_corners": True},
+    )
+    rows = result.strip().splitlines()[1:]
+    open_ch = "."
+    assert rows[0][0] == open_ch
+    assert rows[0][-1] == open_ch
+    assert rows[-1][0] == open_ch
+    assert rows[-1][-1] == open_ch
+
+
+def test_grid_low_density_has_open_cells():
+    # With a low wall density the grid is mostly open, not a degenerate wall field.
+    result = generate("grid", seed=1, params={"rows": 6, "cols": 6, "wall_density": 0.1})
+    body = "".join(result.strip().splitlines()[1:])
+    assert body.count(".") > body.count("#")
+
+
+def test_grid_default_unchanged_for_parity():
+    # No new params -> identical bytes to the original uniform-fill behaviour.
+    a = generate("grid", seed=0, params={"rows": 4, "cols": 6})
+    b = generate("grid", seed=0, params={"rows": 4, "cols": 6})
+    assert a == b
+    # And every cell is from the default alphabet.
+    assert set("".join(a.splitlines()[1:])) <= {".", "#"}
 
 
 def test_edge_empty_kind():

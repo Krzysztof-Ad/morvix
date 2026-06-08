@@ -208,6 +208,63 @@ def test_runner_core_json_results_wrong_solution(py_project, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Receiver front-door guards: a compiled binary, a command string, and a missing
+# input file each get a distinct, helpful outcome instead of a cryptic failure.
+# ---------------------------------------------------------------------------
+
+
+def test_runner_core_rejects_binary(py_project, tmp_path):
+    pkg = _setup_package(py_project, tmp_path)
+    # A file with a NUL byte reads as a compiled artifact, not source.
+    (tmp_path / "a.out").write_bytes(b"\x7fELF\x00\x00\x00binary junk")
+
+    result = _run_runner(pkg, "a.out")
+
+    assert result.returncode == 2
+    assert "compiled binary" in result.stderr
+
+
+def test_runner_core_command_string_hint(py_project, tmp_path):
+    pkg = _setup_package(py_project, tmp_path)
+
+    result = _run_runner(pkg, "python3 sol.py")
+
+    assert result.returncode == 2
+    assert "looks like a command" in result.stderr
+
+
+def test_runner_core_missing_input_is_distinct(py_project, tmp_path):
+    pkg = _setup_package(py_project, tmp_path)
+    sol = tmp_path / "sol.py"
+    sol.write_text(SUM_SOL)
+
+    # Remove one case's input file to simulate a broken package.
+    os.remove(tmp_path / TESTS_DIR / "baseline" / "c1.in")
+
+    result = _run_runner(pkg, "sol.py")
+
+    # The broken case is reported as a setup error, not the user's code crashing.
+    assert "input file missing" in result.stdout
+    assert result.returncode == 1
+
+
+def test_runner_core_cross_language_uses_extension(py_project, tmp_path):
+    if shutil.which("g++") is None:
+        pytest.skip("g++ not installed")
+    pkg = _setup_package(py_project, tmp_path)  # authored in python
+    cpp = tmp_path / "sol.cpp"
+    cpp.write_text(
+        "#include <iostream>\n"
+        'int main(){long s=0,x; while(std::cin>>x) s+=x; std::cout<<s<<"\\n";}\n'
+    )
+
+    result = _run_runner(pkg, "sol.cpp")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "building as cpp" in result.stderr
+
+
+# ---------------------------------------------------------------------------
 # Hand-written manifest (no py_project): ensures the runner works without
 # the morvix library being installed at all (pure stdlib path).
 # ---------------------------------------------------------------------------

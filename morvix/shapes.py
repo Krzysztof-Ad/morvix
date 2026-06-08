@@ -12,6 +12,8 @@
 import random
 import string
 
+from morvix import adversaries, distributions
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -19,6 +21,15 @@ import string
 
 def _lo_hi(params):
     return params.get("lo", 0), params.get("hi", 1_000_000)
+
+
+def _sample(rng, lo, hi, params):
+    """One value in [lo, hi]. Honors a non-uniform --dist; otherwise plain
+    randint, so existing uniform generation stays byte-for-byte unchanged."""
+    dist = params.get("dist", "uniform")
+    if dist == "uniform":
+        return rng.randint(int(lo), int(hi))
+    return distributions.sample(rng, lo, hi, dist, params)
 
 
 def _apply_layout(nums, layout, rng):
@@ -49,7 +60,7 @@ def _apply_layout(nums, layout, rng):
 
 def _shape_int(rng, params):
     lo, hi = _lo_hi(params)
-    return str(rng.randint(lo, hi))
+    return str(_sample(rng, lo, hi, params))
 
 
 def _shape_ints(rng, params):
@@ -61,7 +72,7 @@ def _shape_ints(rng, params):
         max_n = params.get("max_n", 100)
         n = rng.randint(int(min_n), int(max_n))
     layout = params.get("layout", "random")
-    nums = [rng.randint(lo, hi) for _ in range(n)]
+    nums = [_sample(rng, lo, hi, params) for _ in range(n)]
     nums = _apply_layout(nums, layout, rng)
     lines = [str(n)] + [str(x) for x in nums]
     return "\n".join(lines)
@@ -70,7 +81,7 @@ def _shape_ints(rng, params):
 def _shape_array(rng, params):
     lo, hi = _lo_hi(params)
     count = int(params.get("count", rng.randint(1, 100)))
-    nums = [rng.randint(lo, hi) for _ in range(count)]
+    nums = [_sample(rng, lo, hi, params) for _ in range(count)]
     return " ".join(str(x) for x in nums)
 
 
@@ -185,10 +196,32 @@ def _shape_graph(rng, params):
 
 
 def _shape_grid(rng, params):
+    # - rows, cols, alphabet: dimensions and cell characters (first char = open).
+    # - wall_density: fraction of wall cells (default packs ~50% walls, which on a
+    #   pathfinding problem is mostly unreachable - set e.g. 0.3 for a healthier mix).
+    # - open_corners: force the four corners open, so a start/end in a corner is free.
     rows = int(params.get("rows", rng.randint(1, 10)))
     cols = int(params.get("cols", rng.randint(1, 10)))
     alphabet = list(params.get("alphabet", ".#"))
-    grid_lines = ["".join(rng.choice(alphabet) for _ in range(cols)) for _ in range(rows)]
+    density = params.get("wall_density")
+    open_corners = bool(params.get("open_corners", False))
+
+    if density is None and not open_corners:
+        # Default: each cell uniformly from the alphabet (kept byte-for-byte).
+        grid_lines = ["".join(rng.choice(alphabet) for _ in range(cols)) for _ in range(rows)]
+    else:
+        open_ch = alphabet[0]
+        walls = alphabet[1:] or [open_ch]
+        p = float(density) if density is not None else 0.3
+        cells = [
+            [rng.choice(walls) if rng.random() < p else open_ch for _ in range(cols)]
+            for _ in range(rows)
+        ]
+        if open_corners and rows and cols:
+            for r, c in ((0, 0), (0, cols - 1), (rows - 1, 0), (rows - 1, cols - 1)):
+                cells[r][c] = open_ch
+        grid_lines = ["".join(row) for row in cells]
+
     header = f"{rows} {cols}"
     return "\n".join([header] + grid_lines)
 
@@ -235,6 +268,25 @@ SHAPES = {
     "grid": _shape_grid,
     "edge": _shape_edge,
 }
+
+# Worst-case "adversary" shapes register here too (anti_quicksort, anti_hash, ...).
+SHAPES.update(adversaries.SHAPES)
+
+_SIZE_PARAM = {
+    "ints": "count",
+    "array": "count",
+    "permutation": "n",
+    "tree": "n",
+    "graph": "n",
+    "grid": "rows",
+    "string": "length",
+    "edge": "n",
+}
+
+
+def size_param(shape):
+    """The param name that controls a shape's size (used by ladders/boundaries)."""
+    return _SIZE_PARAM.get(shape, "n")
 
 
 def list_shapes():

@@ -485,6 +485,19 @@ This is the actual mechanism by which correctness is triangulated given there is
 
 You raised the idea of a generator/analysis that "looks at the provided code and tries to match tests to it." Scoped honestly: Morvix can offer **heuristic input/output scaffolding** — inferring input *shape* from how the program reads (e.g. it reads an int then that many lines), proposing boundary cases around the limits it detects, and seeding the crash-case generator with malformed variants of valid inputs (truncated, oversized, wrong-type, extra-whitespace). This is *assistance that proposes candidate cases*, never an oracle for their answers — the answers still come from running the solution. The firm line is that Morvix never invents a correct answer it can't derive by running a solution. (An optional, developer-supplied LLM could later draft candidate edge cases under this same "propose, don't oracle" rule — §26.)
 
+### 13.7 The generation toolkit (the practical surface)
+
+The model above is realised as a single `gen` command with many input sources, all sharing the one rule — **they produce inputs only; expected answers come solely from `gen --expected`** (enforced by a static guard, `tests/test_honesty.py`). The command reference in the generated `GUIDE.md` is authoritative; the categories are:
+
+- **Describe-don't-code:** a declarative **grammar** (`--grammar`/`--new-grammar`, `morvix/grammar.py`) samples correct-by-construction structured input, with counts that drive repetition ("N then N numbers", "R C then an R×C grid"). A vetted **catalog** (`--lib`/`--list-lib`, `morvix/catalog.py` over `morvix/genlib.py`) gives ready-made trees/graphs/etc.
+- **Richer random:** distribution control and a difficulty dial (`--dist`/`--difficulty`, `morvix/distributions.py`) and worst-case **adversary** shapes (`morvix/adversaries.py`).
+- **Deliberate coverage:** the **bound-spec** mini-language (`--axis`, `morvix/boundspec.py`) feeds boundary-value (`--boundary`), bounded-exhaustive (`--exhaustive`), and pairwise/t-wise (`--pairwise`) generation; `--multi` wraps multi-test files and `--ladder` sweeps sizes.
+- **Failure tooling:** `--stress` (vs a `--stress` rival oracle) and `--crash` (triaged) both auto-**shrink** (`morvix/shrink.py`); `--shrink` minimises any failing case.
+- **Oracle-free checks:** **metamorphic** relations (`--metamorphic`, `morvix/metamorphic.py` — a relation between two of the solution's own outputs), a **property** oracle (`--property`), and diversity-guided **fuzz** (`--fuzz`).
+- **From real data:** `--import` (answers stripped), `--infer` (drafts a generator from samples), `--mutate` (structure-aware corpus mutation).
+- **Integrity:** input **validators** (`--validate`), answer-stability (`--expected --check-stable`), incremental recompute (`--changed`), and **snapshots** (`--pin`/`--diff-pin`); every case records its provenance.
+- **Model-assist (off by default, §26):** `--suggest` runs a developer-supplied hook; output is treated as unverified input/generator code only (`morvix/assist.py`).
+
 ---
 
 ## 14. Comparison strategies (how "correct" is decided)

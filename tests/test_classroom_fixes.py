@@ -1,0 +1,234 @@
+# Regressions for the silent-failure footguns found while dogfooding morvix on a
+# batch of student-style solutions. Each test pins one bug that let a suite look
+# green while nothing real had happened.
+
+import os
+
+from morvix import registry
+from morvix.generators import gen_expected, gen_manual, gen_random
+from tests.conftest import SUM_ALL_PY, write
+
+# ---------------------------------------------------------------------------
+# A copied-in solution is stored as a project-relative path. Cases run with cwd
+# set to a temp build dir, so that relative interpreter argument used to miss the
+# file and gen_expected froze a "file not found" exit code as the answer - a suite
+# that "passed" while the solution never ran. build_solution now resolves it.
+# ---------------------------------------------------------------------------
+
+
+def _copy_in(project, src_text):
+    """Mimic `import --copy`: drop the solution in solutions/ and store a relpath."""
+    solutions_dir = os.path.join(project.root, "solutions")
+    os.makedirs(solutions_dir, exist_ok=True)
+    dest = os.path.join(solutions_dir, "sol.py")
+    with open(dest, "w") as f:
+        f.write(src_text)
+    project.solution = os.path.relpath(dest, project.root)
+    project.solution_copied = True
+
+
+def test_copied_relative_solution_computes_real_answers(py_project):
+    ctx, project = py_project
+    _copy_in(project, SUM_ALL_PY)
+    assert not os.path.isabs(project.solution)  # the footgun precondition
+
+    gen_random(ctx, project, "array", 4, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    result = gen_expected(ctx, project)
+
+    assert result["computed"] == 4
+    for case in project.cases:
+        # Real output was frozen, not an exit code from a missing file.
+        assert case.expected_output is not None
+        assert case.expected_exit is None
+        assert os.path.isfile(project.abspath(case.expected_output))
+
+
+def test_copied_relative_solution_run_passes(py_project):
+    from morvix.judge import judge, select_cases
+
+    ctx, project = py_project
+    _copy_in(project, SUM_ALL_PY)
+    gen_random(ctx, project, "array", 4, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    gen_expected(ctx, project)
+
+    run = judge(project, project.solution, project.language, select_cases(project))
+    assert sum(1 for c in run.cases if c.status == "pass") == 4
+
+
+# ---------------------------------------------------------------------------
+# Trust guard: if every case errors with the same exit and nothing prints, the
+# solution almost certainly never ran. gen_expected must warn instead of freezing
+# a green-looking suite.
+# ---------------------------------------------------------------------------
+
+
+class _RecordingMessenger:
+    def __init__(self):
+        self.warnings = []
+
+    def warning(self, message, hint=None):
+        self.warnings.append(message + (" " + hint if hint else ""))
+
+    def info(self, message):
+        pass
+
+    def plain(self, message=""):
+        pass
+
+    def success(self, message):
+        pass
+
+
+def test_warns_when_solution_never_runs(py_project, tmp_path):
+    ctx, project = py_project
+    # A solution that always exits nonzero and prints nothing.
+    project.solution = write(tmp_path / "dead.py", "import sys\nsys.exit(3)\n")
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+
+    ctx.messenger = _RecordingMessenger()
+    gen_expected(ctx, project)
+
+    joined = " ".join(ctx.messenger.warnings)
+    assert "may not be running" in joined
+
+
+def test_no_false_alarm_when_solution_runs(py_project):
+    ctx, project = py_project  # SUM_ALL_PY, prints real output
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+
+    ctx.messenger = _RecordingMessenger()
+    gen_expected(ctx, project)
+
+    assert not any("may not be running" in w for w in ctx.messenger.warnings)
+
+
+# ---------------------------------------------------------------------------
+# gen --manual used to create an empty input with no way to set the content in
+# one-shot mode. --content (and piped stdin) now fill it.
+# ---------------------------------------------------------------------------
+
+
+def test_gen_manual_content_writes_file(py_project):
+    ctx, project = py_project
+    case = gen_manual(ctx, project, "edge1", group="baseline", content="5 7\n")
+    body = open(project.abspath(case.inputs["stdin"])).read()
+    assert body == "5 7\n"
+
+
+def test_gen_manual_empty_content_writes_empty_file(py_project):
+    ctx, project = py_project
+    case = gen_manual(ctx, project, "blank", group="baseline")
+    assert open(project.abspath(case.inputs["stdin"])).read() == ""
+
+
+def test_gen_command_content_flag(py_project):
+    ctx, project = py_project
+    registry.safe_dispatch(ctx, ["gen", "--manual", "edge2", "--content", "1 2 3\n"])
+    case = next(c for c in project.cases if c.name == "edge2")
+    assert open(project.abspath(case.inputs["stdin"])).read() == "1 2 3\n"
+
+
+# ---------------------------------------------------------------------------
+# A case whose input file is gone is a broken setup, not a wrong answer: judge
+# reports it as an "error", distinct from the solution exiting nonzero.
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# clean: --all is accepted, and a non-interactive run without --yes refuses with
+# a hint instead of silently aborting.
+# ---------------------------------------------------------------------------
+
+
+def test_clean_all_with_yes_removes_generated(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    registry.safe_dispatch(ctx, ["clean", "--all", "--yes"])
+    assert all(c.manual for c in ctx.project.cases)
+
+
+def test_clean_non_interactive_without_yes_keeps_cases(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    before = len(project.cases)
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["clean"])
+    assert len(ctx.project.cases) == before  # nothing deleted without confirmation
+    assert any("--yes" in w for w in ctx.messenger.warnings)
+
+
+# ---------------------------------------------------------------------------
+# status warns about input files dropped under tests/ that no case references -
+# the directory is not scanned, so they would otherwise be silently ignored.
+# ---------------------------------------------------------------------------
+
+
+def test_status_warns_about_unregistered_inputs(py_project):
+    from morvix import layout
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+
+    orphan_dir = os.path.join(project.root, layout.TESTS_DIR, "baseline")
+    os.makedirs(orphan_dir, exist_ok=True)
+    with open(os.path.join(orphan_dir, "hand_dropped.in"), "w") as f:
+        f.write("1 2 3\n")
+
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["status"])
+    assert any("aren't registered" in w for w in ctx.messenger.warnings)
+
+
+def test_status_quiet_when_all_inputs_registered(py_project):
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+
+    ctx.messenger = _RecordingMessenger()
+    registry.safe_dispatch(ctx, ["status"])
+    assert not any("aren't registered" in w for w in ctx.messenger.warnings)
+
+
+# ---------------------------------------------------------------------------
+# A run that exits badly folds the last stderr line into the verdict, so the
+# actual diagnosis (a traceback line, "can't open file") is visible at a glance.
+# ---------------------------------------------------------------------------
+
+
+def test_stderr_tail_takes_last_nonempty_line():
+    from morvix.judge import _stderr_tail
+
+    assert _stderr_tail(b"") == ""
+    assert _stderr_tail(b"Traceback...\nValueError: boom\n") == "ValueError: boom"
+    assert _stderr_tail(b"only line") == "only line"
+
+
+def test_failed_run_surfaces_stderr_in_verdict(py_project, tmp_path):
+    from morvix.judge import judge, select_cases
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 2, 1, "baseline", {"count": 2, "lo": 0, "hi": 9})
+    gen_expected(ctx, project)  # answers from the good solution
+
+    project.solution = write(
+        tmp_path / "crash.py", "import sys\nsys.stderr.write('kaboom\\n')\nsys.exit(1)\n"
+    )
+    run = judge(project, project.solution, project.language, select_cases(project))
+    assert all(c.status == "fail" for c in run.cases)
+    assert all("kaboom" in c.verdict for c in run.cases)
+
+
+def test_missing_input_is_an_error_not_a_failure(py_project):
+    from morvix.judge import judge, select_cases
+
+    ctx, project = py_project
+    gen_random(ctx, project, "array", 3, 1, "baseline", {"count": 2, "lo": 0, "hi": 50})
+    gen_expected(ctx, project)
+
+    victim = project.cases[0]
+    os.remove(project.abspath(victim.inputs["stdin"]))
+
+    run = judge(project, project.solution, project.language, select_cases(project))
+    by_id = {c.case_id: c for c in run.cases}
+    assert by_id[victim.id].status == "error"
+    assert "input file missing" in by_id[victim.id].verdict
+    assert not run.all_passed

@@ -88,8 +88,13 @@ tests, re-run selectively, and diff your per-case results against the author's.
   expected exit status / crash - combinable per case.
 - **Limits & checks**: wall/CPU time, peak memory (approximate), hard memory caps, output caps, and
   an optional valgrind memory-correctness pass.
-- **Generation**: a built-in random-shape library, custom generators, stress testing against a
-  trusted rival oracle, and crash-case candidates.
+- **Generation**: random shapes (with distribution and difficulty dials and worst-case "adversary"
+  shapes), declarative **grammars** for structured input, custom generators and a vetted catalog,
+  boundary / exhaustive / pairwise / multi-test / size-ladder coverage, stress + crash testing with
+  automatic **shrinking** to a minimal reproducer, oracle-free **metamorphic / property / fuzz**
+  checks, importing and mutating real inputs, format inference, input validators, answer-stability
+  and snapshot checks, and an opt-in model-assist hook. Every mode produces inputs only - answers
+  always come from running your own solution.
 - **Sharing**: zip / tar / tar.gz / tar.xz packages with an auto-generated README and a manifest.
 - **Workflows**: record a sequence of commands and replay it on the next assignment.
 

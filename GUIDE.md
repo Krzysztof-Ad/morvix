@@ -45,18 +45,119 @@ against each other:
 
 ## Generators and structured input
 
-Random shapes (`gen --random`) suit simple stdin formats. Most real assignments
-read something structured, where random data produces meaningless tests - Morvix
-warns you when `gen --expected` comes back all-empty. The fix is a custom
-generator:
+Random shapes (`gen --random`) suit simple stdin formats, and you can shape the
+values with `--dist` (uniform/zipf/clustered/...) and a `--difficulty` dial, or
+reach for a worst-case shape like `anti_quicksort`. Most real assignments read
+something structured, where random data produces meaningless tests - Morvix warns
+you when `gen --expected` comes back all-empty.
 
-    gen --new-generator mygen          # writes a starter you edit
-    gen --generator .morvix/generators/mygen.py --count 1000
+For structured input the best tool is a grammar: you describe the format once and
+sample inputs that are correct by construction, including counts that drive how
+much follows ("read N, then N numbers"; "read R C, then an R x C grid"):
+
+    gen --new-grammar mygram           # writes a starter you edit
+    gen --grammar .morvix/generators/mygram.gram --count 1000
     gen --expected
 
-A generator just prints one input to stdout, parameterized by a seed. Stress
-testing (`gen --stress`) pits your solution against a trusted brute force and
-saves the first disagreement.
+A custom generator program (`gen --new-generator`) is the imperative alternative,
+and the vetted catalog (`gen --lib`, browse `gen --list-lib`) gives ready-made
+trees/graphs/etc. with no code. To cover the space on purpose, declare ranges with
+`--axis` and use `--boundary` (min/max/zero), `--exhaustive` (every small input),
+or `--pairwise` (every pair of choices); `--multi` wraps T sub-inputs into one
+file and `--ladder` sweeps sizes so you can read complexity off the timings.
+
+A grammar asserts the input's *shape*, never an answer - expected answers still
+come only from `gen --expected` running your own solution. If you have real inputs
+already, `gen --import` ingests them (bundled answers are stripped), `gen --infer`
+drafts a generator from samples, and `gen --mutate` derives more from a corpus.
+
+See `docs grammar` for the grammar mini-language and the per-shape `--param` keys.
+
+## Grammar and shape reference
+
+A grammar is one rule per line; `start` is the entry rule and `#` starts a
+comment. Write a sequence of whitespace-separated items:
+
+    start: int(1..100) as n "\n" repeat(n) { int(0..1000000) } sep " " "\n"
+    start: int(1..50) as r " " int(1..50) as c "\n" repeat(r) { repeat(c) { char(".#") } "\n" }
+
+Items:
+
+- `int(LO..HI) [as NAME]` - a random integer in [LO, HI]; `as NAME` binds it for
+  reuse and also prints it.
+- `let NAME = int(LO..HI)` - a *silent* bind: sample NAME for later use without
+  printing it. `let NAME = EXPR` binds a value computed from earlier binds.
+- `float(LO..HI, NDIGITS)` - a random float fixed to NDIGITS decimals.
+- `char("ALPHABET")` - one random character; `str(LEN, "ALPHABET")` - LEN of them.
+- `"text"` - a literal (escapes: `\n` `\t` `\\` `\"`); `nl` / `sp` - newline / space.
+- `repeat(COUNT) { BODY } [sep "S"]` - BODY COUNT times, joined by S.
+- `oneof { A | B | ... }` - pick one alternative; `NAME` - call another rule.
+
+COUNT, LO, HI, LEN and NDIGITS are numeric expressions over literals, bound names
+and `+ - * / ( )`, so a later size can depend on an earlier value. To make a count
+drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`, or `let k =
+int(1..9)` when the count must not appear in the input) - `repeat()` takes an
+expression, not a fresh draw. Start from a scaffold with `gen --new-grammar NAME`,
+then `gen --grammar <path> --count 1000`.
+
+Random shapes (`gen --random --shape S --param k=v`) cover simpler stdin formats.
+The common shapes and their `--param` keys:
+
+- `ints` / `array` - `count`, `lo`, `hi` (array prints a leading count line).
+- `string` - `length`, `alphabet`.
+- `permutation` - `n`.
+- `tree` - `n`, `shape` (random/path/star/caterpillar/balanced).
+- `graph` - `n`, `m`, `directed`, `weighted`, `connected`, `dag`, `w_lo`, `w_hi`.
+- `grid` - `rows`, `cols`, `alphabet`, `wall_density` (fraction of walls),
+  `open_corners` (force the four corners open, for pathfinding inputs).
+
+Shape and param choices are recorded in each case's provenance, never an answer.
+
+## Finding bugs without a reference answer
+
+Some checks find bugs with no "correct answer" at all - they only need your own
+solution:
+
+- **Stress** (`gen --stress`) runs your solution against a trusted rival (a rival
+  tagged `--stress`) on generated inputs, keeps the disagreements, and shrinks
+  each to a small reproducer. `gen --shrink <case>` minimises any failing case.
+- **Crash** (`gen --crash`) feeds malformed inputs and keeps only the ones that
+  actually crash, hang, or error.
+- **Metamorphic** (`gen --metamorphic --relation ...`) transforms an input in a
+  way whose effect on the output is known - e.g. for an order-independent problem,
+  permuting the input must leave the output unchanged - and saves any violation.
+  It compares two of *your* solution's outputs; it never asserts a right answer.
+- **Property** (`gen --property 'out_int <= n'`) checks a bound on one output.
+- **Fuzz** (`gen --fuzz`) mutates a corpus and keeps inputs that make the solution
+  behave a new observable way.
+
+All of these save inputs only; an unparseable or crashing run is inconclusive,
+never a verdict.
+
+## Honest, reproducible answers
+
+Because the expected answers come from one solution, Morvix guards that boundary:
+
+- Every generated case records *how it was made* (seed, shape, params) and which
+  solution fingerprint froze its answer, so cases can be re-derived and drift is
+  visible (`gen --pin` / `gen --diff-pin`).
+- `gen --expected --check-stable` runs each case several times and refuses to
+  freeze an answer that varies - a nondeterministic solution would poison the
+  whole set.
+- `gen --expected --changed` only recomputes cases whose input or the solution
+  changed.
+- `gen --validate` (scaffold with `gen --new-validator`) gates that generated
+  inputs are well-formed before answers are frozen - the input-side counterpart of
+  the output checker.
+
+## Model-assisted scaffolds (off by default)
+
+Morvix never calls a model or the network. If you opt in, `gen --suggest` runs
+*your* own executable hook (`--hook`) - which is where any model call happens - to
+draft a generator or candidate inputs. The model's output is treated as unverified
+INPUT or generator code only: a strict allow-list strips anything answer-shaped,
+suggested inputs are inert until `gen --expected`, and a drafted generator is never
+run for you. Expected answers still come only from your solution.
 
 ## Where things live, and packages
 
@@ -80,7 +181,7 @@ ask rather than changing behavior silently.
 - **Languages:** c, cpp, java, nasm, python, rust
 - **Execution models:** args, file, interactive, library, stdio
 - **Comparison strategies:** checker, exact, float, hash, whitespace
-- **Random shapes:** array, edge, graph, grid, int, ints, permutation, string, tree
+- **Random shapes:** anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree
 
 ## Command reference
 
@@ -272,7 +373,7 @@ model library
 
 #### `gen`
 
-Make test cases: by hand (--manual), from the built-in random shapes (--random), from a custom generator (--generator), or recompute expected answers (--expected). Also stress testing (--stress) and crash candidates (--crash). For structured input, 'gen --new-generator' writes a starter generator you edit - usually the right tool when random shapes don't fit.
+Make test cases and compute their answers. Inputs come from many sources - by hand (--manual), built-in random shapes (--random, tuned with --dist/--difficulty), a custom generator (--generator), a declarative grammar (--grammar, correct-by-construction for structured input), or the vetted catalog (--lib, browse with --list-lib). Cover the input space deliberately with --boundary/--exhaustive/--pairwise (declare ranges with --axis), wrap many sub-inputs with --multi, or sweep sizes with --ladder. Find bugs with --stress (vs a --stress rival, auto-minimised), --crash (keeps only real crashers), --fuzz, --metamorphic (a relation between your solution's own outputs), or --property (a bound on one output); reduce any failure with --shrink. Bring in real inputs with --import (bundled answers are stripped), learn their shape with --infer, and derive more with --mutate. Keep answers honest and reproducible with --expected (--check-stable, --changed), gate inputs with --validate, and track drift with --pin/--diff-pin. Every mode produces INPUTS only; expected answers always come from 'gen --expected' running your own solution. See 'docs grammar' for the grammar mini-language and the per-shape --param keys.
 
 Options:
 
@@ -283,24 +384,100 @@ Options:
 - `--stress` - stress the solution against a --stress rival oracle
 - `--crash` - generate malformed inputs to probe error handling
 - `--new-generator NAME` - write a starter generator you can edit (default name: gen)
+- `--grammar FILE` - sample inputs from a declarative grammar file (correct-by-construction structure)
+- `--new-grammar NAME` - write a starter grammar you can edit (default name: gram)
+- `--boundary` - enumerate boundary cases (min/max/zero/...) from declared --axis ranges
+- `--exhaustive` - enumerate the WHOLE small-input space for tiny bounds (guarded by a cap)
+- `--pairwise` - t-wise covering array over discrete --axis factors (every pair covered)
+- `--multi T` - wrap T generated inputs into one multi-test file with a T header
+- `--ladder` - emit one case per geometric size rung for empirical complexity profiling
+- `--shrink CASE` - minimise a failing case to a small reproducer (input shrinks, answer re-derived)
+- `--validate PROG` - check generated inputs are well-formed with a validator (default: saved validator)
+- `--new-validator NAME` - write a starter input validator you can edit (default name: validate)
+- `--pin NAME` - save a named snapshot of current inputs+expected so later drift can be detected
+- `--diff-pin NAME` - show which inputs or expected answers changed since NAME
+- `--list-snapshots` - list saved snapshots (see gen --pin)
+- `--lib NAME` - generate inputs from a vetted catalog generator (see --list-lib)
+- `--list-lib` - list the catalog of vetted generators
+- `--export-pack FILE` - bundle this project's generators/grammars into a pack
+- `--import-pack FILE` - import generators/grammars from a pack (no code is run)
+- `--metamorphic` - check a metamorphic relation between the solution's outputs (needs --relation)
+- `--property EXPR` - check a property of the solution's output, e.g. 'out_int <= n'
+- `--fuzz` - diversity-guided fuzz: keep inputs that make the solution behave a new way
+- `--mutate` - mutate existing inputs into new candidates
+- `--infer SAMPLE` - infer the input format from sample files and draft a generator you edit
+- `--import PATH` - import existing input files (dir, glob, or .zip) as cases; bundled answers are stripped
+- `--suggest KIND` - OFF BY DEFAULT, network-gated: ask your --hook to draft a generator or inputs
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
 - `--seed SEED` - base random seed (default 1)
 - `--group GROUP` - target group (default depends on mode)
-- `--shape SHAPE` - with --random: input shape (default ints)  (one of: array, edge, graph, grid, int, ints, permutation, string, tree)
+- `--content CONTENT` - with --manual: the case's input text (or pipe it on stdin)
+- `--shape SHAPE` - with --random: input shape (default ints)  (one of: anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree)
 - `--param KEY=VALUE` - shape parameter, repeatable (e.g. --param lo=0)
+- `--dist DIST` - value distribution: uniform, loguniform, zipf, gaussian, bimodal, clustered
+- `--difficulty DIFFICULTY` - difficulty dial easy|medium|hard|adversarial or 0..1; scales size and adversariality
+- `--axis NAME=SPEC` - declare a bounded axis (e.g. --axis count=1..1e5 --axis hi=-1e9..1e9)
+- `--matrix MATRIX` - with --boundary: how to combine multiple axes  (one of: one-at-a-time, corners, full)
+- `--max-cases MAX_CASES` - cap on generated cases (boundary/exhaustive/pairwise)
+- `--max-n MAX_N` - with --exhaustive: largest structure size to enumerate
+- `--values VALUES` - with --exhaustive: the value set each element draws from (e.g. 0,1,2)
+- `--strength STRENGTH` - with --pairwise: combination strength t (2=pairwise)
+- `--steps STEPS` - with --ladder: number of geometric size rungs
+- `--lo-n LO_N` - with --ladder: smallest n rung
+- `--hi-n HI_N` - with --ladder: largest n rung
+- `--layout-multi LAYOUT_MULTI` - with --multi: how to lay out sub-inputs  (one of: t-first, per-line)
+- `--from-group FROM_GROUP` - with --multi: draw sub-inputs from an existing group instead of generating
+- `--auto-t` - with --multi: also emit T=1, small-T and max-T variants
+- `--keep KEEP` - with --stress: how many disagreements to keep
+- `--no-shrink` - skip automatic minimisation of a found failure
+- `--shrink-budget SHRINK_BUDGET` - max solution runs spent shrinking
+- `--keep-clean` - with --crash: keep even inputs the solution handled cleanly
+- `--check-stable` - with --expected: run each case several times and refuse to freeze a varying answer
+- `--repeat REPEAT` - with --check-stable: how many runs per case
+- `--changed` - with --expected: only recompute cases whose input or the solution changed
+- `--all` - with --expected --changed: force a full recompute
+- `--require-valid` - with --random/--generator/--grammar: drop inputs the validator rejects
+- `--dedup` - skip byte-identical inputs; with no mode, prune existing duplicate generated cases
+- `--with-catalog` - with --export-pack: also record the catalog generator names used
+- `--force` - with --import-pack: overwrite existing files
+- `--relation RELATION` - with --metamorphic: the relation to check
+- `--ladder-spec LADDER_SPEC` - with --property: vary one size param, e.g. n=1..100000:8
+- `--budget BUDGET` - with --fuzz: how many inputs to try
+- `--seed-group SEED_GROUP` - with --fuzz: corpus seed group (default: baseline)
+- `--from MUTATE_FROM` - with --mutate: source group of inputs (default baseline)
+- `--schema SCHEMA` - with --mutate: a schema (from gen --infer) for edits
+- `--ops OPS` - with --mutate: comma-separated mutation operators
+- `--split` - with --import: split multi-test files
+- `--keep-answers` - with --import: keep bundled .out/.ans as ADVISORY only (never expected answers)
+- `--keep-names` - with --import: name cases after the source files instead of imp1, imp2, ...
+- `--dry-run` - with --import: preview without writing anything
+- `--name NAME` - name for a drafted generator/grammar (infer/suggest)
+- `--as-grammar` - with --infer: also try writing a grammar draft
+- `--hook HOOK` - with --suggest: path to YOUR executable model hook
+- `--prompt PROMPT` - with --suggest: free-text guidance for the hook
+- `--i-understand` - with --suggest: confirm model output is unverified, INPUT-only
 
 Examples:
 
 ```
-gen --random --count 100 --seed 1 --shape ints
-gen --new-generator mygen
-gen --generator generators/mygen.py --count 1000
-gen --manual edge1
-gen --expected
-gen --expected --hash
-gen --stress --count 5000
-gen --crash
+gen --random --count 100 --shape ints --dist zipf
+gen --new-grammar mygram
+gen --grammar .morvix/generators/mygram.gram --count 1000
+gen --lib tree.binary --param n=5000 --count 50
+gen --boundary --axis count=1..100000 --axis hi=-1000000..1000000 --shape ints
+gen --pairwise --axis layout=sorted,reverse --axis count=1,100,10000
+gen --ladder --shape ints --steps 8 --hi-n 100000
+gen --stress --shape array --count 5000 --keep 3
+gen --metamorphic --relation permute-invariant --shape array --count 200
+gen --property 'out_int <= n' --ladder-spec count=1..100000:8
+gen --shrink regression/stress_42
+gen --import ./cf_tests --split
+gen --infer sample1.txt sample2.txt
+gen --expected --check-stable
+gen --expected --changed
+gen --validate
+gen --pin before-refactor
 ```
 
 #### `clean`
@@ -310,6 +487,7 @@ Deletes disposable generated cases so they can be regenerated from a seed, while
 Options:
 
 - `--group G` (or `-g`) - only remove generated cases in this group
+- `--all` - remove generated cases in every group (the default)
 - `--yes` (or `-y`) - skip confirmation prompt
 
 Examples:
@@ -333,6 +511,7 @@ Options:
 - `--time` - show wall/cpu time per case (on by default for run)
 - `--mem` - show peak memory per case (on by default for run)
 - `--no-perf` - hide the performance summary at the end
+- `--diff` - show a unified diff under each case whose output differs
 - `--slowest N` - list the N slowest cases in the performance summary (default 5)
 - `--no-rivals` - skip the rival performance comparison
 - `--parallel` - run rivals in parallel (faster, but perf numbers become approximate)

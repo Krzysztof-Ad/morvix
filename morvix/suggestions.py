@@ -136,3 +136,41 @@ def explain_missing_stress_oracle(ctx, project):
         "Stress testing needs a trusted oracle to compare against.",
         hint="Register one with:  rival add <path> --stress",
     )
+
+
+def warn_unstable_answers(ctx, case_ids):
+    # gen --expected --check-stable refuses to freeze an answer that varies
+    # between runs: a nondeterministic solution would poison the whole expected
+    # set. Tell the user which cases were skipped and why.
+    if not case_ids:
+        return
+    shown = ", ".join(case_ids[:5]) + (" ..." if len(case_ids) > 5 else "")
+    ctx.messenger.warning(
+        f"{len(case_ids)} case(s) gave different output across runs - answer NOT frozen: {shown}",
+        hint="Your solution looks nondeterministic (unseeded RNG, dict/set order, time). "
+        "Make it deterministic, then rerun 'gen --expected'.",
+    )
+
+
+def warn_solution_not_running(ctx, count, exit_code):
+    # Every case ended with the same nonzero exit and produced no output: the
+    # solution almost certainly never really ran. Freezing that would yield a
+    # suite that "passes" while testing nothing - the worst failure for a test
+    # tool - so say so loudly.
+    ctx.messenger.warning(
+        f"All {count} cases exited with code {exit_code} and produced no output - "
+        "your solution may not be running.",
+        hint="Check the run command (try 'run --case <id>' on one case). The frozen "
+        "expectations are an exit code, not real answers.",
+    )
+
+
+def suggest_invalid_inputs(ctx, invalid_ids):
+    # --require-valid dropped inputs the validator rejected; surface it so a
+    # broken generator isn't silently producing malformed cases.
+    if not invalid_ids:
+        return
+    ctx.messenger.warning(
+        f"{len(invalid_ids)} generated input(s) failed the validator and were dropped.",
+        hint="Fix the generator (or the validator) so generated inputs are well-formed.",
+    )

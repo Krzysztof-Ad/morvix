@@ -67,6 +67,17 @@ A function `(CompareInput) -> Verdict`, registered with `register_comparator`. `
 `morvix/comparators.py`. Use `make_diff(expected, observed)` for a unified diff in the
 verdict.
 
+### Adding to the generation toolkit
+
+A new way to make tests is an **input source**, not a fourth axis - it produces inputs and
+nothing else. The single most important rule: **only `gen --expected` may set an expected
+answer.** Every generator/driver writes `inputs` and leaves `expected_*` unset; the static
+guard in `tests/test_honesty.py` fails CI if an input-only module ever assigns one. (The
+stress oracle and `gen --shrink` are the only documented carve-outs, and they live in
+`generators.py`.) There is one mutation engine (`morvix/mutate.py`) and one tokenizer
+(`schema.tokenize_lines`) - reuse them rather than adding parallel ones. New `gen` flags and
+help text go in `morvix/help_text.py` + `gen_cmd.py`, and `GUIDE.md` is regenerated.
+
 ## Invariants (please don't break these)
 
 - **The runner core is sacred.** `morvix/runner_core/morvix_runner.py` ships verbatim

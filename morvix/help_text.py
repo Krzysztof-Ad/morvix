@@ -108,20 +108,39 @@ COMMANDS = {
     "gen": {
         "stage": "generate",
         "summary": "Generate or register test cases.",
-        "long": "Make test cases: by hand (--manual), from the built-in random shapes "
-        "(--random), from a custom generator (--generator), or recompute expected "
-        "answers (--expected). Also stress testing (--stress) and crash candidates "
-        "(--crash). For structured input, 'gen --new-generator' writes a starter "
-        "generator you edit - usually the right tool when random shapes don't fit.",
+        "long": "Make test cases and compute their answers. Inputs come from many sources - by "
+        "hand (--manual), built-in random shapes (--random, tuned with --dist/--difficulty), a "
+        "custom generator (--generator), a declarative grammar (--grammar, correct-by-construction "
+        "for structured input), or the vetted catalog (--lib, browse with --list-lib). Cover the "
+        "input space deliberately with --boundary/--exhaustive/--pairwise (declare ranges with "
+        "--axis), wrap many sub-inputs with --multi, or sweep sizes with --ladder. Find bugs with "
+        "--stress (vs a --stress rival, auto-minimised), --crash (keeps only real crashers), "
+        "--fuzz, --metamorphic (a relation between your solution's own outputs), or --property (a "
+        "bound on one output); reduce any failure with --shrink. Bring in real inputs with "
+        "--import (bundled answers are stripped), learn their shape with --infer, and derive more "
+        "with --mutate. Keep answers honest and reproducible with --expected (--check-stable, "
+        "--changed), gate inputs with --validate, and track drift with --pin/--diff-pin. Every "
+        "mode produces INPUTS only; expected answers always come from 'gen --expected' running "
+        "your own solution. See 'docs grammar' for the grammar mini-language and the per-shape "
+        "--param keys.",
         "examples": [
-            "gen --random --count 100 --seed 1 --shape ints",
-            "gen --new-generator mygen",
-            "gen --generator generators/mygen.py --count 1000",
-            "gen --manual edge1",
-            "gen --expected",
-            "gen --expected --hash",
-            "gen --stress --count 5000",
-            "gen --crash",
+            "gen --random --count 100 --shape ints --dist zipf",
+            "gen --new-grammar mygram",
+            "gen --grammar .morvix/generators/mygram.gram --count 1000",
+            "gen --lib tree.binary --param n=5000 --count 50",
+            "gen --boundary --axis count=1..100000 --axis hi=-1000000..1000000 --shape ints",
+            "gen --pairwise --axis layout=sorted,reverse --axis count=1,100,10000",
+            "gen --ladder --shape ints --steps 8 --hi-n 100000",
+            "gen --stress --shape array --count 5000 --keep 3",
+            "gen --metamorphic --relation permute-invariant --shape array --count 200",
+            "gen --property 'out_int <= n' --ladder-spec count=1..100000:8",
+            "gen --shrink regression/stress_42",
+            "gen --import ./cf_tests --split",
+            "gen --infer sample1.txt sample2.txt",
+            "gen --expected --check-stable",
+            "gen --expected --changed",
+            "gen --validate",
+            "gen --pin before-refactor",
         ],
     },
     "clean": {

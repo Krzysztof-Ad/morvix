@@ -40,6 +40,13 @@ class TestCase:
     compare: Optional[str] = None  # per-case comparison override
     limits: Dict[str, float] = field(default_factory=dict)  # per-case limit overrides
 
+    # Provenance & metadata (Section 13). All additive and back-compatible: an
+    # old cases.json missing these loads with defaults and round-trips byte-stable.
+    tags: List[str] = field(default_factory=list)  # orthogonal labels for filtering/provenance
+    note: Optional[str] = None  # free-text "why saved" (a relation/property/shrink reason)
+    input_hash: Optional[str] = None  # sha256 hex of the primary input bytes
+    provenance: Dict = field(default_factory=dict)  # the regeneration recipe (provenance.py)
+
     @property
     def id(self) -> str:
         return f"{self.group}/{self.name}"
@@ -62,7 +69,7 @@ class TestCase:
     def to_dict(self) -> dict:
         # Drop empty optionals so the JSON stays small and readable.
         d = {"name": self.name, "group": self.group, "manual": self.manual}
-        for key in ("inputs", "args", "expected_files", "limits"):
+        for key in ("inputs", "args", "expected_files", "limits", "tags", "provenance"):
             val = getattr(self, key)
             if val:
                 d[key] = val
@@ -72,6 +79,8 @@ class TestCase:
             "expected_exit",
             "expected_signal",
             "compare",
+            "note",
+            "input_hash",
         ):
             val = getattr(self, key)
             if val is not None:
@@ -93,6 +102,10 @@ class TestCase:
             expected_files=d.get("expected_files", {}),
             compare=d.get("compare"),
             limits=d.get("limits", {}),
+            tags=d.get("tags", []),
+            note=d.get("note"),
+            input_hash=d.get("input_hash"),
+            provenance=d.get("provenance", {}),
         )
 
 

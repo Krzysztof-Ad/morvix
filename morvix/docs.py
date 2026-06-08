@@ -72,18 +72,127 @@ against each other:
         "generators",
         "Generators and structured input",
         """\
-Random shapes (`gen --random`) suit simple stdin formats. Most real assignments
-read something structured, where random data produces meaningless tests - Morvix
-warns you when `gen --expected` comes back all-empty. The fix is a custom
-generator:
+Random shapes (`gen --random`) suit simple stdin formats, and you can shape the
+values with `--dist` (uniform/zipf/clustered/...) and a `--difficulty` dial, or
+reach for a worst-case shape like `anti_quicksort`. Most real assignments read
+something structured, where random data produces meaningless tests - Morvix warns
+you when `gen --expected` comes back all-empty.
 
-    gen --new-generator mygen          # writes a starter you edit
-    gen --generator .morvix/generators/mygen.py --count 1000
+For structured input the best tool is a grammar: you describe the format once and
+sample inputs that are correct by construction, including counts that drive how
+much follows ("read N, then N numbers"; "read R C, then an R x C grid"):
+
+    gen --new-grammar mygram           # writes a starter you edit
+    gen --grammar .morvix/generators/mygram.gram --count 1000
     gen --expected
 
-A generator just prints one input to stdout, parameterized by a seed. Stress
-testing (`gen --stress`) pits your solution against a trusted brute force and
-saves the first disagreement.""",
+A custom generator program (`gen --new-generator`) is the imperative alternative,
+and the vetted catalog (`gen --lib`, browse `gen --list-lib`) gives ready-made
+trees/graphs/etc. with no code. To cover the space on purpose, declare ranges with
+`--axis` and use `--boundary` (min/max/zero), `--exhaustive` (every small input),
+or `--pairwise` (every pair of choices); `--multi` wraps T sub-inputs into one
+file and `--ladder` sweeps sizes so you can read complexity off the timings.
+
+A grammar asserts the input's *shape*, never an answer - expected answers still
+come only from `gen --expected` running your own solution. If you have real inputs
+already, `gen --import` ingests them (bundled answers are stripped), `gen --infer`
+drafts a generator from samples, and `gen --mutate` derives more from a corpus.
+
+See `docs grammar` for the grammar mini-language and the per-shape `--param` keys.""",
+    ),
+    (
+        "grammar",
+        "Grammar and shape reference",
+        """\
+A grammar is one rule per line; `start` is the entry rule and `#` starts a
+comment. Write a sequence of whitespace-separated items:
+
+    start: int(1..100) as n "\\n" repeat(n) { int(0..1000000) } sep " " "\\n"
+    start: int(1..50) as r " " int(1..50) as c "\\n" repeat(r) { repeat(c) { char(".#") } "\\n" }
+
+Items:
+
+- `int(LO..HI) [as NAME]` - a random integer in [LO, HI]; `as NAME` binds it for
+  reuse and also prints it.
+- `let NAME = int(LO..HI)` - a *silent* bind: sample NAME for later use without
+  printing it. `let NAME = EXPR` binds a value computed from earlier binds.
+- `float(LO..HI, NDIGITS)` - a random float fixed to NDIGITS decimals.
+- `char("ALPHABET")` - one random character; `str(LEN, "ALPHABET")` - LEN of them.
+- `"text"` - a literal (escapes: `\\n` `\\t` `\\\\` `\\"`); `nl` / `sp` - newline / space.
+- `repeat(COUNT) { BODY } [sep "S"]` - BODY COUNT times, joined by S.
+- `oneof { A | B | ... }` - pick one alternative; `NAME` - call another rule.
+
+COUNT, LO, HI, LEN and NDIGITS are numeric expressions over literals, bound names
+and `+ - * / ( )`, so a later size can depend on an earlier value. To make a count
+drive a body, bind it first (`int(1..9) as k ... repeat(k) {...}`, or `let k =
+int(1..9)` when the count must not appear in the input) - `repeat()` takes an
+expression, not a fresh draw. Start from a scaffold with `gen --new-grammar NAME`,
+then `gen --grammar <path> --count 1000`.
+
+Random shapes (`gen --random --shape S --param k=v`) cover simpler stdin formats.
+The common shapes and their `--param` keys:
+
+- `ints` / `array` - `count`, `lo`, `hi` (array prints a leading count line).
+- `string` - `length`, `alphabet`.
+- `permutation` - `n`.
+- `tree` - `n`, `shape` (random/path/star/caterpillar/balanced).
+- `graph` - `n`, `m`, `directed`, `weighted`, `connected`, `dag`, `w_lo`, `w_hi`.
+- `grid` - `rows`, `cols`, `alphabet`, `wall_density` (fraction of walls),
+  `open_corners` (force the four corners open, for pathfinding inputs).
+
+Shape and param choices are recorded in each case's provenance, never an answer.""",
+    ),
+    (
+        "oracles",
+        "Finding bugs without a reference answer",
+        """\
+Some checks find bugs with no "correct answer" at all - they only need your own
+solution:
+
+- **Stress** (`gen --stress`) runs your solution against a trusted rival (a rival
+  tagged `--stress`) on generated inputs, keeps the disagreements, and shrinks
+  each to a small reproducer. `gen --shrink <case>` minimises any failing case.
+- **Crash** (`gen --crash`) feeds malformed inputs and keeps only the ones that
+  actually crash, hang, or error.
+- **Metamorphic** (`gen --metamorphic --relation ...`) transforms an input in a
+  way whose effect on the output is known - e.g. for an order-independent problem,
+  permuting the input must leave the output unchanged - and saves any violation.
+  It compares two of *your* solution's outputs; it never asserts a right answer.
+- **Property** (`gen --property 'out_int <= n'`) checks a bound on one output.
+- **Fuzz** (`gen --fuzz`) mutates a corpus and keeps inputs that make the solution
+  behave a new observable way.
+
+All of these save inputs only; an unparseable or crashing run is inconclusive,
+never a verdict.""",
+    ),
+    (
+        "integrity",
+        "Honest, reproducible answers",
+        """\
+Because the expected answers come from one solution, Morvix guards that boundary:
+
+- Every generated case records *how it was made* (seed, shape, params) and which
+  solution fingerprint froze its answer, so cases can be re-derived and drift is
+  visible (`gen --pin` / `gen --diff-pin`).
+- `gen --expected --check-stable` runs each case several times and refuses to
+  freeze an answer that varies - a nondeterministic solution would poison the
+  whole set.
+- `gen --expected --changed` only recomputes cases whose input or the solution
+  changed.
+- `gen --validate` (scaffold with `gen --new-validator`) gates that generated
+  inputs are well-formed before answers are frozen - the input-side counterpart of
+  the output checker.""",
+    ),
+    (
+        "assist",
+        "Model-assisted scaffolds (off by default)",
+        """\
+Morvix never calls a model or the network. If you opt in, `gen --suggest` runs
+*your* own executable hook (`--hook`) - which is where any model call happens - to
+draft a generator or candidate inputs. The model's output is treated as unverified
+INPUT or generator code only: a strict allow-list strips anything answer-shaped,
+suggested inputs are inert until `gen --expected`, and a drafted generator is never
+run for you. Expected answers still come only from your solution.""",
     ),
     (
         "layout",
