@@ -60,7 +60,7 @@ def list_entries() -> List[CatalogEntry]:
 
 
 def get(name: str) -> CatalogEntry:
-    """The entry called name, or a GenError naming the close-by alternatives."""
+    """The entry called name, or a GenError listing all known entries."""
     if name not in CATALOG:
         known = ", ".join(sorted(CATALOG))
         raise GenError(f"Unknown catalog generator '{name}'. Known: {known}.")
@@ -120,28 +120,14 @@ def _coerce(value, param: Param):
 # edges; sequences print the sequence. Sizes are read from resolved params.
 
 
-def _b_tree_binary(gen: Gen, p: dict) -> str:
-    n = p["n"]
-    edges = gen.tree(n, kind="binary")
-    return lines([n] + [header(u, v) for u, v in edges])
+def _b_tree(kind: str):
+    """A builder for a tree of the given kind: print n, then its n-1 edges."""
 
+    def build(gen: Gen, p: dict) -> str:
+        n = p["n"]
+        return lines([n] + [header(u, v) for u, v in gen.tree(n, kind=kind)])
 
-def _b_tree_caterpillar(gen: Gen, p: dict) -> str:
-    n = p["n"]
-    edges = gen.tree(n, kind="caterpillar")
-    return lines([n] + [header(u, v) for u, v in edges])
-
-
-def _b_tree_random(gen: Gen, p: dict) -> str:
-    n = p["n"]
-    edges = gen.tree(n, kind="random")
-    return lines([n] + [header(u, v) for u, v in edges])
-
-
-def _b_tree_path(gen: Gen, p: dict) -> str:
-    n = p["n"]
-    edges = gen.tree(n, kind="path")
-    return lines([n] + [header(u, v) for u, v in edges])
+    return build
 
 
 def _b_graph_dag(gen: Gen, p: dict) -> str:
@@ -202,7 +188,7 @@ register(
         name="tree.binary",
         summary="a complete binary tree on n nodes (parent of i is i//2)",
         params=[Param("n", "int", 15, "number of nodes")],
-        build=_b_tree_binary,
+        build=_b_tree("binary"),
     )
 )
 register(
@@ -210,7 +196,7 @@ register(
         name="tree.caterpillar",
         summary="a caterpillar tree: a spine with leaves hanging off it",
         params=[Param("n", "int", 20, "number of nodes")],
-        build=_b_tree_caterpillar,
+        build=_b_tree("caterpillar"),
     )
 )
 register(
@@ -218,7 +204,7 @@ register(
         name="tree.random",
         summary="a uniform-ish random tree on n nodes",
         params=[Param("n", "int", 20, "number of nodes")],
-        build=_b_tree_random,
+        build=_b_tree("random"),
     )
 )
 register(
@@ -226,7 +212,7 @@ register(
         name="tree.path",
         summary="a path (line) graph on n nodes - the deepest tree",
         params=[Param("n", "int", 20, "number of nodes")],
-        build=_b_tree_path,
+        build=_b_tree("path"),
     )
 )
 register(

@@ -2,19 +2,14 @@
 #
 # Assembles a single shareable archive with everything a Receiver needs and
 # nothing the Author wants kept private: tests, expected answers, the runner,
-# the generated README and the manifest - but never the solution source or the
-# brute-force reference.
+# the generated README and the manifest. The solution source is never included;
+# rival source ships only when the Author opts in with --rivals code.
 #
 # The archive is FLAT: run.sh, README.md, morvix.json, tests/, expected/ and
 # runner/ all sit at the archive root, so a Receiver sees the harness directly.
 # (A project hides its state under .morvix/; a package does not - it is the
 # deliverable.) Case paths in the manifest are written package-relative, with
 # the .morvix/ prefix stripped.
-#
-# API:
-#   build_package(ctx, project, fmt="zip", runners=None,
-#                 include_generators=False, out=None) -> str   # archive path
-#   estimate_size(project) -> int   # bytes, for the large-package suggestion
 
 import json
 import os

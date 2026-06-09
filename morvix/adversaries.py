@@ -87,19 +87,6 @@ def _anti_quicksort(rng, params):
             return lo
         return hi if compare(mid, hi) > 0 else mid
 
-    def sort(lo, hi):
-        # Mirror a median-of-three quicksort's *probing* order without actually
-        # moving elements; the comparator feeds adversarial values as it goes.
-        if hi - lo <= 0:
-            return
-        p = med3(lo, (lo + hi) // 2, hi)
-        # touch the rest so undecided cells eventually get values too
-        for i in range(lo, hi + 1):
-            if i != p:
-                compare(i, p)
-        sort(lo, (lo + hi) // 2 - 1)
-        sort((lo + hi) // 2 + 1, hi)
-
     # iterative driver so deep recursion on big n cannot blow the Python stack
     stack = [(0, n - 1)]
     while stack:

@@ -15,9 +15,9 @@ from typing import Callable, Dict, List, Optional
 
 from morvix.schema import Schema, classify_token, tokenize_lines
 
-# How a count-driven input is held together: the first integer token in the
-# whole input is treated as the element count when a schema marks one. We repair
-# THAT token after structural edits so the harness stays well-formed.
+# How a count-driven input is held together: when a schema records a count
+# coordinate (schema.repeat_ref), that token is the element count. We repair THAT
+# token after structural edits so the harness stays well-formed.
 
 
 # --- low-level helpers -------------------------------------------------------
@@ -39,8 +39,8 @@ def _all_int_positions(lines: List[List[str]]):
 def _count_ref(schema: Optional[Schema]):
     """The (row, col) of the count token this schema threads, or None.
 
-    A fixed-line schema with a variable data line, or a repeat schema, both name
-    the integer that drives the body size; we surface it as a grid coordinate.
+    A repeat schema names the integer that drives the trailing-line count via
+    schema.repeat_ref; we surface it as a grid coordinate.
     """
     if schema is None:
         return None
@@ -188,8 +188,8 @@ def _repair_count(text: str, schema: Optional[Schema]) -> str:
 def _body_size(lines: List[List[str]], schema: Schema):
     """How many body elements the count should report, given the schema.
 
-    - A repeat-line schema with a fixed prefix: the number of trailing lines.
-    - Otherwise: the token count of the single data line after the count.
+    Only the repeat-line case is handled: a repeat-line schema with a fixed prefix
+    reports the number of trailing lines. Any other schema returns None.
     """
     if schema is None:
         return None

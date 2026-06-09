@@ -15,8 +15,8 @@
 
 import json
 import re
-from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 # An integer (optionally signed). Anything that is not a pure integer token is
 # classified by kind below, never split further.
@@ -430,8 +430,3 @@ def load_schema(path: str) -> Schema:
     """Load a Schema from a JSON sidecar."""
     with open(path, "r", encoding="utf-8") as f:
         return Schema.from_dict(json.load(f))
-
-
-# Kept for callers that want the raw dataclass dict without the to_dict trim.
-def schema_asdict(schema: Schema) -> Dict:
-    return asdict(schema)

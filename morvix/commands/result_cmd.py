@@ -1,7 +1,7 @@
 # Export the last run as a report, or diff two results files (Section 17).
 #
 # Formats:
-#   --json   machine-readable (default for piping / cross-solution diff)
+#   --json   machine-readable
 #   --md     Markdown report (default)
 #   --text   plain text for minimal environments
 #

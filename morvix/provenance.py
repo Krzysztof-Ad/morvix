@@ -104,11 +104,10 @@ def group_recipes(cases: List) -> Dict:
             "grammar",
             "source_hash",
             "lib",
+            "params",
         ):
             if key in prov and key not in roll:
                 roll[key] = prov[key]
-        if "params" in prov and "params" not in roll:
-            roll["params"] = prov["params"]
         seed = prov.get("seed")
         if isinstance(seed, int):
             roll["base_seed"] = min(roll.get("base_seed", seed), seed)

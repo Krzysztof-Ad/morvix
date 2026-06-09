@@ -9,17 +9,7 @@
 # Each function writes input files under tests/<group>/ and registers/updates
 # TestCase entries on the project, then the caller saves the project. Generated
 # cases are marked manual=False (disposable); gen_manual marks manual=True.
-#
-# API (implement in Workflow B):
-#   gen_manual(ctx, project, name, group="baseline", content=None) -> TestCase
-#   gen_random(ctx, project, shape, count, seed, group, params) -> list[TestCase]
-#   gen_from_generator(ctx, project, generator_path, count, seed, group, modes=None) -> list[TestCase]
-#   gen_expected(ctx, project, use_hash=False, groups=None) -> int   # number of answers computed
-#   gen_stress(ctx, project, count, seed, group="regression") -> TestCase | None  # first failing case
-#   gen_crash(ctx, project, count, seed, group="bad-input") -> list[TestCase]
-#   clean_generated(project, group=None) -> int   # remove generated cases + files; return count
 
-import hashlib
 import os
 import shutil
 import tempfile
@@ -145,20 +135,18 @@ def gen_from_grammar(ctx, project, grammar_path, count, seed, group, params=None
             text = grammar.sample(g, seed + i, params or {})
         except grammar.GrammarError as e:
             raise UserError("Grammar sampling failed", hint=str(e)) from e
-        name = f"gram{seed}_{i}"
-        rel = default_input_relpath(group, name)
-        _write_text(project.abspath(rel), text)
-        case = TestCase(
-            name=name,
-            group=group,
-            manual=False,
-            inputs={"stdin": rel},
+        case = _emit_input_case(
+            project,
+            group,
+            f"gram{seed}_{i}",
+            text,
+            "grammar",
             tags=[f"grammar:{base}"],
-            provenance=provenance.make_record(
-                "grammar", seed=seed + i, grammar=rel_gram, source_hash=shash, params=params or None
-            ),
+            seed=seed + i,
+            grammar=rel_gram,
+            source_hash=shash,
+            params=params or None,
         )
-        _finalize_case(project, case)
         cases.append(case)
     return cases
 
@@ -466,20 +454,17 @@ def gen_random(ctx, project, shape, count, seed, group, params):
     cases = []
     for i in range(count):
         text = shapes.generate(shape, seed + i, params)
-        name = f"r{seed}_{i}"
-        rel = default_input_relpath(group, name)
-        _write_text(project.abspath(rel), text)
-        case = TestCase(
-            name=name,
-            group=group,
-            manual=False,
-            inputs={"stdin": rel},
+        case = _emit_input_case(
+            project,
+            group,
+            f"r{seed}_{i}",
+            text,
+            "random",
             tags=[f"random:{shape}"],
-            provenance=provenance.make_record(
-                "random", seed=seed + i, shape=shape, params=params or None
-            ),
+            seed=seed + i,
+            shape=shape,
+            params=params or None,
         )
-        _finalize_case(project, case)
         cases.append(case)
     return cases
 
@@ -495,24 +480,18 @@ def gen_from_generator(ctx, project, generator_path, count, seed, group, modes=N
     try:
         for i in range(count):
             text = produce(seed + i, modes)
-            name = f"g{seed}_{i}"
-            rel = default_input_relpath(group, name)
-            _write_text(project.abspath(rel), text)
-            case = TestCase(
-                name=name,
-                group=group,
-                manual=False,
-                inputs={"stdin": rel},
+            case = _emit_input_case(
+                project,
+                group,
+                f"g{seed}_{i}",
+                text,
+                "generator",
                 tags=[f"gen:{base}"],
-                provenance=provenance.make_record(
-                    "generator",
-                    seed=seed + i,
-                    generator=rel_gen,
-                    generator_hash=ghash,
-                    modes=list(modes) if modes else None,
-                ),
+                seed=seed + i,
+                generator=rel_gen,
+                generator_hash=ghash,
+                modes=list(modes) if modes else None,
             )
-            _finalize_case(project, case)
             cases.append(case)
     finally:
         cleanup()
@@ -581,7 +560,7 @@ def gen_expected(
             else:
                 clean_outputs.append(obs.output)
                 if use_hash:
-                    case.expected_hash = hashlib.sha256(obs.output).hexdigest()
+                    case.expected_hash = provenance.hash_bytes(obs.output)
                 else:
                     rel = default_expected_relpath(case.group, case.name)
                     os.makedirs(os.path.dirname(project.abspath(rel)), exist_ok=True)
@@ -1093,7 +1072,6 @@ def gen_fuzz(ctx, project, seeds, budget, seed, group="fuzz", keep=8):
             obs = _run_on_text(project, env, cand, limits)
             key = fuzz.behavior_key(_obs_dict(obs), limit_dict)
             if fuzz.is_novel(key, seen):
-                seen.add(key)
                 corpus.append(cand)
                 saved.append(
                     _emit_input_case(

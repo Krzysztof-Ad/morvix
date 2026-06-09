@@ -16,9 +16,6 @@ from typing import Dict, List
 from morvix import layout, provenance
 from morvix.errors import UserError
 
-# Snapshots sit alongside the rest of the hidden state, under .morvix/snapshots/.
-SNAPSHOTS_DIR = os.path.join(layout.STATE_DIR, "snapshots")
-
 
 @dataclass
 class SnapshotDiff:
@@ -49,7 +46,7 @@ class SnapshotDiff:
 
 
 def _snapshot_path(project, name: str) -> str:
-    return project.abspath(SNAPSHOTS_DIR, name + ".json")
+    return project.abspath(layout.SNAPSHOTS_DIR, name + ".json")
 
 
 # The hash of a case's frozen answer, or None when no answer is frozen.
@@ -100,7 +97,7 @@ def pin(project, name: str) -> str:
 
 def list_snapshots(project) -> List[str]:
     """The names of every saved snapshot, sorted."""
-    sdir = project.abspath(SNAPSHOTS_DIR)
+    sdir = project.abspath(layout.SNAPSHOTS_DIR)
     if not os.path.isdir(sdir):
         return []
     return sorted(fn[:-5] for fn in os.listdir(sdir) if fn.endswith(".json"))
