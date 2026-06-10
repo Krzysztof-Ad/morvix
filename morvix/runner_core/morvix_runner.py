@@ -705,7 +705,9 @@ def _cmp_hash(observed, expected, case, params):
 
 def _cmp_checker(observed, expected, case, params):
     # Delegate to an external special-judge: [checker, input_file, observed_file].
-    # Exit 0 means accepted; any other exit means rejected.
+    # Exit 0 means accepted; any other exit means rejected. The checker gets 4x
+    # the case's wall limit (mirrors comparators.py) so a looping checker can
+    # never hang the whole run.
     checker_path = params.get("checker")
     if not checker_path:
         return Verdict(False, "no checker configured")
@@ -716,12 +718,15 @@ def _cmp_checker(observed, expected, case, params):
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(observed)
-        result = run([checker_path, input_file, tmp_path])
+        wall = (params.get("_wall") or 10) * 4
+        result = run([checker_path, input_file, tmp_path], wall_limit=wall)
     finally:
         try:
             os.unlink(tmp_path)
         except OSError:
             pass
+    if result.timed_out:
+        return Verdict(False, "checker timed out")
     if result.exit_code == 0:
         return Verdict(True)
     return Verdict(False, "checker rejected")
@@ -1251,6 +1256,8 @@ def judge_case(manifest, build, case, workdir, runner, opts):
     # --- output dimension ---
     params = dict(manifest.get("compare", {}))
     params["_root"] = manifest["_root"]
+    # _wall rides along so the checker comparator can bound its own run.
+    params["_wall"] = resolve_limits(manifest, runner, case).get("wall")
     default_strategy = params.get("strategy", "whitespace")
     strategy = case.get("compare") or (runner and runner.get("compare")) or default_strategy
     if case.get("expected_hash") and strategy != "checker":

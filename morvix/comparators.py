@@ -69,7 +69,13 @@ def _hash(ci: CompareInput) -> Verdict:
 #
 # Delegate to an external special-judge program. The checker receives:
 #   [checker_path, input_file, observed_file]
-# Exit 0 means accepted; any other exit means rejected.
+# Exit 0 means accepted; any other exit means rejected. The checker gets 4x the
+# case's wall limit (the same headroom valgrind gets) so a looping checker can
+# never hang the whole run.
+
+
+def _checker_wall(params: dict) -> float:
+    return (params.get("_wall") or 10) * 4
 
 
 def _checker(ci: CompareInput) -> Verdict:
@@ -91,13 +97,15 @@ def _checker(ci: CompareInput) -> Verdict:
     try:
         with os.fdopen(tmp_fd, "wb") as f:
             f.write(ci.observed)
-        result = run([checker_path, input_file, tmp_path])
+        result = run([checker_path, input_file, tmp_path], wall_limit=_checker_wall(ci.params))
     finally:
         try:
             os.unlink(tmp_path)
         except OSError:
             pass
 
+    if result.timed_out:
+        return Verdict(False, "checker timed out")
     if result.exit_code == 0:
         return Verdict(True)
     return Verdict(False, "checker rejected")

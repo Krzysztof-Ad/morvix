@@ -197,6 +197,17 @@ class TestChecker:
         assert not v.passed
         assert "checker rejected" in v.detail
 
+    def test_hanging_checker_is_bounded(self, tmp_path):
+        """A looping/sleeping checker must time out, not hang the run."""
+        checker = tmp_path / "checker_hang.sh"
+        checker.write_text("#!/bin/sh\nsleep 30\n")
+        checker.chmod(checker.stat().st_mode | stat.S_IEXEC)
+        # _wall is the case's wall limit; the checker gets 4x that.
+        params = {"checker": str(checker), "_wall": 0.1}
+        v = compare("checker", _ci(b"x\n", b"", project=_project(tmp_path), params=params))
+        assert not v.passed
+        assert "timed out" in v.detail
+
 
 # --- make_diff helper ---
 

@@ -182,12 +182,13 @@ def judge_case(
         if path and os.path.exists(path):
             with open(path, "rb") as f:
                 expected = f.read()
+        # _wall rides along so the checker comparator can bound its own run.
         ci = CompareInput(
             observed=obs.output,
             expected=expected,
             case=case,
             project=project,
-            params=project.compare,
+            params={**project.compare, "_wall": limits.get("wall")},
         )
         verdict = compare(strategy, ci)
         if not verdict.passed:

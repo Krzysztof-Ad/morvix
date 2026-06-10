@@ -53,11 +53,14 @@ elif mode == "segv":
     os.kill(os.getpid(), signal.SIGSEGV)
 """
 
-# A checker that accepts iff the observed output's first token is "ok".
+# A checker that accepts iff the observed output's first token is "ok",
+# and hangs on "hang" (to prove both sides bound the checker's runtime).
 CHECKER = """\
 #!/usr/bin/env python3
-import sys
+import sys, time
 observed = open(sys.argv[2]).read().split()
+if observed and observed[0] == "hang":
+    time.sleep(30)
 sys.exit(0 if observed and observed[0] == "ok" else 1)
 """
 
@@ -124,6 +127,9 @@ def _parity_cases(proj, tmp_path):
     _case(proj, tmp_path, "hash_fail", "sum 1 2\n", None, expected_hash=sha_ok)
     _case(proj, tmp_path, "checker_pass", "say ok\n", None, compare="checker")
     _case(proj, tmp_path, "checker_fail", "say nope\n", None, compare="checker")
+    _case(
+        proj, tmp_path, "checker_hang", "say hang\n", None, compare="checker", limits={"wall": 0.2}
+    )
     _case(proj, tmp_path, "exit_pass", "exit3\n", None, expected_exit=3)
     _case(proj, tmp_path, "exit_fail", "sum 1\n", "1\n", expected_exit=3)
     _case(proj, tmp_path, "crash_fail", "exit3\n", "ignored\n")
@@ -176,6 +182,7 @@ def test_engine_and_runner_agree_on_every_dimension(tmp_path, make_ctx):
     assert engine["baseline/ws_pass"][0] == "pass"
     assert engine["baseline/exact_fail"][0] == "fail"
     assert engine["baseline/float_special"][0] == "pass"
+    assert engine["baseline/checker_hang"][0] == "fail"
     assert engine["baseline/no_expectation"][0] == "error"
     assert engine["baseline/timeout"] == ("fail", True)
 
