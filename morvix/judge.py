@@ -211,7 +211,15 @@ def judge_case(
 
 
 def _run_memcheck(project, build, case, env, limits) -> Optional[bool]:
-    """Run the case under valgrind; True = clean, False = errors, None = skipped."""
+    """Run the case under valgrind; True = clean, False = errors, None = skipped.
+
+    Only the stdio model is replayed: this rerun feeds the primary input on
+    stdin with the bare runspec argv, which is exactly the stdio invocation.
+    Replaying an args/file/interactive case that way would judge a run that
+    never happened, so those skip rather than report a wrong verdict.
+    """
+    if project.model != "stdio":
+        return None
     valgrind = process.find_tool("valgrind")
     if not valgrind or not build.artifact:
         return None

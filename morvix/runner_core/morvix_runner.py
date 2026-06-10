@@ -1303,7 +1303,11 @@ def _valgrind_on(runner, opts):
 
 
 def _wants_memcheck(manifest, build, opts):
-    # Only for native languages, only when valgrind is actually on PATH.
+    # Only for native languages, only when valgrind is actually on PATH, and
+    # only for the stdio model: the valgrind rerun feeds the primary input on
+    # stdin with the bare argv, which is the stdio invocation (mirrors judge.py).
+    if manifest.get("model", "stdio") != "stdio":
+        return False
     if not build.artifact:
         return False
     if opts.language not in _NATIVE_LANGS:

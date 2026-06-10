@@ -64,6 +64,23 @@ def _add_case(proj, tmp_path, name, *, inputs=None, args=None, expected=None, in
 SUM_ARGS_PY = "import sys\nprint(sum(int(x) for x in sys.argv[1:]))\n"
 
 
+def test_memcheck_skips_non_stdio_models(tmp_path, make_ctx):
+    """The valgrind rerun replays the stdio invocation, so non-stdio cases must
+    report memcheck as skipped (None) - never a verdict for a run that never
+    happened. (Trivially true where valgrind is absent; the gate matters on CI.)"""
+    from morvix.project import Runner
+
+    ctx, proj = _project(tmp_path, make_ctx, "args", SUM_ARGS_PY)
+    case = _add_case(proj, tmp_path, "ok", args=["1", "2"], expected="3\n")
+    proj.save()
+
+    runner = Runner(name="mem", memcheck=True)
+    result = judge(proj, proj.solution, proj.language, [case], runner=runner)
+
+    assert result.cases[0].status == "pass", result.cases[0].verdict
+    assert result.cases[0].memcheck is None
+
+
 def test_args_model_passes_case_args(tmp_path, make_ctx):
     ctx, proj = _project(tmp_path, make_ctx, "args", SUM_ARGS_PY)
     ok = _add_case(proj, tmp_path, "ok", args=["1", "2", "3"], expected="6\n")
