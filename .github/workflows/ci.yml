@@ -77,7 +77,10 @@ jobs:
       - name: mypy (type check)
         run: mypy
       - name: pip-audit (known CVEs in dependencies)
+        # pip-audit audits the whole environment, including pip itself - keep
+        # the tooling current so the gate only ever trips on real findings.
         run: |
+          python -m pip install --upgrade pip
           pip install pip-audit
           pip-audit
 
