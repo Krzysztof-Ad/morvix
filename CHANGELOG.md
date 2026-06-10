@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/Krzysztof-Ad/morvix/compare/v0.8.1...v0.9.0) (2026-06-10)
+
+
+### Features
+
+* harden judging correctness and gate raw packages behind --allow-raw ([#10](https://github.com/Krzysztof-Ad/morvix/issues/10)) ([e085098](https://github.com/Krzysztof-Ad/morvix/commit/e0850980bc2962d049cd523126884a3fb476ef42))
+
 ## [0.8.1](https://github.com/Krzysztof-Ad/morvix/compare/v0.8.0...v0.8.1) (2026-06-10)
 
 
