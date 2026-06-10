@@ -389,7 +389,7 @@ The program takes its input as **argv** rather than stdin, and its output is std
 
 ### 10.4 `file` — file in / file out
 
-The program reads from and/or writes to **named files** on disk rather than stdio; comparison targets the produced file(s). This matters for the "expected to write a file" case, and pairs naturally with the crash/exit checks of §14.6.
+The program reads from and/or writes to **named files** on disk rather than stdio; comparison targets the produced output file (`output.txt` by convention). This matters for the "expected to write a file" case, and pairs naturally with the crash/exit checks of §14.6.
 
 ### 10.5 `interactive` — back-and-forth
 

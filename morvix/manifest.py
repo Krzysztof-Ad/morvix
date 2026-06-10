@@ -100,8 +100,6 @@ def adopt_manifest(root: str) -> Project:
         tc.inputs = {k: _under_state(v) for k, v in tc.inputs.items()}
         if tc.expected_output:
             tc.expected_output = _under_state(tc.expected_output)
-        if tc.expected_files:
-            tc.expected_files = {k: _under_state(v) for k, v in tc.expected_files.items()}
         cases.append(tc)
     project.cases = cases
     project.runners = {name: Runner.from_dict(r) for name, r in m.get("runners", {}).items()}

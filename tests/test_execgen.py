@@ -61,7 +61,6 @@ def test_write_args_case_sets_args_and_no_expected(py_project):
     assert case.expected_hash is None
     assert case.expected_exit is None
     assert case.expected_signal is None
-    assert case.expected_files == {}
     # It is registered on the project.
     assert proj.get_case("argv/a0") is case
 
@@ -86,7 +85,6 @@ def test_write_files_case_writes_inputs_records_out_files_no_expected(py_project
     # content of any kind is set.
     assert case.provenance.get("out_files") == ["output.txt"]
     assert "model:file" in case.tags
-    assert case.expected_files == {}
     assert case.expected_output is None
     assert case.expected_hash is None
     assert case.expected_exit is None

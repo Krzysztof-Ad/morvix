@@ -35,7 +35,6 @@ class TestCase:
     expected_hash: Optional[str] = None  # hex digest, when hashing instead
     expected_exit: Optional[int] = None  # expected exit code (None = expect clean 0)
     expected_signal: Optional[str] = None  # expected terminating signal, e.g. "SIGSEGV"
-    expected_files: Dict[str, str] = field(default_factory=dict)  # produced name -> expected path
 
     compare: Optional[str] = None  # per-case comparison override
     limits: Dict[str, float] = field(default_factory=dict)  # per-case limit overrides
@@ -69,7 +68,7 @@ class TestCase:
     def to_dict(self) -> dict:
         # Drop empty optionals so the JSON stays small and readable.
         d = {"name": self.name, "group": self.group, "manual": self.manual}
-        for key in ("inputs", "args", "expected_files", "limits", "tags", "provenance"):
+        for key in ("inputs", "args", "limits", "tags", "provenance"):
             val = getattr(self, key)
             if val:
                 d[key] = val
@@ -99,7 +98,6 @@ class TestCase:
             expected_hash=d.get("expected_hash"),
             expected_exit=d.get("expected_exit"),
             expected_signal=d.get("expected_signal"),
-            expected_files=d.get("expected_files", {}),
             compare=d.get("compare"),
             limits=d.get("limits", {}),
             tags=d.get("tags", []),

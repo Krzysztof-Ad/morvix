@@ -317,8 +317,6 @@ def _prefix_case_paths(root: str) -> None:
             c["inputs"] = {k: _with_state(v) for k, v in c["inputs"].items()}
         if c.get("expected_output"):
             c["expected_output"] = _with_state(c["expected_output"])
-        if c.get("expected_files"):
-            c["expected_files"] = {k: _with_state(v) for k, v in c["expected_files"].items()}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         f.write("\n")

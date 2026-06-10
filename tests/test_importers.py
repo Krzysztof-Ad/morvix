@@ -99,7 +99,6 @@ def test_import_strips_bundled_answers(py_project, tmp_path):
         assert case.expected_hash is None
         assert case.expected_exit is None
         assert case.expected_signal is None
-        assert case.expected_files == {}
 
     # And nothing landed in the expected/ tree on disk.
     assert not summary.advisory_written
