@@ -172,3 +172,24 @@ def test_help_specific_command(tmp_path, make_ctx):
     ctx = make_ctx(tmp_path)
     rc = safe_dispatch(ctx, ["help", "gen"])
     assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# A corrupted project must be diagnosed, not reported as "no project here"
+# ---------------------------------------------------------------------------
+
+
+def test_corrupt_project_is_diagnosed_not_hidden(py_project, make_ctx, tmp_path):
+    from morvix.errors import UserError
+    from morvix.layout import PROJECT_FILE
+
+    (tmp_path / PROJECT_FILE).write_text("{ not json")
+
+    ctx = make_ctx(tmp_path)
+
+    assert ctx.project is None
+    assert ctx.project_error, "the load failure must be recorded"
+    with pytest.raises(UserError) as err:
+        ctx.require_project()
+    assert "failed to load" in str(err.value)
+    assert "init" not in str(err.value)  # never suggest paving over broken state
