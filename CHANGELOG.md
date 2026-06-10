@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/Krzysztof-Ad/morvix/compare/v0.8.0...v0.8.1) (2026-06-10)
+
+
+### Chores
+
+* release 0.8.1 ([#8](https://github.com/Krzysztof-Ad/morvix/issues/8)) ([e20d9ed](https://github.com/Krzysztof-Ad/morvix/commit/e20d9ed9d8b4f24dc276045c52d1d21a9537a704))
+
 ## [0.8.0](https://github.com/Krzysztof-Ad/morvix/compare/v0.7.0...v0.8.0) (2026-06-08)
 
 
