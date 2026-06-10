@@ -32,6 +32,15 @@ def build_solution(project: Project, source: str, language: str, workdir: str) -
             source = os.path.abspath(candidate)
 
     if project.raw_build:
+        if not process.POSIX:
+            # Raw commands run through /bin/sh; there is no honest Windows
+            # equivalent, so say so instead of failing on a missing shell.
+            from morvix.errors import EnvError
+
+            raise EnvError(
+                "Raw build/run commands need a POSIX shell and are not supported on Windows.",
+                hint="Use a language adapter instead (config --language ...).",
+            )
         res = process.run(["/bin/sh", "-c", project.raw_build], cwd=project.root, wall_limit=180)
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         if not res.ok:

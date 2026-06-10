@@ -125,19 +125,26 @@ def _parity_cases(proj, tmp_path):
     _case(proj, tmp_path, "float_fail", "floats\n", "nan inf 1e400 0.6\n", compare="float")
     _case(proj, tmp_path, "hash_pass", "sum 1 2 3\n", None, expected_hash=sha_ok)
     _case(proj, tmp_path, "hash_fail", "sum 1 2\n", None, expected_hash=sha_ok)
-    _case(proj, tmp_path, "checker_pass", "say ok\n", None, compare="checker")
-    _case(proj, tmp_path, "checker_fail", "say nope\n", None, compare="checker")
-    _case(
-        proj, tmp_path, "checker_hang", "say hang\n", None, compare="checker", limits={"wall": 0.2}
-    )
     _case(proj, tmp_path, "exit_pass", "exit3\n", None, expected_exit=3)
     _case(proj, tmp_path, "exit_fail", "sum 1\n", "1\n", expected_exit=3)
     _case(proj, tmp_path, "crash_fail", "exit3\n", "ignored\n")
     _case(proj, tmp_path, "timeout", "sleep\n", "done\n", limits={"wall": 0.4})
     _case(proj, tmp_path, "no_expectation", "sum 1\n", None)
     if os.name == "posix":
+        # Signals and shebang-executed checker scripts are POSIX-only.
         _case(proj, tmp_path, "signal_pass", "segv\n", None, expected_signal="SIGSEGV")
         _case(proj, tmp_path, "signal_fail", "sum 1\n", "1\n", expected_signal="SIGSEGV")
+        _case(proj, tmp_path, "checker_pass", "say ok\n", None, compare="checker")
+        _case(proj, tmp_path, "checker_fail", "say nope\n", None, compare="checker")
+        _case(
+            proj,
+            tmp_path,
+            "checker_hang",
+            "say hang\n",
+            None,
+            compare="checker",
+            limits={"wall": 0.2},
+        )
     proj.save()
 
 
@@ -182,7 +189,8 @@ def test_engine_and_runner_agree_on_every_dimension(tmp_path, make_ctx):
     assert engine["baseline/ws_pass"][0] == "pass"
     assert engine["baseline/exact_fail"][0] == "fail"
     assert engine["baseline/float_special"][0] == "pass"
-    assert engine["baseline/checker_hang"][0] == "fail"
+    if os.name == "posix":
+        assert engine["baseline/checker_hang"][0] == "fail"
     assert engine["baseline/no_expectation"][0] == "error"
     assert engine["baseline/timeout"] == ("fail", True)
 

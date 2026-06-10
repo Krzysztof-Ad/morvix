@@ -16,6 +16,7 @@
 
 import os
 import subprocess
+import sys
 import threading
 import time
 
@@ -25,11 +26,12 @@ from morvix.process import ProcessResult
 
 
 # Build the argv used to launch the interactor. If the file is executable we run
-# it directly; otherwise assume it is a Python script and run it with python3.
+# it directly; otherwise assume it is a Python script and run it with the same
+# interpreter running Morvix (works on Windows too, where "python3" may not exist).
 def _interactor_argv(path: str) -> list:
-    if os.access(path, os.X_OK):
+    if os.name == "posix" and os.access(path, os.X_OK):
         return [path]
-    return ["python3", path]
+    return [sys.executable or "python3", path]
 
 
 # Copy bytes from one stream to another until the source is exhausted, then

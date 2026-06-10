@@ -4,15 +4,25 @@
 # syntax check via "python3 -m py_compile". If the check passes the script
 # itself is the artifact and run_argv points straight at the interpreter.
 
+import sys
+
 from morvix import process
 from morvix.adapters import Adapter, BuildResult, RunSpec, register
+
+
+def _default_interpreter() -> str:
+    # "python3" is the norm on POSIX; on Windows it may not exist, so fall
+    # back to the interpreter running Morvix (always a Python 3).
+    if process.find_tool("python3"):
+        return "python3"
+    return sys.executable or "python"
 
 
 class PythonAdapter(Adapter):
     name = "python"
 
     def build(self, source: str, config: dict, workdir: str) -> BuildResult:
-        interpreter = config.get("interpreter") or "python3"
+        interpreter = config.get("interpreter") or _default_interpreter()
 
         # Ensure the interpreter exists before doing anything else.
         process.require_tool(
@@ -46,7 +56,7 @@ class PythonAdapter(Adapter):
         return RunSpec(argv=build.run_argv, env=build.run_env)
 
     def describe(self, config: dict) -> str:
-        interpreter = config.get("interpreter") or "python3"
+        interpreter = config.get("interpreter") or _default_interpreter()
         return f"Python, {interpreter}"
 
 

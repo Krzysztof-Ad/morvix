@@ -174,6 +174,7 @@ class TestHash:
 # --- checker ---
 
 
+@pytest.mark.skipif(os.name != "posix", reason="checker scripts exec via shebang (POSIX)")
 class TestChecker:
     def test_no_checker_configured(self):
         v = compare("checker", _ci(b"x", b"", params={}))

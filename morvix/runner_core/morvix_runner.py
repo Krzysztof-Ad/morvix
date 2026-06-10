@@ -463,7 +463,11 @@ def build_solution(manifest, source, language, workdir):
 
 
 def _build_python(source, config, workdir):
-    interpreter = config.get("interpreter") or "python3"
+    interpreter = config.get("interpreter")
+    if not interpreter:
+        # "python3" is the norm on POSIX; on Windows it may not exist, so fall
+        # back to the interpreter running this runner (always a Python 3).
+        interpreter = "python3" if find_tool("python3") else (sys.executable or "python")
     require_tool(interpreter)
     # A lightweight syntax check, so errors surface at build time.
     cmd = [interpreter, "-m", "py_compile", source]
@@ -1665,6 +1669,12 @@ def main(argv=None):
     raw_build = manifest.get("raw_build")
     raw_run = manifest.get("raw_run")
     if raw_build:
+        if os.name != "posix":
+            sys.stderr.write(
+                "error: this package builds via the author's shell commands, which need\n"
+                "       a POSIX shell; that is not supported on Windows.\n"
+            )
+            return 2
         if not args.allow_raw:
             sys.stderr.write(
                 "error: this package builds and runs via the author's own shell commands:\n"
