@@ -104,6 +104,7 @@ class Project:
     solution_copied: bool = False  # was it copied in, or referenced in place
     language: Optional[str] = None  # active language for build/run
     validator: Optional[str] = None  # input validator program (author-side, never packaged)
+    interactor: Optional[str] = None  # judge program for the interactive model (Section 10.5)
     rivals: List[Rival] = field(default_factory=list)  # perf-comparison solutions
     cases: List[TestCase] = field(default_factory=list)
     runners: Dict[str, Runner] = field(default_factory=dict)
@@ -161,6 +162,8 @@ class Project:
             solution_copied=data.get("solution_copied", False),
             language=data.get("language"),
             validator=data.get("validator"),
+            # Back-compat: the interactor used to hide inside the languages map.
+            interactor=data.get("interactor") or data.get("languages", {}).get("interactor"),
             rivals=[Rival.from_dict(r) for r in data.get("rivals", [])],
         )
         # Back-compat: pre-0.7 projects stored a single 'bruteforce' path and a
@@ -186,6 +189,7 @@ class Project:
             "solution_copied": self.solution_copied,
             "language": self.language,
             "validator": self.validator,
+            "interactor": self.interactor,
             "rivals": [r.to_dict() for r in self.rivals],
         }
 

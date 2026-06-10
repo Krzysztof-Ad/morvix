@@ -82,7 +82,7 @@ def _kill(proc):
 
 
 def _interactive(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
-    interactor = env.project.languages.get("interactor")
+    interactor = env.project.interactor
     if not interactor:
         return _fail(b"no interactor configured")
 
@@ -127,6 +127,7 @@ def _interactive(case: TestCase, env: ExecEnv, limits: dict) -> Observation:
         verdict = None
         _kill(inter)
         _kill(sol)
+        inter.wait()  # reap the killed interactor; sol is reaped below
 
     # The interactor is done (or killed); make sure the solution stops too so we
     # never leave a stray process behind.

@@ -147,3 +147,127 @@ def test_file_model_missing_input_is_absent_not_stale(tmp_path, make_ctx):
     assert result.cases[0].status == "pass", result.cases[0].verdict
     assert result.cases[1].status == "error"
     assert "missing" in (result.cases[1].verdict or "")
+
+
+# ---------------------------------------------------------------------------
+# interactive model
+# ---------------------------------------------------------------------------
+
+# The interactor sends "ping", expects "pong" back, and its exit code is the
+# verdict (0 = pass), per Section 10.5.
+INTERACTOR_PY = (
+    "import sys\n"
+    "sys.stdout.write('ping\\n')\n"
+    "sys.stdout.flush()\n"
+    "reply = sys.stdin.readline().strip()\n"
+    "sys.exit(0 if reply == 'pong' else 1)\n"
+)
+
+PONG_SOL = "import sys\nline = input()\nprint('pong', flush=True)\n"
+WRONG_SOL = "import sys\nline = input()\nprint('nope', flush=True)\n"
+MUTE_SOL = "import sys, time\nline = input()\ntime.sleep(30)\n"
+
+
+def _interactive_project(tmp_path, make_ctx, solution_src):
+    ctx, proj = _project(tmp_path, make_ctx, "interactive", solution_src)
+    interactor = tmp_path / "interactor.py"
+    interactor.write_text(INTERACTOR_PY)
+    proj.interactor = str(interactor)
+    case = _add_case(proj, tmp_path, "conv", inputs={"stdin": ""})
+    case.expected_exit = 0  # the interactor's exit code is the verdict
+    proj.save()
+    return ctx, proj, case
+
+
+def test_interactive_model_interactor_accepts(tmp_path, make_ctx):
+    ctx, proj, case = _interactive_project(tmp_path, make_ctx, PONG_SOL)
+    result = judge(proj, proj.solution, proj.language, [case])
+    assert result.cases[0].status == "pass", result.cases[0].verdict
+
+
+def test_interactive_model_interactor_rejects(tmp_path, make_ctx):
+    ctx, proj, case = _interactive_project(tmp_path, make_ctx, WRONG_SOL)
+    result = judge(proj, proj.solution, proj.language, [case])
+    assert result.cases[0].status == "fail"
+
+
+def test_interactive_model_times_out_unresponsive_solution(tmp_path, make_ctx):
+    ctx, proj, case = _interactive_project(tmp_path, make_ctx, MUTE_SOL)
+    case.limits = {"wall": 0.4}
+    proj.save()
+    result = judge(proj, proj.solution, proj.language, [case])
+    assert result.cases[0].status == "fail"
+    assert result.cases[0].timed_out
+
+
+def test_interactive_model_without_interactor_fails_clearly(tmp_path, make_ctx):
+    ctx, proj, case = _interactive_project(tmp_path, make_ctx, PONG_SOL)
+    proj.interactor = None
+    result = judge(proj, proj.solution, proj.language, [case])
+    assert result.cases[0].status == "fail"
+    assert "no interactor" in (result.cases[0].verdict or "")
+
+
+def test_legacy_languages_interactor_key_still_loads(tmp_path, make_ctx):
+    """Pre-0.9 projects stored the interactor under languages['interactor']."""
+    ctx, proj, case = _interactive_project(tmp_path, make_ctx, PONG_SOL)
+    path = proj.interactor
+    proj.interactor = None
+    proj.languages["interactor"] = path
+    proj.save()
+
+    reloaded = Project.load(str(tmp_path))
+    assert reloaded.interactor == path
+
+
+# ---------------------------------------------------------------------------
+# library model (needs a C compiler for the per-case harness)
+# ---------------------------------------------------------------------------
+
+# The solution still builds through the C adapter (so it needs a main); the
+# library model then compiles and runs each case's harness on its own. That
+# exercises the harness-verdict path without needing a real shared library.
+LIB_SOL_C = "int main(void) { return 0; }\n"
+HARNESS_OK = "int main(void) { return 0; }\n"
+HARNESS_BAD = "int main(void) { return 1; }\n"
+HARNESS_BROKEN = "int main(void) { this does not compile\n"
+
+
+@pytest.fixture
+def lib_project(tmp_path, make_ctx):
+    if not __import__("shutil").which("cc"):
+        pytest.skip("cc not installed")
+    sol = tmp_path / "lib.c"
+    sol.write_text(LIB_SOL_C)
+    proj = Project.create(str(tmp_path), "t")
+    proj.language = "c"
+    proj.model = "library"
+    proj.solution = str(sol)
+    proj.save()
+    ctx = make_ctx(tmp_path)
+    ctx.project = proj
+    return ctx, proj
+
+
+def _harness_case(proj, tmp_path, name, source):
+    rel = os.path.join(TESTS_DIR, "baseline", f"{name}.c")
+    _write(tmp_path / rel, source)
+    case = TestCase(
+        name=name, group="baseline", manual=True, inputs={"harness": rel}, expected_exit=0
+    )
+    proj.add_case(case)
+    return case
+
+
+def test_library_model_harness_verdicts(lib_project, tmp_path):
+    ctx, proj = lib_project
+    ok = _harness_case(proj, tmp_path, "ok", HARNESS_OK)
+    bad = _harness_case(proj, tmp_path, "bad", HARNESS_BAD)
+    broken = _harness_case(proj, tmp_path, "broken", HARNESS_BROKEN)
+    proj.save()
+
+    result = judge(proj, proj.solution, proj.language, [ok, bad, broken])
+
+    assert result.cases[0].status == "pass", result.cases[0].verdict
+    assert result.cases[1].status == "fail"
+    assert result.cases[2].status == "fail"  # harness failed to compile
