@@ -96,10 +96,11 @@ class ValidationResult:
     case_id: Optional[str] = None
 
 
-# Write text to an absolute path, creating parent dirs first.
+# Write text to an absolute path, creating parent dirs first. newline="" so
+# the bytes survive Windows untranslated (scaffolds must run as written).
 def _write_text(abspath, text):
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
-    with open(abspath, "w", encoding="utf-8") as f:
+    with open(abspath, "w", encoding="utf-8", newline="") as f:
         f.write(text)
 
 

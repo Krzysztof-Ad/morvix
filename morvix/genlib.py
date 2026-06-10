@@ -74,7 +74,9 @@ def write(path: str, text: str) -> str:
     """
     if not text.endswith("\n"):
         text = text + "\n"
-    with open(path, "w", encoding="utf-8") as f:
+    # newline="" so the bytes survive Windows untranslated (inputs are hashed
+    # and fed to programs verbatim).
+    with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(text)
     return path
 

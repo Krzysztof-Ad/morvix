@@ -14,6 +14,10 @@ RUNNER = os.path.join(
     "morvix_runner.py",
 )
 
+# Stdlib modules that only exist on POSIX (for Python 3.9, which has no
+# sys.stdlib_module_names to consult).
+_POSIX_ONLY_STDLIB = {"resource"}
+
 
 def _top_level_imports(path):
     tree = ast.parse(open(path, encoding="utf-8").read())
@@ -41,6 +45,12 @@ def test_runner_core_is_stdlib_only():
         try:
             mod = importlib.import_module(name)
         except ImportError:
+            # A stdlib module that simply does not exist on this platform
+            # (e.g. 'resource' on Windows) is fine - the runner core only
+            # imports those behind an os.name check.
+            stdlib_names = getattr(sys, "stdlib_module_names", ())
+            if name in stdlib_names or name in _POSIX_ONLY_STDLIB:
+                continue
             offenders.append(name + " (not importable)")
             continue
         path = (getattr(mod, "__file__", None) or "").replace(os.sep, "/")

@@ -76,10 +76,12 @@ if __name__ == "__main__":
 """
 
 
-# Write text to an absolute path, creating parent dirs first.
+# Write text to an absolute path, creating parent dirs first. newline="" so
+# the bytes survive Windows untranslated: inputs/expected are hashed and fed
+# to programs verbatim, so \n must stay \n on disk.
 def _write_text(abspath, text):
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
-    with open(abspath, "w", encoding="utf-8") as f:
+    with open(abspath, "w", encoding="utf-8", newline="") as f:
         f.write(text)
 
 
