@@ -365,6 +365,8 @@ Settings are stored as JSON in the project (§25). There is also a **global conf
 
 Real coursework sometimes needs a build that no preset captures — a specific `Makefile` target, an unusual link line, a multi-step build. So in addition to the structured presets, Morvix accepts a **raw build command** and a **raw run command** per project. If set, Morvix uses exactly what you give it instead of inferring. This guarantees Morvix can handle anything the developer could do manually, while the presets keep the common cases one-word-simple. (This reflects real repos: one studied harness compiles with a hand-written `gcc tests/test*.c --std=gnu23 -L. -lrstack -o tester` line — exactly what the escape hatch exists for.)
 
+Raw commands travel in the package manifest, which means a Receiver who runs such a package would be executing the *author's* shell commands, not just their own solution. The shipped runner therefore refuses a raw package until the Receiver passes `--allow-raw`, always shows the commands verbatim before running them, and `open` warns at adoption time. Raw commands need a POSIX shell and are reported as unsupported on Windows.
+
 ### 9.4 Everything configured is replayable
 
 Every setting set via `config` is recordable into a workflow (§18) and serialized into the package manifest (§20), so a configured project can be replayed against another solution or understood by another Morvix user without re-entry.
@@ -393,7 +395,7 @@ The program reads from and/or writes to **named files** on disk rather than stdi
 
 ### 10.5 `interactive` — back-and-forth
 
-The program **converses** with a judge process: the judge sends something, reads the program's reply, sends the next thing based on that reply, and so on (adaptive/interactive problems). Morvix supports a custom interactor program supplied by the Author.
+The program **converses** with a judge process: the judge sends something, reads the program's reply, sends the next thing based on that reply, and so on (adaptive/interactive problems). Morvix supports a custom interactor program supplied by the Author (the `interactor` key in the project config; its exit code is the per-case verdict).
 
 ### 10.6 Extensibility
 

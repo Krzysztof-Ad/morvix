@@ -34,8 +34,9 @@ The language adapters shell out to real compilers, so some tests need them on `P
 `gcc`/`g++`, `nasm`, `javac`/`java`, `rustc`, `valgrind`. **You do not need all of them.**
 Tests that require a missing toolchain skip themselves (via `@pytest.mark.skipif`), so a
 clean local run on macOS without `rustc`/`valgrind` is still green. CI runs the full matrix
-(Ubuntu + macOS x Python 3.9 + 3.12, with Java and Linux valgrind), so the complete suite
-is exercised there.
+(Ubuntu + macOS + Windows x Python 3.9 + 3.12, with Java and Linux valgrind), so the
+complete suite is exercised there; POSIX-only features (signals, shebang checkers, raw
+commands) skip with a reason on Windows.
 
 ## The architecture you need to know
 
@@ -85,8 +86,9 @@ help text go in `morvix/help_text.py` + `gen_cmd.py`, and `GUIDE.md` is regenera
   import **nothing** from `morvix`, be **stdlib-only**, and stay **Python 3.6-compatible**
   (no walrus, no `match`, no 3.10 typing). It re-implements the judge, so if you change
   judging in `judge.py` / `process.py` / `compare.py` / `comparators.py` / `results.py`,
-  update the runner core to match. Two guards enforce this: `tests/test_runner_stdlib.py`
-  and the `receiver-clean` CI job.
+  update the runner core to match. Three guards enforce this: `tests/test_parity.py`
+  (judges one case set through both engines and fails on any verdict drift),
+  `tests/test_runner_stdlib.py`, and the `receiver-clean` CI job.
 - **The directory is the state.** No database. A project keeps everything under a single
   hidden `.morvix/` directory; a package is flat instead. A package never contains the
   author's source, any rival source, or `config/`.

@@ -166,7 +166,10 @@ your project root stays clean. A **package** is flat instead: `run.sh`,
 `README.md`, `morvix.json`, `tests/`, `expected/` and `runner/` sit at the
 archive root so a Receiver sees the harness directly. Unpack it into an empty
 folder and run `./run.sh <your-solution>` - only Python 3 is needed. Opening a
-package with Morvix re-adopts it into a `.morvix/` project.
+package with Morvix re-adopts it into a `.morvix/` project. One safety valve:
+a package built around raw build/run commands would execute the *author's*
+shell commands on your machine, so `run.sh` refuses it until you pass
+`--allow-raw` (and always shows the commands it is about to run).
 
 ## The honesty principle
 
