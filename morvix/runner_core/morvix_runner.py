@@ -674,6 +674,10 @@ def _cmp_float(observed, expected, case, params):
         return Verdict(False, detail, diff=make_diff(expected, observed))
     for i in range(len(exp_tokens)):
         a_tok, b_tok = exp_tokens[i], obs_tokens[i]
+        # Fast path (mirrors comparators.py): identical strings always match -
+        # this is what handles inf, nan, -inf, 1e400 and the like.
+        if a_tok == b_tok:
+            continue
         try:
             a = float(a_tok)
             b = float(b_tok)
