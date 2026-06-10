@@ -34,6 +34,7 @@ def build_manifest(project: Project) -> dict:
         "languages": project.languages,  # so a Receiver compiles with the same flags
         "raw_build": project.raw_build,
         "raw_run": project.raw_run,
+        "interactor": project.interactor,  # judge program for the interactive model
         "groups": list_groups(project.cases),
         "cases": [c.to_dict() for c in project.cases],
         "runners": {name: r.to_dict() for name, r in project.runners.items()},
@@ -85,6 +86,8 @@ def adopt_manifest(root: str) -> Project:
         raw_build=m.get("raw_build"),
         raw_run=m.get("raw_run"),
         language=m.get("language"),
+        # Back-compat: older manifests stored the interactor in the languages map.
+        interactor=m.get("interactor") or m.get("languages", {}).get("interactor"),
     )
     # Make sure the directories exist, then persist the adopted state.
     for d in layout.PROJECT_DIRS:
@@ -100,8 +103,6 @@ def adopt_manifest(root: str) -> Project:
         tc.inputs = {k: _under_state(v) for k, v in tc.inputs.items()}
         if tc.expected_output:
             tc.expected_output = _under_state(tc.expected_output)
-        if tc.expected_files:
-            tc.expected_files = {k: _under_state(v) for k, v in tc.expected_files.items()}
         cases.append(tc)
     project.cases = cases
     project.runners = {name: Runner.from_dict(r) for name, r in m.get("runners", {}).items()}

@@ -76,10 +76,12 @@ if __name__ == "__main__":
 """
 
 
-# Write text to an absolute path, creating parent dirs first.
+# Write text to an absolute path, creating parent dirs first. newline="" so
+# the bytes survive Windows untranslated: inputs/expected are hashed and fed
+# to programs verbatim, so \n must stay \n on disk.
 def _write_text(abspath, text):
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
-    with open(abspath, "w", encoding="utf-8") as f:
+    with open(abspath, "w", encoding="utf-8", newline="") as f:
         f.write(text)
 
 
@@ -403,6 +405,15 @@ def generator_source(project, generator_path):
     def produce(seed, modes=None):
         argv = spec.argv + [str(seed)] + list(modes or [])
         res = process.run(argv, cwd=workdir, env=process.base_env(project.locale, spec.env))
+        # A crashed generator must abort loudly: silently keeping its partial
+        # stdout would freeze empty/truncated inputs as real test cases.
+        if not res.ok:
+            tail = res.stderr.decode("utf-8", "replace").strip().splitlines()
+            raise MorvixError(
+                f"Generator {os.path.basename(generator_path)} failed on seed {seed} "
+                f"({res.describe_exit()}).",
+                hint=tail[-1][:200] if tail else "It produced no diagnostic on stderr.",
+            )
         return res.stdout.decode("utf-8", "replace")
 
     def cleanup():
@@ -804,7 +815,14 @@ def _set_observed_expectation(case, obs):
 
 
 def _normalise(data):
-    """Whitespace-normalise output bytes: collapse runs of whitespace, ignore trailing."""
+    """Whitespace-normalise output bytes: collapse runs of whitespace, ignore trailing.
+
+    Deliberately NOT compare._normalize_ws: that one is line-aware (newlines
+    survive normalisation) because it judges formatted output. Here we only ask
+    "do two solutions agree at all", so token-level equality is the right bar -
+    a stress disagreement that vanishes under token comparison is no
+    disagreement worth saving.
+    """
     return b" ".join(data.split())
 
 

@@ -285,8 +285,10 @@ def _split_multitest(text) -> List[str]:
 
 
 def _write(abspath, text) -> None:
+    # newline="" so the bytes survive Windows untranslated: inputs are hashed
+    # for dedup and fed to programs verbatim, so \n must stay \n on disk.
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
-    with open(abspath, "w", encoding="utf-8") as f:
+    with open(abspath, "w", encoding="utf-8", newline="") as f:
         f.write(text)
 
 

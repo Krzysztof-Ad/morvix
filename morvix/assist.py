@@ -14,6 +14,7 @@
 import json
 import os
 import subprocess
+import sys
 
 from morvix import layout
 from morvix.errors import UserError
@@ -50,7 +51,10 @@ def call_hook(hook_path, request, timeout=60):
     """
     if not os.path.isfile(hook_path):
         raise UserError(f"Hook not found: {hook_path}", hint="Point --hook at your executable.")
-    argv = [hook_path] if os.access(hook_path, os.X_OK) else ["python3", hook_path]
+    if os.name == "posix" and os.access(hook_path, os.X_OK):
+        argv = [hook_path]
+    else:  # assume a Python script; works on Windows too
+        argv = [sys.executable or "python3", hook_path]
     try:
         res = subprocess.run(
             argv,

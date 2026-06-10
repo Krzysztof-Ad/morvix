@@ -463,7 +463,11 @@ def build_solution(manifest, source, language, workdir):
 
 
 def _build_python(source, config, workdir):
-    interpreter = config.get("interpreter") or "python3"
+    interpreter = config.get("interpreter")
+    if not interpreter:
+        # "python3" is the norm on POSIX; on Windows it may not exist, so fall
+        # back to the interpreter running this runner (always a Python 3).
+        interpreter = "python3" if find_tool("python3") else (sys.executable or "python")
     require_tool(interpreter)
     # A lightweight syntax check, so errors surface at build time.
     cmd = [interpreter, "-m", "py_compile", source]
@@ -674,6 +678,10 @@ def _cmp_float(observed, expected, case, params):
         return Verdict(False, detail, diff=make_diff(expected, observed))
     for i in range(len(exp_tokens)):
         a_tok, b_tok = exp_tokens[i], obs_tokens[i]
+        # Fast path (mirrors comparators.py): identical strings always match -
+        # this is what handles inf, nan, -inf, 1e400 and the like.
+        if a_tok == b_tok:
+            continue
         try:
             a = float(a_tok)
             b = float(b_tok)
@@ -701,7 +709,9 @@ def _cmp_hash(observed, expected, case, params):
 
 def _cmp_checker(observed, expected, case, params):
     # Delegate to an external special-judge: [checker, input_file, observed_file].
-    # Exit 0 means accepted; any other exit means rejected.
+    # Exit 0 means accepted; any other exit means rejected. The checker gets 4x
+    # the case's wall limit (mirrors comparators.py) so a looping checker can
+    # never hang the whole run.
     checker_path = params.get("checker")
     if not checker_path:
         return Verdict(False, "no checker configured")
@@ -712,12 +722,15 @@ def _cmp_checker(observed, expected, case, params):
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(observed)
-        result = run([checker_path, input_file, tmp_path])
+        wall = (params.get("_wall") or 10) * 4
+        result = run([checker_path, input_file, tmp_path], wall_limit=wall)
     finally:
         try:
             os.unlink(tmp_path)
         except OSError:
             pass
+    if result.timed_out:
+        return Verdict(False, "checker timed out")
     if result.exit_code == 0:
         return Verdict(True)
     return Verdict(False, "checker rejected")
@@ -1247,6 +1260,8 @@ def judge_case(manifest, build, case, workdir, runner, opts):
     # --- output dimension ---
     params = dict(manifest.get("compare", {}))
     params["_root"] = manifest["_root"]
+    # _wall rides along so the checker comparator can bound its own run.
+    params["_wall"] = resolve_limits(manifest, runner, case).get("wall")
     default_strategy = params.get("strategy", "whitespace")
     strategy = case.get("compare") or (runner and runner.get("compare")) or default_strategy
     if case.get("expected_hash") and strategy != "checker":
@@ -1292,7 +1307,11 @@ def _valgrind_on(runner, opts):
 
 
 def _wants_memcheck(manifest, build, opts):
-    # Only for native languages, only when valgrind is actually on PATH.
+    # Only for native languages, only when valgrind is actually on PATH, and
+    # only for the stdio model: the valgrind rerun feeds the primary input on
+    # stdin with the bare argv, which is the stdio invocation (mirrors judge.py).
+    if manifest.get("model", "stdio") != "stdio":
+        return False
     if not build.artifact:
         return False
     if opts.language not in _NATIVE_LANGS:
@@ -1605,6 +1624,11 @@ def build_parser():
         action="store_true",
         help="skip the rival performance comparison shipped in this package",
     )
+    p.add_argument(
+        "--allow-raw",
+        action="store_true",
+        help="allow a package that ships raw build/run shell commands to execute them",
+    )
 
     p.add_argument(
         "--results",
@@ -1638,6 +1662,34 @@ def main(argv=None):
         )
         return 2
     manifest = load_manifest(manifest_path)
+
+    # A raw_build package executes the AUTHOR's shell commands on this machine,
+    # not just your own solution. Refuse unless the receiver opts in explicitly,
+    # and always show exactly what will run.
+    raw_build = manifest.get("raw_build")
+    raw_run = manifest.get("raw_run")
+    if raw_build:
+        if os.name != "posix":
+            sys.stderr.write(
+                "error: this package builds via the author's shell commands, which need\n"
+                "       a POSIX shell; that is not supported on Windows.\n"
+            )
+            return 2
+        if not args.allow_raw:
+            sys.stderr.write(
+                "error: this package builds and runs via the author's own shell commands:\n"
+            )
+            sys.stderr.write("         build: %s\n" % raw_build)
+            if raw_run:
+                sys.stderr.write("         run:   %s\n" % raw_run)
+            sys.stderr.write(
+                "       Only proceed if you trust the author. Re-run with --allow-raw to accept.\n"
+            )
+            return 2
+        sys.stderr.write("note: running the author's commands (--allow-raw):\n")
+        sys.stderr.write("        build: %s\n" % raw_build)
+        if raw_run:
+            sys.stderr.write("        run:   %s\n" % raw_run)
 
     solution = os.path.abspath(args.solution)
     if not os.path.exists(solution):

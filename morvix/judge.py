@@ -32,6 +32,15 @@ def build_solution(project: Project, source: str, language: str, workdir: str) -
             source = os.path.abspath(candidate)
 
     if project.raw_build:
+        if not process.POSIX:
+            # Raw commands run through /bin/sh; there is no honest Windows
+            # equivalent, so say so instead of failing on a missing shell.
+            from morvix.errors import EnvError
+
+            raise EnvError(
+                "Raw build/run commands need a POSIX shell and are not supported on Windows.",
+                hint="Use a language adapter instead (config --language ...).",
+            )
         res = process.run(["/bin/sh", "-c", project.raw_build], cwd=project.root, wall_limit=180)
         diag = (res.stdout + res.stderr).decode("utf-8", "replace")
         if not res.ok:
@@ -182,12 +191,13 @@ def judge_case(
         if path and os.path.exists(path):
             with open(path, "rb") as f:
                 expected = f.read()
+        # _wall rides along so the checker comparator can bound its own run.
         ci = CompareInput(
             observed=obs.output,
             expected=expected,
             case=case,
             project=project,
-            params=project.compare,
+            params={**project.compare, "_wall": limits.get("wall")},
         )
         verdict = compare(strategy, ci)
         if not verdict.passed:
@@ -210,7 +220,15 @@ def judge_case(
 
 
 def _run_memcheck(project, build, case, env, limits) -> Optional[bool]:
-    """Run the case under valgrind; True = clean, False = errors, None = skipped."""
+    """Run the case under valgrind; True = clean, False = errors, None = skipped.
+
+    Only the stdio model is replayed: this rerun feeds the primary input on
+    stdin with the bare runspec argv, which is exactly the stdio invocation.
+    Replaying an args/file/interactive case that way would judge a run that
+    never happened, so those skip rather than report a wrong verdict.
+    """
+    if project.model != "stdio":
+        return None
     valgrind = process.find_tool("valgrind")
     if not valgrind or not build.artifact:
         return None

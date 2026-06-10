@@ -26,6 +26,7 @@ class Context:
     messenger: Messenger
     interactive: bool
     project: Optional[Project] = None
+    project_error: Optional[str] = None  # why a present-but-broken project failed to load
     global_config: dict = field(default_factory=dict)
     debug: bool = False
     recorder: Optional["WorkflowRecorder"] = None  # set while a workflow is recording
@@ -47,12 +48,26 @@ class Context:
         if layout.is_project(root):
             try:
                 ctx.project = Project.load(root)
-            except Exception:
+            except Exception as exc:
+                # A project IS here but would not load (corrupt JSON, bad
+                # permissions, ...). Saying "no project, run init" would
+                # mislead - and init could pave over a recoverable state - so
+                # remember the real cause and surface it.
                 ctx.project = None
+                ctx.project_error = f"{type(exc).__name__}: {exc}"
+                ctx.messenger.warning(
+                    f"A Morvix project is here but failed to load ({ctx.project_error}).",
+                    hint="The state under .morvix/config/ is plain JSON - fix or restore it.",
+                )
         return ctx
 
     def require_project(self) -> Project:
         if self.project is None:
+            if self.project_error:
+                raise UserError(
+                    f"The Morvix project here failed to load: {self.project_error}",
+                    hint="The state under .morvix/config/ is plain JSON - fix or restore it.",
+                )
             raise UserError(
                 "No Morvix project here.",
                 hint="Run 'init' to create one in this directory.",

@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "ruff>=0.6", "mypy>=1.8"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.6", "mypy>=1.8"]
 
 [project.urls]
 Homepage = "https://github.com/Krzysztof-Ad/morvix"
@@ -46,6 +46,12 @@ packages = ["morvix"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+# The runner core is exercised as a subprocess (test_runner_core, test_parity),
+# so in-process line coverage would always read ~0% for it - omit it rather
+# than let it distort the number CI ratchets on.
+[tool.coverage.run]
+omit = ["morvix/runner_core/*"]
+
 # Lint + format with ruff. We keep the rule set conservative and high-signal so it
 # catches real problems without fighting the deliberately hand-written, comment-heavy
 # style. The formatter normalizes code spacing/quotes only - it leaves comments alone.
@@ -60,10 +66,9 @@ extend-exclude = ["GUIDE.md", "examples", "scratch"]
 select = ["F", "E9", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-# The runner core ships verbatim and must stay Python 3.6-compatible, so keep lint
-# from ever nudging it toward newer idioms.
-"morvix/runner_core/morvix_runner.py" = ["UP", "B", "C4", "SIM"]
 # Test fixtures legitimately shadow names and import for side effects.
+# (If rule groups beyond F/E9/I are ever enabled, exempt the runner core here -
+# it ships verbatim and must stay Python 3.6-compatible.)
 "tests/*" = ["F401", "F811"]
 
 # A lenient type check over the package. The runner core (3.6-target, untyped) and the

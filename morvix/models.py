@@ -10,7 +10,7 @@
 # implementation; the others register themselves from their own modules.
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict
 
 from morvix import process
@@ -38,7 +38,6 @@ class Observation:
 
     result: ProcessResult
     output: bytes = b""  # the bytes to judge
-    produced_files: Dict[str, bytes] = field(default_factory=dict)  # for the file model
 
 
 # A model handler: (case, env, limits) -> Observation.

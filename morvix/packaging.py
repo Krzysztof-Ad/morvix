@@ -205,8 +205,6 @@ def _flatten_manifest_paths(m):
             c["inputs"] = {k: strip(v) for k, v in c["inputs"].items()}
         if c.get("expected_output"):
             c["expected_output"] = strip(c["expected_output"])
-        if c.get("expected_files"):
-            c["expected_files"] = {k: strip(v) for k, v in c["expected_files"].items()}
 
 
 def _copy_tree(src, dst):

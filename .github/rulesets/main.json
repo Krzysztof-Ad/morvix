@@ -30,6 +30,7 @@
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
           { "context": "quality" },
+          { "context": "coverage" },
           { "context": "docs" },
           { "context": "build-package" },
           { "context": "receiver-clean" },
@@ -37,6 +38,8 @@
           { "context": "test (ubuntu-latest, 3.12)" },
           { "context": "test (macos-latest, 3.9)" },
           { "context": "test (macos-latest, 3.12)" },
+          { "context": "test (windows-latest, 3.9)" },
+          { "context": "test (windows-latest, 3.12)" },
           { "context": "lint-title" }
         ]
       }

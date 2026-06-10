@@ -73,8 +73,10 @@ The stack, top to bottom: shell/CLI (`app`, `shell`, `registry`) -> shared compo
 - **The runner core is sacred and standalone.** `morvix/runner_core/morvix_runner.py` ships verbatim
   inside packages, must import **nothing** from `morvix`, must be **stdlib-only**, and must run on a
   clean machine with just Python 3. It re-implements the judge logic; if you change judging behavior
-  in `judge.py`/`process.py`/`compare.py`, keep the runner core in sync. `run.sh` is its wrapper and
-  is placed at the package root by `packaging.py` so `./run.sh` works.
+  in `judge.py`/`process.py`/`compare.py`, keep the runner core in sync - `tests/test_parity.py`
+  judges one case set through both engines and fails on any verdict drift, so run it after any
+  judging change. `run.sh` is its wrapper and is placed at the package root by `packaging.py` so
+  `./run.sh` works.
 - **A package never contains the author's source** (`solutions/`), any rival source, or
   `config/`. See `packaging.build_package`.
 - **Honesty is a feature.** Expected answers come from one peer's solution, not an authority. The

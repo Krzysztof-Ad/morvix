@@ -314,3 +314,43 @@ def test_runner_core_hand_written_manifest(tmp_path):
 
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "passed" in result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# raw_build packages: the receiver must opt in with --allow-raw.
+# ---------------------------------------------------------------------------
+
+
+def _setup_raw_package(py_project, tmp_path):
+    """A package whose manifest carries the author's raw shell commands."""
+    ctx, proj = py_project
+    _add_case(proj, tmp_path, "c1", "baseline", "1 2 3\n", "6\n")
+    proj.raw_build = "true"
+    proj.raw_run = f"{sys.executable} {tmp_path / 'sol.py'}"
+    proj.save()
+    write_manifest(proj)
+    shutil.copy2(RUNNER_SRC, str(tmp_path / "morvix_runner.py"))
+    return tmp_path
+
+
+@pytest.mark.skipif(os.name != "posix", reason="raw commands run via /bin/sh")
+def test_runner_core_refuses_raw_build_without_allow_raw(py_project, tmp_path):
+    pkg = _setup_raw_package(py_project, tmp_path)
+
+    result = _run_runner(pkg, "sol.py")
+
+    assert result.returncode == 2
+    assert "author's own shell commands" in result.stderr
+    assert "--allow-raw" in result.stderr
+    assert "true" in result.stderr  # the build command is shown verbatim
+
+
+@pytest.mark.skipif(os.name != "posix", reason="raw commands run via /bin/sh")
+def test_runner_core_allow_raw_runs_and_echoes_commands(py_project, tmp_path):
+    pkg = _setup_raw_package(py_project, tmp_path)
+
+    result = _run_runner(pkg, "sol.py", extra_args=["--allow-raw"])
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "running the author's commands" in result.stderr
+    assert "passed" in result.stdout.lower()
