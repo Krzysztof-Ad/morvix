@@ -136,3 +136,26 @@ def test_gen_stress_finds_disagreement(py_project, tmp_path):
 
     exp_path = project.abspath(result.expected_output)
     assert os.path.isfile(exp_path)
+
+
+# ---------------------------------------------------------------------------
+# gen_from_generator: a crashing generator aborts loudly
+# ---------------------------------------------------------------------------
+
+
+def test_crashing_generator_raises_and_creates_no_cases(py_project, tmp_path):
+    """A generator that dies must abort with its diagnostic, not silently
+    freeze its partial/empty stdout as test inputs."""
+    from morvix.errors import MorvixError
+    from morvix.generators import gen_from_generator
+
+    ctx, project = py_project
+    gen = tmp_path / "boom_gen.py"
+    gen.write_text("import sys\nsys.stderr.write('cannot happen: bad seed\\n')\nsys.exit(2)\n")
+
+    with pytest.raises(MorvixError) as err:
+        gen_from_generator(ctx, project, str(gen), 3, 1, "baseline")
+
+    assert "boom_gen.py" in str(err.value)
+    assert "bad seed" in (err.value.hint or "")
+    assert project.cases == []

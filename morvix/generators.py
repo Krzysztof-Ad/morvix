@@ -403,6 +403,15 @@ def generator_source(project, generator_path):
     def produce(seed, modes=None):
         argv = spec.argv + [str(seed)] + list(modes or [])
         res = process.run(argv, cwd=workdir, env=process.base_env(project.locale, spec.env))
+        # A crashed generator must abort loudly: silently keeping its partial
+        # stdout would freeze empty/truncated inputs as real test cases.
+        if not res.ok:
+            tail = res.stderr.decode("utf-8", "replace").strip().splitlines()
+            raise MorvixError(
+                f"Generator {os.path.basename(generator_path)} failed on seed {seed} "
+                f"({res.describe_exit()}).",
+                hint=tail[-1][:200] if tail else "It produced no diagnostic on stderr.",
+            )
         return res.stdout.decode("utf-8", "replace")
 
     def cleanup():
