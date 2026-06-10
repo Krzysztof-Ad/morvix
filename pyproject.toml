@@ -60,10 +60,9 @@ extend-exclude = ["GUIDE.md", "examples", "scratch"]
 select = ["F", "E9", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-# The runner core ships verbatim and must stay Python 3.6-compatible, so keep lint
-# from ever nudging it toward newer idioms.
-"morvix/runner_core/morvix_runner.py" = ["UP", "B", "C4", "SIM"]
 # Test fixtures legitimately shadow names and import for side effects.
+# (If rule groups beyond F/E9/I are ever enabled, exempt the runner core here -
+# it ships verbatim and must stay Python 3.6-compatible.)
 "tests/*" = ["F401", "F811"]
 
 # A lenient type check over the package. The runner core (3.6-target, untyped) and the

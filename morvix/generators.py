@@ -813,7 +813,14 @@ def _set_observed_expectation(case, obs):
 
 
 def _normalise(data):
-    """Whitespace-normalise output bytes: collapse runs of whitespace, ignore trailing."""
+    """Whitespace-normalise output bytes: collapse runs of whitespace, ignore trailing.
+
+    Deliberately NOT compare._normalize_ws: that one is line-aware (newlines
+    survive normalisation) because it judges formatted output. Here we only ask
+    "do two solutions agree at all", so token-level equality is the right bar -
+    a stress disagreement that vanishes under token comparison is no
+    disagreement worth saving.
+    """
     return b" ".join(data.split())
 
 

@@ -96,9 +96,18 @@ def test_gen_random_and_run(tmp_path, make_ctx):
 
     rc = safe_dispatch(ctx, ["gen", "--expected"])
     assert rc == 0
+    ctx.reload_project()
+    # Every case must now carry an expected answer that exists on disk.
+    for case in ctx.project.cases:
+        assert case.expected_output, f"{case.id} has no expected output"
+        assert os.path.isfile(os.path.join(tmp_path, case.expected_output))
 
     rc = safe_dispatch(ctx, ["run", "--all"])
     assert rc == 0
+    # The run actually judged all three cases and they all passed.
+    assert ctx.last_result is not None
+    assert ctx.last_result.total == 3
+    assert ctx.last_result.all_passed, [c.verdict for c in ctx.last_result.cases]
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +139,17 @@ def test_gen_manual_case_and_run(tmp_path, make_ctx):
 
     rc = safe_dispatch(ctx, ["gen", "--expected"])
     assert rc == 0
+    # The frozen expected answer is the solution's real output for "4 6".
+    ctx.reload_project()
+    case = ctx.project.cases[0]
+    expected_path = os.path.join(tmp_path, case.expected_output)
+    assert open(expected_path).read().strip() == "10"
 
     rc = safe_dispatch(ctx, ["run", "--all"])
     assert rc == 0
+    assert ctx.last_result is not None
+    assert ctx.last_result.total == 1
+    assert ctx.last_result.all_passed, [c.verdict for c in ctx.last_result.cases]
 
 
 # ---------------------------------------------------------------------------
