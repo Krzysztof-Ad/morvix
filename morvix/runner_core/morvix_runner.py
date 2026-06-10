@@ -1620,6 +1620,11 @@ def build_parser():
         action="store_true",
         help="skip the rival performance comparison shipped in this package",
     )
+    p.add_argument(
+        "--allow-raw",
+        action="store_true",
+        help="allow a package that ships raw build/run shell commands to execute them",
+    )
 
     p.add_argument(
         "--results",
@@ -1653,6 +1658,28 @@ def main(argv=None):
         )
         return 2
     manifest = load_manifest(manifest_path)
+
+    # A raw_build package executes the AUTHOR's shell commands on this machine,
+    # not just your own solution. Refuse unless the receiver opts in explicitly,
+    # and always show exactly what will run.
+    raw_build = manifest.get("raw_build")
+    raw_run = manifest.get("raw_run")
+    if raw_build:
+        if not args.allow_raw:
+            sys.stderr.write(
+                "error: this package builds and runs via the author's own shell commands:\n"
+            )
+            sys.stderr.write("         build: %s\n" % raw_build)
+            if raw_run:
+                sys.stderr.write("         run:   %s\n" % raw_run)
+            sys.stderr.write(
+                "       Only proceed if you trust the author. Re-run with --allow-raw to accept.\n"
+            )
+            return 2
+        sys.stderr.write("note: running the author's commands (--allow-raw):\n")
+        sys.stderr.write("        build: %s\n" % raw_build)
+        if raw_run:
+            sys.stderr.write("        run:   %s\n" % raw_run)
 
     solution = os.path.abspath(args.solution)
     if not os.path.exists(solution):

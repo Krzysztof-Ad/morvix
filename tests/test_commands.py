@@ -193,3 +193,37 @@ def test_corrupt_project_is_diagnosed_not_hidden(py_project, make_ctx, tmp_path)
         ctx.require_project()
     assert "failed to load" in str(err.value)
     assert "init" not in str(err.value)  # never suggest paving over broken state
+
+
+# ---------------------------------------------------------------------------
+# open command: adopting a raw_build package warns about the author's commands
+# ---------------------------------------------------------------------------
+
+
+def test_open_warns_when_adopting_raw_build_package(tmp_path, make_ctx, capsys):
+    import json
+    import time
+
+    manifest = {
+        "morvix": "0.0.0",
+        "name": "received",
+        "model": "stdio",
+        "raw_build": "make",
+        "raw_run": "./a.out",
+        "cases": [],
+        "runners": {},
+    }
+    (tmp_path / "morvix.json").write_text(json.dumps(manifest))
+    # A received manifest predates adoption; backdate it so the mtime-based
+    # adoption detection cannot race the config write on a fast filesystem.
+    old = time.time() - 10
+    os.utime(tmp_path / "morvix.json", (old, old))
+
+    ctx = make_ctx(tmp_path)  # Context.create adopts the manifest
+    rc = safe_dispatch(ctx, ["open"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "author's own shell commands" in out
+    assert "make" in out
+    assert "--allow-raw" in out

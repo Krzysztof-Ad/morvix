@@ -82,6 +82,17 @@ def generate_readme(project) -> str:
         "- `--no-valgrind` — skip the memory checker even if it is installed\n"
     )
 
+    # A raw package executes the author's shell commands; the runner refuses
+    # without --allow-raw, so tell the receiver up front what those commands are.
+    if project.raw_build:
+        parts.append(
+            "> **Note:** this package builds and runs via the author's own shell commands\n"
+            f"> (`{project.raw_build}`"
+            + (f", then `{project.raw_run}`" if project.raw_run else "")
+            + "). `run.sh` will refuse to run them until you pass `--allow-raw`,\n"
+            "> so only do that if you trust the author.\n"
+        )
+
     # --- How to run WITH Morvix ---
     parts.append("## How to run (with Morvix)\n")
     parts.append(

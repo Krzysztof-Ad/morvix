@@ -63,6 +63,15 @@ def run(ctx, args) -> int:
     total = len(p.cases)
     ctx.messenger.plain(f"  language={lang}  model={p.model}  solution={solution}  cases={total}")
 
+    # A raw_build package executes the author's shell commands, not just the
+    # receiver's own code - say so the moment it is adopted.
+    if adopted and p.raw_build:
+        cmds = f"build: {p.raw_build}" + (f" / run: {p.raw_run}" if p.raw_run else "")
+        ctx.messenger.warning(
+            f"This package executes the author's own shell commands ({cmds}).",
+            hint="Make sure you trust the author. run.sh requires --allow-raw for these.",
+        )
+
     # A freshly adopted package has tests but no solution yet - point the receiver
     # at the two steps to check their own code.
     if adopted and not p.solution:
