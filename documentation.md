@@ -359,6 +359,8 @@ Compiling C++ with the right standard and flags, pointing at the right Python ve
 - `config java` — `javac`/`java` paths, classpath, source/target version.
 - `config rust` — `rustc`/`cargo`, edition, release vs debug.
 
+`config` with **no language** sets the project-wide *judging* defaults instead, so they can be changed (and baked into a shared package) without hand-editing JSON: `--compare <strategy>` (with `--checker`, `--epsilon-abs`, `--epsilon-rel`) and the default limits `--wall`/`--cpu`/`--memkb`/`--output-kb`. Previously these were reachable only at `init` or per-run.
+
 Settings are stored as JSON in the project (§25). There is also a **global config** for personal defaults (your usual C++ standard, your preferred color theme, your default Python) that every new project inherits and can override. Order of precedence: explicit command flags **>** project config **>** global config **>** built-in defaults.
 
 ### 9.3 The raw-command escape hatch
@@ -605,7 +607,7 @@ After a run, Morvix has, per case: pass/fail, the comparison verdict (and a diff
 
 ### 17.2 Live view (interactive)
 
-In the shell, results render through the shared live table component (§6.5): per-case status, timings, and summary counts, updating as the run proceeds. Color and verbosity are configurable (and disabled automatically for plain terminals/CI).
+In the shell, results render through the shared live table component (§6.5): per-case status, timings, and summary counts, updating as the run proceeds. Color and verbosity are configurable (and disabled automatically for plain terminals/CI). The summary ends with a **failure-mode rollup** — `Failures: wrong output 953, crashed 480, timed out 0` — so a big run tells you *how* it failed at a glance rather than only *that* it failed. `run --quiet` (and the shipped runner's `--quiet`/`--summary-only`) prints just that summary block, not the per-case stream, which keeps a thousand-case suite readable.
 
 ### 17.3 Saved/exported results
 
@@ -716,6 +718,8 @@ Morvix proactively notices situations where a better option exists and **offers*
 - **Crash-shaped cases with no exit-status expectation → suggest adding one.** If the solution exits non-zero or crashes on some generated inputs, Morvix points out those cases and offers to record the expected exit status/signal (§14.6) rather than treating the crash as a generation failure.
 - **Locale-sensitive output detected → confirm locale.** If output contains locale-dependent formatting, Morvix confirms the deterministic-locale default (§21.3).
 - **Missing stress oracle → explain the gap.** If you ask to stress-test without a registered `--stress` rival, Morvix explains that stress testing needs an independent trusted oracle and offers to register one (`rival add <path> --stress`).
+- **Whitespace comparison on space-free output → suggest exact.** After `gen --expected`, if the default `whitespace` strategy is in force but no computed answer contains a space or tab, Morvix notes that a stray space or a missing newline would still pass and points at `config --compare exact` (§14.2). This is the common case where the lenient default quietly weakens a suite.
+- **Multi-line answers → mention a checker.** Conversely, when every answer spans several lines under exact/whitespace comparison, a valid answer in a different order would be judged wrong; Morvix mentions that a `checker` (§14.4) accepts any valid answer if order isn't significant. Surfacing the checker — which already exists — is the point; it is otherwise easy to miss.
 
 These suggestions encode the judgment an experienced person would apply, surfaced at the moment it's relevant. They are advisory; the user always decides.
 

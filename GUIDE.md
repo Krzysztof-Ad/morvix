@@ -281,7 +281,7 @@ exit
 
 #### `config`
 
-Configure how a language is built and run (compiler, standard, flags, interpreter, classpath, link mode, ...). Opens a guided form, or takes flags. Includes the raw build/run command escape hatch for builds no preset captures.
+Configure how a language is built and run (compiler, standard, flags, interpreter, classpath, link mode, ...). Opens a guided form, or takes flags. Includes the raw build/run command escape hatch for builds no preset captures. Without a language, sets project-wide judging: the comparison strategy (--compare, with --checker / --epsilon-abs / --epsilon-rel) and the default limits (--wall/--cpu/--memkb/--output-kb), so they ship in the package without editing JSON.
 
 Arguments:
 
@@ -289,6 +289,14 @@ Arguments:
 
 Options:
 
+- `--compare COMPARE` - default comparison strategy  (one of: checker, exact, float, hash, whitespace)
+- `--checker CHECKER` - checker program for --compare checker
+- `--epsilon-abs EPSILON_ABS` - absolute tolerance for --compare float
+- `--epsilon-rel EPSILON_REL` - relative tolerance for --compare float
+- `--wall SEC` - default wall-clock limit
+- `--cpu SEC` - default cpu-time limit
+- `--memkb KB` - default address-space limit
+- `--output-kb KB` - default output-size limit
 - `--compiler COMPILER` - C/C++ compiler (e.g. g++, clang++)
 - `--std STD` - language standard (e.g. c++20, gnu23)
 - `--opt OPT` - optimisation level (e.g. O2)
@@ -310,6 +318,8 @@ Examples:
 ```
 config cpp
 config c --std gnu23 --opt O2
+config --compare exact
+config --compare float --epsilon-abs 1e-6 --wall 5
 config --raw-build 'make tester' --raw-run './tester'
 ```
 
@@ -413,7 +423,7 @@ Options:
 - `--suggest KIND` - OFF BY DEFAULT, network-gated: ask your --hook to draft a generator or inputs
 - `--hash` - with --expected: store output digests instead of files
 - `--count COUNT` - how many cases to generate (default 10)
-- `--seed SEED` - base random seed (default 1)
+- `--seed SEED` - base random seed (default 1); case i uses seed (base + i), so --count N --seed S spans seeds S..S+N-1
 - `--group GROUP` - target group (default depends on mode)
 - `--content CONTENT` - with --manual: the case's input text (or pipe it on stdin)
 - `--shape SHAPE` - with --random: input shape (default ints)  (one of: anti_dijkstra, anti_hash, anti_quicksort, array, caterpillar, edge, graph, grid, int, ints, kmp_worst, permutation, string, tree)
@@ -504,7 +514,7 @@ clean --group tricky
 
 #### `run`
 
-Builds the solution and runs it against the cases under the chosen limits and comparison, then shows a live results table. Pick scope with --all/--group/--case and toggle --time/--mem/--valgrind/--compare.
+Builds the solution and runs it against the cases under the chosen limits and comparison, then shows a live results table ending in a per-failure-mode rollup. Pick scope with --all/--group/--case and toggle --time/--mem/--valgrind/--compare; --quiet prints only the summary, handy for large suites.
 
 Options:
 
@@ -514,6 +524,7 @@ Options:
 - `--time` - show wall/cpu time per case (on by default for run)
 - `--mem` - show peak memory per case (on by default for run)
 - `--no-perf` - hide the performance summary at the end
+- `--quiet` - print only the summary (group totals, pass line, failure rollup), not per-case lines
 - `--diff` - show a unified diff under each case whose output differs
 - `--slowest N` - list the N slowest cases in the performance summary (default 5)
 - `--no-rivals` - skip the rival performance comparison
@@ -532,6 +543,7 @@ Examples:
 run --all
 run --group bad-input --time
 run --case edge1 --compare exact
+run --all --quiet
 ```
 
 #### `runner`

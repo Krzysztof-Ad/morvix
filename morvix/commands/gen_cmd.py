@@ -201,7 +201,13 @@ def configure(parser):
     parser.add_argument(
         "--count", type=int, default=10, help="how many cases to generate (default 10)"
     )
-    parser.add_argument("--seed", type=int, default=1, help="base random seed (default 1)")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=1,
+        help="base random seed (default 1); case i uses seed (base + i), so --count N "
+        "--seed S spans seeds S..S+N-1",
+    )
     parser.add_argument("--group", help="target group (default depends on mode)")
     parser.add_argument(
         "--content", help="with --manual: the case's input text (or pipe it on stdin)"
@@ -487,22 +493,27 @@ def _do_manual(ctx, project, args):
     # In one-shot use, accept input piped on stdin so `printf ... | gen --manual x`
     # works instead of silently creating an empty case. Reading stdin can fail when
     # it is a terminal or captured (e.g. under a test runner); fall back to empty.
+    piped = False
     if content is None and not ctx.interactive:
         import sys
 
         try:
             if not sys.stdin.isatty():
-                piped = sys.stdin.read()
-                content = piped if piped else None
+                # Keep a piped empty input as "" - an empty (EOF) case is deliberate.
+                content = sys.stdin.read()
+                piped = True
         except (OSError, ValueError):
             content = None
     case = generators.gen_manual(ctx, project, args.manual, group=group, content=content)
     ctx.save_project()
     ctx.messenger.success(f"Created manual case {case.id}.")
-    if content is None and not ctx.interactive:
+    # Only flag a truly accidental empty case: nothing piped and no --content. A
+    # deliberate EOF case (--content '' or a piped empty input) is left in peace.
+    if content is None and not piped and not ctx.interactive:
         ctx.messenger.warning(
             "The case input is empty.",
-            hint="Pass --content, pipe it in (printf ... | gen --manual NAME), or edit the file.",
+            hint="For a deliberate EOF/empty case pass --content '' to silence this; "
+            "otherwise pass --content TEXT or pipe it in.",
         )
     return 0
 
@@ -679,8 +690,36 @@ def _do_generator(ctx, project, args):
     ctx.messenger.success(
         f"Generated {len(cases)} case(s) in group '{group}' from {os.path.basename(path)}."
     )
+    cov = _coverage_summary(project, group)
+    if cov:
+        ctx.messenger.info(cov)
     _suggest_expected(ctx)
     return 0
+
+
+def _coverage_summary(project, group):
+    """A one-line read on what a generated group covers: how many cases and the
+    spread of input sizes, so you can trust coverage without inspecting files."""
+    sizes = []
+    for c in project.cases:
+        if c.group != group:
+            continue
+        rel = c.primary_input()
+        if not rel:
+            continue
+        try:
+            sizes.append(os.path.getsize(project.abspath(rel)))
+        except OSError:
+            pass
+    if not sizes:
+        return ""
+    n = len(sizes)
+    return "Coverage: %d case(s), input size %d-%d bytes (avg %d)." % (
+        n,
+        min(sizes),
+        max(sizes),
+        sum(sizes) // n,
+    )
 
 
 def _do_expected(ctx, project, args):

@@ -40,6 +40,11 @@ def configure(parser):
         "--no-perf", action="store_true", help="hide the performance summary at the end"
     )
     parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="print only the summary (group totals, pass line, failure rollup), not per-case lines",
+    )
+    parser.add_argument(
         "--diff",
         action="store_true",
         help="show a unified diff under each case whose output differs",
@@ -112,6 +117,7 @@ def run(ctx, args) -> int:
         show_perf=runner.report,
         slowest_n=runner.slowest,
         show_diff=args.diff,
+        show_cases=not args.quiet,
     )
     run_result = judge(
         project, project.solution, language, cases, runner=runner, on_case=table.update

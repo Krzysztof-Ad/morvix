@@ -9,6 +9,7 @@
 # After a change we print the adapter's one-line describe() summary.
 
 from morvix.adapters import get_adapter, list_languages
+from morvix.compare import list_strategies
 from morvix.components.form import Field, run_form
 from morvix.errors import UserError
 
@@ -22,6 +23,18 @@ def configure(parser):
         choices=list_languages(),
         help="language to configure (cpp, c, python, java, nasm, rust)",
     )
+    # Project-wide judging settings (no language needed). These used to be
+    # editable only at 'init' or per-run; setting them here bakes them into the
+    # shipped package without hand-editing config/project.json.
+    judging = parser.add_argument_group("judging (project-wide)")
+    judging.add_argument("--compare", choices=list_strategies(), help="default comparison strategy")
+    judging.add_argument("--checker", help="checker program for --compare checker")
+    judging.add_argument("--epsilon-abs", type=float, help="absolute tolerance for --compare float")
+    judging.add_argument("--epsilon-rel", type=float, help="relative tolerance for --compare float")
+    judging.add_argument("--wall", type=float, metavar="SEC", help="default wall-clock limit")
+    judging.add_argument("--cpu", type=float, metavar="SEC", help="default cpu-time limit")
+    judging.add_argument("--memkb", type=int, metavar="KB", help="default address-space limit")
+    judging.add_argument("--output-kb", type=int, metavar="KB", help="default output-size limit")
     parser.add_argument("--compiler", help="C/C++ compiler (e.g. g++, clang++)")
     parser.add_argument("--std", help="language standard (e.g. c++20, gnu23)")
     parser.add_argument("--opt", help="optimisation level (e.g. O2)")
@@ -114,11 +127,20 @@ def run(ctx, args) -> int:
         ctx.messenger.info("Raw commands override language presets.")
         return 0
 
+    # --- project-wide judging settings (comparison + limits, no language) ---
+    judging_changed = _apply_judging(project, args)
+
     lang = getattr(args, "language", None)
     if lang is None:
+        if judging_changed:
+            ctx.save_project()
+            ctx.messenger.success("Updated judging settings.")
+            ctx.messenger.info(_judging_summary(project))
+            return 0
         raise UserError(
             "Nothing to configure.",
-            hint="Pass a language (e.g. 'config cpp') or use --raw-build/--raw-run.",
+            hint="Pass a language (e.g. 'config cpp'), set judging (e.g. --compare exact, "
+            "--wall 5), or use --raw-build/--raw-run.",
         )
 
     cfg = dict(project.lang_config(lang))  # start from what's already stored
@@ -144,6 +166,45 @@ def run(ctx, args) -> int:
     ctx.messenger.success(f"Configured {lang}.")
     ctx.messenger.info(summary)
     return 0
+
+
+# Apply any project-wide judging flags that were given. Returns True if anything
+# changed, so the caller knows whether to save/report when no language is set.
+def _apply_judging(project, args):
+    changed = False
+    if getattr(args, "compare", None):
+        project.compare["strategy"] = args.compare
+        changed = True
+    if getattr(args, "checker", None):
+        project.compare["checker"] = args.checker
+        changed = True
+    if getattr(args, "epsilon_abs", None) is not None:
+        project.compare["epsilon_abs"] = args.epsilon_abs
+        changed = True
+    if getattr(args, "epsilon_rel", None) is not None:
+        project.compare["epsilon_rel"] = args.epsilon_rel
+        changed = True
+    for arg_name, key in (
+        ("wall", "wall"),
+        ("cpu", "cpu"),
+        ("memkb", "mem_kb"),
+        ("output_kb", "output_kb"),
+    ):
+        value = getattr(args, arg_name, None)
+        if value is not None:
+            project.limits[key] = value
+            changed = True
+    return changed
+
+
+def _judging_summary(project):
+    bits = ["compare=%s" % project.compare.get("strategy")]
+    if project.compare.get("strategy") == "checker" and project.compare.get("checker"):
+        bits.append("checker=%s" % project.compare["checker"])
+    limits = {k: v for k, v in project.limits.items() if v is not None}
+    if limits:
+        bits.append("limits " + ", ".join("%s=%s" % kv for kv in sorted(limits.items())))
+    return "Judging: " + "; ".join(bits)
 
 
 # Pull the flags relevant to this language off args, returning a config dict of
@@ -196,5 +257,8 @@ def complete(ctx, prev_words, word):
     # - after --link, suggest the two linkers
     if prev_words and prev_words[-1] == "--link":
         return [("gcc", "linker"), ("ld", "linker")]
+    # - after --compare, suggest the comparison strategies
+    if prev_words and prev_words[-1] == "--compare":
+        return [(s, "strategy") for s in list_strategies()]
     # - otherwise suggest language names for the positional
     return [(lang, "language") for lang in list_languages()]

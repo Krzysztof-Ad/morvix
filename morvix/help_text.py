@@ -63,13 +63,18 @@ COMMANDS = {
     # --- Define ---
     "config": {
         "stage": "define",
-        "summary": "Set build/run settings for a language.",
+        "summary": "Set build/run settings for a language, or project-wide judging.",
         "long": "Configure how a language is built and run (compiler, standard, flags, "
         "interpreter, classpath, link mode, ...). Opens a guided form, or takes flags. "
-        "Includes the raw build/run command escape hatch for builds no preset captures.",
+        "Includes the raw build/run command escape hatch for builds no preset captures. "
+        "Without a language, sets project-wide judging: the comparison strategy (--compare, "
+        "with --checker / --epsilon-abs / --epsilon-rel) and the default limits "
+        "(--wall/--cpu/--memkb/--output-kb), so they ship in the package without editing JSON.",
         "examples": [
             "config cpp",
             "config c --std gnu23 --opt O2",
+            "config --compare exact",
+            "config --compare float --epsilon-abs 1e-6 --wall 5",
             "config --raw-build 'make tester' --raw-run './tester'",
         ],
     },
@@ -155,12 +160,14 @@ COMMANDS = {
         "stage": "run",
         "summary": "Run the solution under test and report.",
         "long": "Builds the solution and runs it against the cases under the chosen limits and "
-        "comparison, then shows a live results table. Pick scope with --all/--group/--case "
-        "and toggle --time/--mem/--valgrind/--compare.",
+        "comparison, then shows a live results table ending in a per-failure-mode rollup. Pick "
+        "scope with --all/--group/--case and toggle --time/--mem/--valgrind/--compare; --quiet "
+        "prints only the summary, handy for large suites.",
         "examples": [
             "run --all",
             "run --group bad-input --time",
             "run --case edge1 --compare exact",
+            "run --all --quiet",
         ],
     },
     "runner": {
