@@ -1543,7 +1543,8 @@ class TablePrinter(object):
                 print("        " + dl)
 
     def finish(self, run_result):
-        print("")
+        if not self.quiet:
+            print("")
         print("By group:")
         for g, cs in run_result.by_group().items():
             p = sum(1 for c in cs if c.status == "pass")
