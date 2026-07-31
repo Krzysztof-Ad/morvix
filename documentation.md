@@ -607,7 +607,7 @@ After a run, Morvix has, per case: pass/fail, the comparison verdict (and a diff
 
 ### 17.2 Live view (interactive)
 
-In the shell, results render through the shared live table component (§6.5): per-case status, timings, and summary counts, updating as the run proceeds. Color and verbosity are configurable (and disabled automatically for plain terminals/CI). The summary ends with a **failure-mode rollup** — `Failures: wrong output 953, crashed 480, timed out 0` — so a big run tells you *how* it failed at a glance rather than only *that* it failed. `run --quiet` (and the shipped runner's `--quiet`/`--summary-only`) prints just that summary block, not the per-case stream, which keeps a thousand-case suite readable.
+In the shell, results render through the shared live table component (§6.5): per-case status, timings, and summary counts, updating as the run proceeds. Color and verbosity are configurable (and disabled automatically for plain terminals/CI). The summary ends with a **failure-mode rollup** — `Failures: wrong output 953, crashed 480` — so a big run tells you *how* it failed at a glance rather than only *that* it failed. `run --quiet` (and the shipped runner's `--quiet`/`--summary-only`) prints just that summary block, not the per-case stream, which keeps a thousand-case suite readable.
 
 ### 17.3 Saved/exported results
 
