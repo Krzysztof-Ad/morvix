@@ -852,6 +852,26 @@ class RunResult(object):
     def all_passed(self):
         return self.failed == 0 and self.total > 0
 
+    def failure_breakdown(self):
+        # Count failures by kind (mirrors morvix/results.py): wrong output vs a
+        # wrong exit vs a crash vs a timeout. (label, count) pairs, fixed order.
+        order = ["wrong output", "wrong exit", "crashed", "timed out", "error"]
+        counts = dict((k, 0) for k in order)
+        for c in self.cases:
+            if c.status not in ("fail", "error"):
+                continue
+            if c.timed_out:
+                counts["timed out"] += 1
+            elif c.signal:
+                counts["crashed"] += 1
+            elif c.status == "error":
+                counts["error"] += 1
+            elif c.exit_code not in (0, None):
+                counts["wrong exit"] += 1
+            else:
+                counts["wrong output"] += 1
+        return [(k, counts[k]) for k in order if counts[k]]
+
     def by_group(self):
         groups = {}
         for c in self.cases:
@@ -876,6 +896,13 @@ def fmt_mem_kb(kb):
 
 def pct(passed, total):
     return ("%.0f%%" % (100.0 * passed / total)) if total else "0%"
+
+
+def failure_line(run_result):
+    bd = run_result.failure_breakdown()
+    if not bd:
+        return ""
+    return "Failures: " + ", ".join("%s %d" % (label, n) for label, n in bd)
 
 
 def performance(run_result, slowest_n=5):
@@ -1017,6 +1044,11 @@ def result_to_markdown(run_result):
         "- Result: **%d/%d passed (%s)**" % (r.passed, r.total, pct(r.passed, r.total))
         + ((", %d failed" % r.failed) if r.failed else "")
         + ((", %d skipped" % r.skipped) if r.skipped else ""),
+    ]
+    _fl = failure_line(r)
+    if _fl:
+        lines.append("- " + _fl)
+    lines += [
         "- Memory: " + r.memory_note,
         "",
         "## By group",
@@ -1074,8 +1106,11 @@ def result_to_text(run_result):
         "  %d/%d passed (%s)" % (r.passed, r.total, pct(r.passed, r.total))
         + ((", %d failed" % r.failed) if r.failed else "")
         + ((", %d skipped" % r.skipped) if r.skipped else ""),
-        "",
     ]
+    _fl = failure_line(r)
+    if _fl:
+        lines.append("  " + _fl)
+    lines.append("")
     marks = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP", "error": "ERR "}
     for c in r.cases:
         mark = marks.get(c.status, "?")
@@ -1469,6 +1504,7 @@ class TablePrinter(object):
         self.opts = opts
         self.display = display  # {time, mem, perf, slowest}
         self.color = opts.color and sys.stdout.isatty()
+        self.quiet = getattr(opts, "quiet", False)  # --quiet: summary only
 
     def _c(self, text, code):
         if not self.color:
@@ -1476,10 +1512,14 @@ class TablePrinter(object):
         return "\033[%sm%s\033[0m" % (code, text)
 
     def start(self, cases):
+        if self.quiet:
+            return
         print("Running %d case(s)..." % len(cases))
         print("")
 
     def case_done(self, result):
+        if self.quiet:
+            return
         # A coloured badge, the case id, its time/memory, and the short verdict.
         marks = {
             "pass": ("PASS", "32"),
@@ -1503,7 +1543,8 @@ class TablePrinter(object):
                 print("        " + dl)
 
     def finish(self, run_result):
-        print("")
+        if not self.quiet:
+            print("")
         print("By group:")
         for g, cs in run_result.by_group().items():
             p = sum(1 for c in cs if c.status == "pass")
@@ -1519,6 +1560,9 @@ class TablePrinter(object):
         if run_result.skipped:
             summary += ", %d skipped" % run_result.skipped
         print(self._c(summary, "32" if run_result.all_passed else "31"))
+        fl = failure_line(run_result)
+        if fl:
+            print(fl)
         if self.display["perf"]:
             lines = perf_text_lines(
                 run_result, self.display["slowest"], self.display["time"], self.display["mem"]
@@ -1611,6 +1655,13 @@ def build_parser():
     _toggle(p, "valgrind", None, "run cases under valgrind memcheck (C/C++/asm)")
     _toggle(p, "diff", True, "show a unified diff on output mismatch")
     p.add_argument("--time", action="store_true", help="show per-case CPU time and peak memory")
+    p.add_argument(
+        "--quiet",
+        "--summary-only",
+        dest="quiet",
+        action="store_true",
+        help="print only the summary (group totals, pass line, failure rollup), not per-case lines",
+    )
     _toggle(p, "perf", None, "show the performance summary at the end")
     p.add_argument(
         "--slowest",

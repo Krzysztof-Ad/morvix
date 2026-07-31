@@ -9,7 +9,7 @@
 from rich.live import Live
 from rich.table import Table
 
-from morvix.results import fmt_mem_kb, fmt_secs, pct, perf_lines
+from morvix.results import failure_line, fmt_mem_kb, fmt_secs, pct, perf_lines
 
 _STATUS_STYLE = {"pass": "pass", "fail": "fail", "error": "fail", "skip": "skip"}
 
@@ -76,6 +76,10 @@ def _print_summary(console, run, show_perf, show_time, show_mem, slowest_n):
     overall_style = "success" if r.all_passed else "error"
     console.print(f"[{overall_style}]{summary}[/{overall_style}]")
 
+    fl = failure_line(r)
+    if fl:
+        console.print(f"[muted]{fl}[/muted]")
+
     if show_perf:
         lines = perf_lines(r, slowest_n=slowest_n, show_time=show_time, show_mem=show_mem)
         if lines:
@@ -96,6 +100,7 @@ class RunTable:
         show_perf=True,
         slowest_n=5,
         show_diff=False,
+        show_cases=True,
     ):
         self._console = console
         self._show_time = show_time
@@ -103,8 +108,9 @@ class RunTable:
         self._show_perf = show_perf
         self._slowest_n = slowest_n
         self._show_diff = show_diff
+        self._show_cases = show_cases  # --quiet: print only the summary
         self._table = _make_table(show_time, show_mem)
-        use_live = live and getattr(console.file, "isatty", lambda: False)()
+        use_live = live and show_cases and getattr(console.file, "isatty", lambda: False)()
         if use_live:
             self._live = Live(self._table, console=console, refresh_per_second=8)
             self._live.start()
@@ -112,6 +118,8 @@ class RunTable:
             self._live = None
 
     def update(self, case_result):
+        if not self._show_cases:
+            return
         _add_case_row(self._table, case_result, self._show_time, self._show_mem)
         if self._live:
             self._live.refresh()
@@ -119,7 +127,7 @@ class RunTable:
     def finish(self, run_result):
         if self._live:
             self._live.stop()
-        else:
+        elif self._show_cases:
             self._console.print(self._table)
         if self._show_diff:
             _print_diffs(self._console, run_result)

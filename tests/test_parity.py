@@ -195,6 +195,39 @@ def test_engine_and_runner_agree_on_every_dimension(tmp_path, make_ctx):
     assert engine["baseline/timeout"] == ("fail", True)
 
 
+def test_runner_exits_nonzero_when_cases_fail(tmp_path, make_ctx):
+    # The shipped runner (and run.sh, which exec's it) must report failure with a
+    # nonzero exit code so a Receiver can use it in scripts/CI. The fixture has
+    # failing cases on purpose.
+    ctx, proj = _build_project(tmp_path, make_ctx)
+    _parity_cases(proj, tmp_path)
+    write_manifest(proj)
+    shutil.copy2(RUNNER_SRC, str(tmp_path / "morvix_runner.py"))
+    proc = subprocess.run(
+        [sys.executable, "morvix_runner.py", "sol.py", "--all"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+
+
+def test_runner_quiet_suppresses_per_case_lines(tmp_path, make_ctx):
+    ctx, proj = _build_project(tmp_path, make_ctx)
+    _parity_cases(proj, tmp_path)
+    write_manifest(proj)
+    shutil.copy2(RUNNER_SRC, str(tmp_path / "morvix_runner.py"))
+    proc = subprocess.run(
+        [sys.executable, "morvix_runner.py", "sol.py", "--all", "--quiet"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+    # The overall summary still prints, but no per-case PASS/FAIL stream.
+    assert "passed (" in proc.stdout
+    assert "[PASS]" not in proc.stdout and "[FAIL]" not in proc.stdout
+
+
 @pytest.mark.skipif(os.name != "posix", reason="signals are POSIX-only")
 def test_signal_dimension_agrees(tmp_path, make_ctx):
     ctx, proj = _build_project(tmp_path, make_ctx)

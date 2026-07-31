@@ -100,6 +100,27 @@ class RunResult:
     def all_passed(self) -> bool:
         return self.failed == 0 and self.total > 0
 
+    def failure_breakdown(self) -> List[tuple]:
+        """Count failures by kind, so a big run says *how* it failed at a glance:
+        wrong output vs a wrong exit vs a crash vs a timeout (plus internal errors). Returns
+        (label, count) pairs in a fixed order, dropping the empty ones."""
+        order = ["wrong output", "wrong exit", "crashed", "timed out", "error"]
+        counts = {k: 0 for k in order}
+        for c in self.cases:
+            if c.status not in ("fail", "error"):
+                continue
+            if c.timed_out:
+                counts["timed out"] += 1
+            elif c.signal:
+                counts["crashed"] += 1
+            elif c.status == "error":
+                counts["error"] += 1
+            elif c.exit_code not in (0, None):
+                counts["wrong exit"] += 1
+            else:
+                counts["wrong output"] += 1
+        return [(k, counts[k]) for k in order if counts[k]]
+
     def by_group(self) -> Dict[str, List[CaseResult]]:
         groups: Dict[str, List[CaseResult]] = {}
         for c in self.cases:
@@ -136,6 +157,14 @@ def fmt_mem_kb(kb: int) -> str:
 
 def pct(passed: int, total: int) -> str:
     return "%.0f%%" % (100.0 * passed / total) if total else "0%"
+
+
+def failure_line(run: "RunResult") -> str:
+    """One-line rollup of how the failing cases failed, or "" if all passed."""
+    bd = run.failure_breakdown()
+    if not bd:
+        return ""
+    return "Failures: " + ", ".join("%s %d" % (label, n) for label, n in bd)
 
 
 # --- performance aggregation (the single source for perf figures) ---
@@ -234,6 +263,11 @@ def to_markdown(run: RunResult) -> str:
         f"- Result: **{run.passed}/{run.total} passed ({pct(run.passed, run.total)})**"
         + (f", {run.failed} failed" if run.failed else "")
         + (f", {run.skipped} skipped" if run.skipped else ""),
+    ]
+    fl = failure_line(run)
+    if fl:
+        lines.append(f"- {fl}")
+    lines += [
         f"- Memory: {run.memory_note}",
         "",
         "## By group",
@@ -289,8 +323,11 @@ def to_text(run: RunResult) -> str:
         f"  {run.passed}/{run.total} passed ({pct(run.passed, run.total)})"
         + (f", {run.failed} failed" if run.failed else "")
         + (f", {run.skipped} skipped" if run.skipped else ""),
-        "",
     ]
+    fl = failure_line(run)
+    if fl:
+        lines.append("  " + fl)
+    lines.append("")
     for c in run.cases:
         mark = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP", "error": "ERR "}.get(c.status, "?")
         line = f"  [{mark}] {c.case_id}  {fmt_secs(c.wall_time)}"

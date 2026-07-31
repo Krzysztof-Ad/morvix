@@ -36,6 +36,50 @@ def warn_degenerate_expected(ctx, outputs):
         )
 
 
+def _decoded(outputs):
+    # Suggestions work on the computed answers, which arrive as bytes.
+    return [o.decode("utf-8", "replace") if isinstance(o, bytes) else o for o in outputs]
+
+
+def warn_whitespace_masks_format(ctx, project, outputs):
+    """When the default 'whitespace' comparison is in force but the answers carry
+    no internal spaces or tabs, formatting bugs (a stray space, a missing newline)
+    slip through silently - 'exact' would catch them. Point that out (Section 22).
+    """
+    if project.compare.get("strategy") != "whitespace":
+        return
+    texts = [t for t in _decoded(outputs) if t.strip()]
+    if len(texts) < DEGENERATE_MIN:
+        return
+    if any(" " in t or "\t" in t for t in texts):
+        return
+    ctx.messenger.warning(
+        "Your expected outputs have no spaces or tabs, but comparison is 'whitespace' "
+        "(which ignores spacing and trailing newlines).",
+        hint="A stray space or missing newline would pass. Use exact comparison to catch "
+        "format bugs:  config --compare exact",
+    )
+
+
+def suggest_checker_for_ordering(ctx, project, outputs):
+    """When every answer spans multiple lines under exact/whitespace comparison,
+    a different-but-equally-valid ordering would be judged wrong. If order is not
+    significant, a checker accepts any valid answer - mention it once (Section 22).
+    """
+    if project.compare.get("strategy") not in ("exact", "whitespace"):
+        return
+    texts = [t for t in _decoded(outputs) if t.strip()]
+    if len(texts) < DEGENERATE_MIN:
+        return
+    if not all(len(t.strip().splitlines()) > 1 for t in texts):
+        return
+    ctx.messenger.info(
+        "Every expected answer has multiple lines. If their order is not significant, "
+        "exact/whitespace comparison will reject a valid answer in a different order - "
+        "a checker accepts any valid one:  config --compare checker --checker <prog>"
+    )
+
+
 def suggest_hashing(ctx, project, group, output_bytes):
     # If the combined expected output for a group is large, hashing saves disk
     # space but loses per-failure diffs (Section 22).

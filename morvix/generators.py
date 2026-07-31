@@ -588,6 +588,10 @@ def gen_expected(
     # If almost every answer is empty or identical, the inputs likely don't match
     # the program's format - tell the user (Section 22).
     suggestions.warn_degenerate_expected(ctx, clean_outputs)
+    # The chosen comparison may be too lax (whitespace on space-free output) or
+    # too strict (exact on order-insensitive output) - nudge, never change.
+    suggestions.warn_whitespace_masks_format(ctx, project, clean_outputs)
+    suggestions.suggest_checker_for_ordering(ctx, project, clean_outputs)
     if unstable:
         suggestions.warn_unstable_answers(ctx, unstable)
     # Trust guard: if EVERY computed case errored with the same exit code and not
