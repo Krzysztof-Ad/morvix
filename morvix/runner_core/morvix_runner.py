@@ -854,7 +854,7 @@ class RunResult(object):
 
     def failure_breakdown(self):
         # Count failures by kind (mirrors morvix/results.py): wrong output vs a
-        # crash vs a timeout vs a wrong exit. (label, count) pairs, fixed order.
+        # wrong exit vs a crash vs a timeout. (label, count) pairs, fixed order.
         order = ["wrong output", "wrong exit", "crashed", "timed out", "error"]
         counts = dict((k, 0) for k in order)
         for c in self.cases:
