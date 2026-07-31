@@ -102,7 +102,7 @@ class RunResult:
 
     def failure_breakdown(self) -> List[tuple]:
         """Count failures by kind, so a big run says *how* it failed at a glance:
-        wrong output vs a crash vs a timeout vs a wrong exit code. Returns
+        wrong output vs a wrong exit vs a crash vs a timeout (plus internal errors). Returns
         (label, count) pairs in a fixed order, dropping the empty ones."""
         order = ["wrong output", "wrong exit", "crashed", "timed out", "error"]
         counts = {k: 0 for k in order}
