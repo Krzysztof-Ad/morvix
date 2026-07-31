@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Krzysztof-Ad/morvix/compare/v0.9.0...v0.10.0) (2026-07-31)
+
+
+### Features
+
+* configurable judging, run summary rollup, and smarter comparison hints ([#12](https://github.com/Krzysztof-Ad/morvix/issues/12)) ([a289798](https://github.com/Krzysztof-Ad/morvix/commit/a289798cebcc695c93cf07b5061fb9c8ed2eb1f8))
+
 ## [0.9.0](https://github.com/Krzysztof-Ad/morvix/compare/v0.8.1...v0.9.0) (2026-06-10)
 
 
